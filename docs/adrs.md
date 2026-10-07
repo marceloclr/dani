@@ -346,5 +346,12 @@ Testes: lógica, parsing de CSV e de IFC no Vitest (Node). Exportação de víde
   - madeira com tábuas e veios no lugar das listras.
 - **Controles:** botão **Drone** (W A S D/setas, E/Q, arrastar para olhar, roda para a velocidade, Esc; direcional na tela para o toque) e **Voo automático** na viewport; câmera **Drone: voo e passeio** no vídeo, com a obra montada na primeira metade.
 - **Marca:** slogan "Produtor de Vídeos das obras da Super Influencer Dani, a engenheira." no cabeçalho, na tela inicial, no rodapé do relatório e numa faixa discreta no canto do vídeo (desligável).
+- **Revisão de 2026-10-07 (pedidos: "colide com paredes, atravessa portas, deveria abrir para então entrar"; "humano flutuando do lado de fora"; "a velocidade deve ser sempre a mesma"):**
+  - a travessia da obra só usa o interior (a grade fora das paredes fica bloqueada); sem caminho livre não há reta de reserva; a descida aérea termina de frente para a porta de entrada e a subida sai pelo lado da porta usada;
+  - o caminho passa pelo meio de cada vão, mantém distância também das folhas fechadas e troca recuos curtos e viradas fechadas por curvas; a meia-volta (no quarto) é uma curva em gota;
+  - **portas abrem**: cada passagem por um vão é localizada no tempo do voo; a folha começa a abrir 2,6 m antes, está toda aberta a 1,2 m e fecha depois, girando 90° para o lado em que o drone segue (ele empurra a porta), com a dobradiça do lado oposto ao que ele vira depois do vão; só abrem as portas atravessadas. No drone manual, abrem pela proximidade, com a câmera de frente para o vão;
+  - **velocidade constante**: o tempo do voo é refeito pelo comprimento percorrido (tabela de 8.000 amostras); a obra é montada até o ponto do caminho correspondente e a aba Vídeo mostra metros e m/s;
+  - **pessoas sobre piso**: só ficam onde há laje ou piso até 35 cm abaixo dos pés;
+  - teste: o voo inteiro dos dois modelos não atravessa paredes nem portas (com as folhas giradas no tempo certo) e fica a pelo menos 25 cm da obra.
 - **Limites:** escadas em L ou em U são percorridas em linha reta entre o pé e o topo; sem porta externa, o voo fica do lado de fora; o modelo paramétrico ainda não tem mobília.
 

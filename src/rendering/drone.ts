@@ -12,6 +12,8 @@ import {
   gradeDoPavimento,
   indice,
   livreEm,
+  arredondar,
+  semVaivem,
   maisDistante,
   visada,
   pontoEm,
@@ -30,15 +32,50 @@ export interface QuadroCamera {
   pos: P3;
   alvo: P3;
   fov: number;
+  /** Portas abertas neste instante do voo automático: abertura (0 a 1) e lado do giro. */
+  portas?: Map<string, EstadoPorta>;
 }
 
-/** Fração do vídeo em que a obra é montada; o resto mostra a obra pronta. */
+export interface EstadoPorta {
+  abertura: number;
+  lado: 1 | -1;
+}
+
+/** Fração (antes de igualar a velocidade) em que a obra termina de ser montada. */
 export const FRACAO_CONSTRUCAO = 0.5;
 
-/** Dia da obra no instante u (0..1) do voo: a obra termina em FRACAO_CONSTRUCAO e fica pronta. */
-export function diaDoVoo(u: number, diasDeObra: number): number {
-  if (u >= FRACAO_CONSTRUCAO) return diasDeObra - 1e-6;
-  return (u / FRACAO_CONSTRUCAO) * diasDeObra;
+/** Dia da obra no instante u (0..1) do voo: a obra é montada até `fim` (Voo.fimConstrucao) e fica pronta. */
+export function diaDoVoo(u: number, diasDeObra: number, fim = FRACAO_CONSTRUCAO): number {
+  if (u >= fim) return diasDeObra - 1e-6;
+  return (u / fim) * diasDeObra;
+}
+
+/**
+ * Velocidade constante: refaz o tempo do voo pelo comprimento percorrido pela câmera, para o drone
+ * andar sempre na mesma velocidade (sem acelerar em transições, órbitas ou dentro da casa).
+ */
+function velocidadeConstante(bruto: (u: number) => QuadroCamera, marcas: number[]): { quadro: (u: number) => QuadroCamera; marcas: number[]; comprimento: number } {
+  const N = 8000;
+  const acum = new Float64Array(N + 1);
+  let ant = bruto(0).pos;
+  for (let i = 1; i <= N; i++) {
+    const p = bruto(i / N).pos;
+    acum[i] = acum[i - 1] + Math.hypot(p[0] - ant[0], p[1] - ant[1], p[2] - ant[2]);
+    ant = p;
+  }
+  const total = acum[N] || 1;
+  const quadro = (u: number) => {
+    const alvo = Math.min(Math.max(u, 0), 1) * total;
+    let lo = 0, hi = N;
+    while (hi - lo > 1) {
+      const m = (lo + hi) >> 1;
+      if (acum[m] < alvo) lo = m;
+      else hi = m;
+    }
+    const t = acum[hi] > acum[lo] ? (alvo - acum[lo]) / (acum[hi] - acum[lo]) : 0;
+    return bruto((lo + t) / N);
+  };
+  return { quadro, marcas: marcas.map((m) => acum[Math.round(m * N)] / total), comprimento: total };
 }
 
 interface Trecho {
@@ -58,10 +95,33 @@ export interface Voo {
   pessoas: { pos: P3; olhar: P2 }[];
   /** Portas que abrem quando o drone chega perto. */
   folhas: Folha[];
+  /** Instante (0..1) em que a obra fica pronta, com a velocidade constante. */
+  fimConstrucao: number;
+  /** Comprimento do voo, em metros (velocidade = comprimento ÷ duração do vídeo). */
+  comprimento: number;
+}
+
+/** Há laje ou piso logo abaixo dos pés (até 35 cm)? Evita pessoa flutuando fora da casa. */
+function temPiso(pisos: Solido[], x: number, z: number, y: number): boolean {
+  for (const s of pisos) {
+    const p = s.posicoes, ix = s.indices;
+    for (let t = 0; t + 2 < ix.length; t += 3) {
+      const a = ix[t] * 3, b = ix[t + 1] * 3, c = ix[t + 2] * 3;
+      const ya = p[a + 1], yb = p[b + 1], yc = p[c + 1];
+      const ym = (ya + yb + yc) / 3;
+      if (ym > y + 0.1 || ym < y - 0.35 || Math.max(ya, yb, yc) - Math.min(ya, yb, yc) > 0.05) continue;
+      // ponto dentro do triângulo, em planta
+      const d1 = (x - p[b]) * (p[a + 2] - p[b + 2]) - (p[a] - p[b]) * (z - p[b + 2]);
+      const d2 = (x - p[c]) * (p[b + 2] - p[c + 2]) - (p[b] - p[c]) * (z - p[c + 2]);
+      const d3 = (x - p[a]) * (p[c + 2] - p[a + 2]) - (p[c] - p[a]) * (z - p[a + 2]);
+      if (!((d1 < 0 || d2 < 0 || d3 < 0) && (d1 > 0 || d2 > 0 || d3 > 0))) return true;
+    }
+  }
+  return false;
 }
 
 /** Ponto livre perto de `perto`, visível do passeio (entre 1,2 e 3,5 m dele) sem ficar no caminho. */
-function lugarDePessoa(g: Grade, passeio: P3[], perto: P2, y: number): { pos: P3; olhar: P2 } | null {
+function lugarDePessoa(g: Grade, passeio: P3[], perto: P2, y: number, pisos: Solido[]): { pos: P3; olhar: P2 } | null {
   const casados = passeio.filter((p) => Math.abs(p[1] - (y + ALTURA_OLHOS)) < 0.5);
   if (!casados.length) return null;
   let melhor: { pos: P3; olhar: P2 } | null = null, nota = Infinity;
@@ -69,6 +129,7 @@ function lugarDePessoa(g: Grade, passeio: P3[], perto: P2, y: number): { pos: P3
     for (let z = perto[1] - 5; z <= perto[1] + 5; z += 0.3) {
       // folga de meio metro em volta do corpo
       if (![[0, 0], [0.4, 0], [-0.4, 0], [0, 0.4], [0, -0.4]].every(([dx, dz]) => livreEm(g, x + dx, z + dz))) continue;
+      if (!temPiso(pisos, x, z, y)) continue;
       let dMin = Infinity, maisPerto: P3 = casados[0];
       for (const p of casados) {
         const d = Math.hypot(p[0] - x, p[2] - z);
@@ -157,6 +218,8 @@ export interface Folha {
   largura: number;
   /** O drone passa por ela? Só essas abrem; as outras ficam fechadas. */
   atravessada: boolean;
+  /** Dobradiça na ponta de coordenada maior (a folha sai dela no sentido negativo). */
+  inversa?: boolean;
 }
 
 /**
@@ -173,13 +236,13 @@ export function aberturaDaPorta(f: Folha, cam: P3 | null): number {
 }
 
 /** Giro da folha em torno de Y (radianos) para a abertura dada; 90° com a porta toda aberta. */
-export function anguloDaPorta(f: Folha, abertura: number): number {
-  return (f.eixo === "x" ? -f.lado : f.lado) * (Math.PI / 2) * abertura;
+export function anguloDaPorta(f: Folha, abertura: number, lado: 1 | -1 = f.lado): number {
+  return (f.eixo === "x" ? -lado : lado) * (f.inversa ? -1 : 1) * (Math.PI / 2) * abertura;
 }
 
 /** Ponto da folha depois do giro (mesma convenção do Three.js para rotation.y). */
-export function girarNaDobradica(f: Folha, abertura: number, p: P3): P3 {
-  const t = anguloDaPorta(f, abertura), c = Math.cos(t), s = Math.sin(t);
+export function girarNaDobradica(f: Folha, abertura: number, p: P3, lado: 1 | -1 = f.lado): P3 {
+  const t = anguloDaPorta(f, abertura, lado), c = Math.cos(t), s = Math.sin(t);
   const x = p[0] - f.dobradica[0], z = p[2] - f.dobradica[1];
   return [f.dobradica[0] + x * c + z * s, p[1], f.dobradica[1] - x * s + z * c];
 }
@@ -207,6 +270,55 @@ function folhas(lista: Porta[], caminhos: P3[][]): Folha[] {
       }
     return { guid: p.guid, centro: p.centro, dobradica, eixo, lado, largura: p.largura, atravessada };
   });
+}
+
+/**
+ * Portas no voo automático: cada passagem por um vão é localizada no tempo; a porta começa a abrir
+ * 2,6 m antes, está toda aberta a 1,2 m do vão e fecha depois, sempre girando para o lado em que o
+ * drone segue naquela passagem (ele empurra a porta). Nada abre de repente perto da câmera.
+ */
+function comPortas(quadro: (u: number) => QuadroCamera, comprimento: number, lista: Folha[]): (u: number) => QuadroCamera {
+  const N = 6000;
+  const passagens: { guid: string; u: number; lado: 1 | -1 }[] = [];
+  let ant = quadro(0).pos;
+  for (let i = 1; i <= N; i++) {
+    const u = i / N, p = quadro(u).pos;
+    for (const f of lista) {
+      const n = f.eixo === "x" ? 2 : 0, ao = f.eixo === "x" ? 0 : 2;
+      const da = ant[n] - f.centro[n], db = p[n] - f.centro[n];
+      if (da * db >= 0) continue;
+      const t = da / (da - db);
+      if (Math.abs(ant[ao] + (p[ao] - ant[ao]) * t - f.centro[ao]) > f.largura / 2 + 0.1) continue;
+      if (Math.abs(ant[1] + (p[1] - ant[1]) * t - (f.centro[1] + ALTURA_OLHOS)) > 1.2) continue;
+      passagens.push({ guid: f.guid, u, lado: db > da ? 1 : -1 });
+    }
+    ant = p;
+  }
+  // dobradiça do lado oposto ao que o drone segue depois do vão: a folha aberta fica longe dele
+  for (const f of lista) {
+    const ao = f.eixo === "x" ? 0 : 2;
+    let voto = 0;
+    for (const x of passagens.filter((y) => y.guid === f.guid)) {
+      const depois = quadro(Math.min(x.u + 1.8 / comprimento, 1)).pos;
+      voto += Math.sign(depois[ao] - f.centro[ao]);
+    }
+    if (voto < 0) {
+      // drone vai para o lado do mínimo: dobradiça na outra ponta da folha
+      if (f.eixo === "x") f.dobradica = [2 * f.centro[0] - f.dobradica[0], f.dobradica[1]];
+      else f.dobradica = [f.dobradica[0], 2 * f.centro[2] - f.dobradica[1]];
+      f.inversa = true;
+    }
+  }
+  return (u) => {
+    const q = quadro(u);
+    const portas = new Map<string, EstadoPorta>();
+    for (const x of passagens) {
+      const d = Math.abs(u - x.u) * comprimento; // metros até o vão, pelo caminho
+      const a = suave(Math.min(Math.max((2.6 - d) / (2.6 - 1.2), 0), 1));
+      if (a > (portas.get(x.guid)?.abertura ?? 0)) portas.set(x.guid, { abertura: a, lado: x.lado });
+    }
+    return { ...q, portas };
+  };
 }
 
 /** Une as partes num voo só, cada parte ocupando a fração de tempo dada. */
@@ -237,6 +349,33 @@ function ligar(g: Grade, a: P2, b: P2, y: number, vaos: Porta[] = []): P3[] | nu
   return c ? pelosCentros(suavizarSeguro(g, c.map((p) => no(p, y))), vaos) : null;
 }
 
+/**
+ * Ida e volta sem parar: no fim do caminho, faz meia-volta numa curva (raio 0,5 m) para o lado livre
+ * e volta pelo mesmo caminho. Sem espaço para a curva, volta direto.
+ */
+function idaEVolta(g: Grade, ida: P3[]): P3[] {
+  const volta = [...ida].reverse().slice(1);
+  if (ida.length < 2) return [...ida, ...volta];
+  const e = ida[ida.length - 1], a = ida[ida.length - 2];
+  const d = Math.hypot(e[0] - a[0], e[2] - a[2]) || 1;
+  const dir: P2 = [(e[0] - a[0]) / d, (e[2] - a[2]) / d];
+  for (const r of [0.5, 0.35, 0.25])
+  for (const lado of [1, -1]) {
+    const perp: P2 = [-dir[1] * lado, dir[0] * lado];
+    const c: P2 = [e[0] + perp[0] * r, e[2] + perp[1] * r];
+    const arco: P3[] = [];
+    for (let k = 1; k <= 8; k++) {
+      // de e (ângulo de −perp) a e + 2r·perp, passando pela frente (dir)
+      const t = (k / 8) * Math.PI;
+      const vx = -perp[0] * Math.cos(t) + dir[0] * Math.sin(t), vz = -perp[1] * Math.cos(t) + dir[1] * Math.sin(t);
+      arco.push([c[0] + vx * r, e[1], c[1] + vz * r]);
+    }
+    const ok = arco.every((p) => livreEm(g, p[0], p[2])) && (!volta.length || visada(g, [arco[7][0], arco[7][2]], [volta[0][0], volta[0][2]]));
+    if (ok) return [...ida, ...arco, ...volta];
+  }
+  return [...ida, ...volta];
+}
+
 /** Passa pelo meio de cada vão de porta atravessado, longe dos batentes e da folha aberta. */
 function pelosCentros(pts: P3[], vaos: Porta[]): P3[] {
   const out: P3[] = [pts[0]];
@@ -251,8 +390,9 @@ function pelosCentros(pts: P3[], vaos: Porta[]): P3[] {
       if (Math.abs(a[ao] + (b[ao] - a[ao]) * t - p.centro[ao]) > p.largura / 2 + 0.2) continue;
       const s = Math.sign(db - da), y = a[1];
       const antes: P3 = [p.centro[0], y, p.centro[2]], depois: P3 = [p.centro[0], y, p.centro[2]];
-      antes[n] -= s * 1.0;
-      depois[n] += s * 1.0;
+      // sem passar dos pontos vizinhos (senão a câmera iria e voltaria)
+      antes[n] -= s * Math.min(1.0, Math.abs(da) * 0.9);
+      depois[n] += s * Math.min(1.0, Math.abs(db) * 0.9);
       out.push(antes, depois);
     }
     out.push(b);
@@ -328,11 +468,11 @@ export function montarVoo(solidos: Solido[], caixa: { min: P3; max: P3 }, centro
   let passagem: P3[] = [];
   if (entrada) {
     // entra pela porta da frente, atravessa por dentro e sai pela dos fundos (ou volta)
-    const fundo = maisDistante(gTerreo, dentroDa(entrada, 0.8), interior, centrosT) ?? dentroDa(entrada, 2);
+    const fundo = maisDistante(gTerreo, dentroDa(entrada, 0.8), interior, centrosT, 1.8, 0.9) ?? dentroDa(entrada, 2);
     const atravessa = saida ? ligar(gTerreo, dentroDa(entrada, 0.8), dentroDa(saida, 0.8), olho, listaPortas) : null;
     const dentroIda = atravessa ?? ligar(gTerreo, dentroDa(entrada, 0.8), fundo, olho, listaPortas) ?? [no(dentroDa(entrada, 0.8), olho)];
     const ida = [no(fora(entrada, 4), olho), no(fora(entrada, 0.4), olho), ...dentroIda, ...(atravessa ? [no(fora(saida!, 0.4), olho), no(fora(saida!, 3), olho)] : [])];
-    passagem = atravessa ? ida : [...ida, ...[...ida].reverse().slice(1)];
+    passagem = arredondar(semVaivem(atravessa ? ida : idaEVolta(gTerreo, ida)));
     const p0 = passagem[0];
     construcao.push(transicao(voo1(1), { pos: p0, alvo: no(fora(entrada, 0), olho), fov: 60 }, 1.2));
     construcao.push({ ...seguir(passagem, 62, 2.5, 0.3), peso: 2.6 });
@@ -386,21 +526,20 @@ export function montarVoo(solidos: Solido[], caixa: { min: P3; max: P3 }, centro
       const fx = [escada.baixo[0], escada.alto[0]], fz = [escada.baixo[2], escada.alto[2]];
       bloquear(gCima, Math.min(...fx) - 0.2, Math.min(...fz) - 0.2, Math.max(...fx) + 0.2, Math.max(...fz) + 0.2);
       const desembarque = alto;
-      const quarto = maisDistante(gCima, desembarque, interior, portasCima.map((p) => [p.centro[0], p.centro[2]] as P2)) ?? desembarque;
+      const quarto = maisDistante(gCima, desembarque, interior, portasCima.map((p) => [p.centro[0], p.centro[2]] as P2), 1.8, 0.9) ?? desembarque;
       ancoras.push({ g: gCima, perto: quarto, y: escada.pisoAlto });
       const ida = ligar(gCima, desembarque, quarto, olhoAlto, portasCima) ?? [no(desembarque, olhoAlto)];
-      pontos.push(ida);
-      pontos.push([...ida].reverse());
+      pontos.push(idaEVolta(gCima, ida));
       pontos.push([...subida].reverse());
-      const sala = maisDistante(gTerreo, baixo, interior, centrosT) ?? interno;
+      const sala = maisDistante(gTerreo, baixo, interior, centrosT, 1.8, 0.9) ?? interno;
       ancoras.push({ g: gTerreo, perto: sala, y: piso });
       pontos.push(ligar(gTerreo, baixo, sala, olho, listaPortas) ?? []);
     } else {
-      const fundo = maisDistante(gTerreo, interno, interior, centrosT) ?? interno;
+      const fundo = maisDistante(gTerreo, interno, interior, centrosT, 1.8, 0.9) ?? interno;
       ancoras.push({ g: gTerreo, perto: fundo, y: piso });
       pontos.push(ligar(gTerreo, interno, fundo, olho, listaPortas) ?? []);
     }
-    passeio = pontos.flat().filter((p, i, l) => i === 0 || Math.hypot(p[0] - l[i - 1][0], p[1] - l[i - 1][1], p[2] - l[i - 1][2]) > 0.05);
+    passeio = arredondar(semVaivem(pontos.flat().filter((p, i, l) => i === 0 || Math.hypot(p[0] - l[i - 1][0], p[1] - l[i - 1][1], p[2] - l[i - 1][2]) > 0.05)));
   }
   const interno: Trecho[] = [];
   if (passeio.length > 1) {
@@ -414,10 +553,11 @@ export function montarVoo(solidos: Solido[], caixa: { min: P3; max: P3 }, centro
     { fracao: 0.4, quadro: encadear(fachadas) },
     { fracao: 0.6, quadro: encadear(interno) },
   ]);
-  const quadro = porFracoes([
+  const bruto = porFracoes([
     { fracao: FRACAO_CONSTRUCAO, quadro: encadear(construcao) },
     { fracao: 1 - FRACAO_CONSTRUCAO, quadro: pronto },
   ]);
+  const vc = velocidadeConstante(bruto, [FRACAO_CONSTRUCAO]);
   const resumo = [
     entrada ? "entra pela porta da frente" : "sem porta externa: voo só por fora",
     escada ? "sobe e desce a escada" : "sem escada: passeio pelo térreo",
@@ -434,9 +574,12 @@ export function montarVoo(solidos: Solido[], caixa: { min: P3; max: P3 }, centro
   } else {
     pessoas.push({ pos: [centro[0] - 1, piso, caixa.max[2] + 3], olhar: [0, -1] }, { pos: [centro[0] + 0.2, piso, caixa.max[2] + 3.3], olhar: [-0.7, -0.7] });
   }
+  const pisos = solidos.filter((s) => s.ifcType === "IfcSlab" || s.ifcType === "IfcCovering");
   for (const an of ancoras) {
-    const lugar = lugarDePessoa(an.g, passeio, an.perto, an.y);
+    const lugar = lugarDePessoa(an.g, passeio, an.perto, an.y, pisos);
     if (lugar) pessoas.push(lugar);
   }
-  return { quadro, passeio, temEscada: !!escada, entrada, resumo, pessoas, folhas: folhas(todasPortas, [passagem, passeio]) };
+  const listaFolhas = folhas(todasPortas, [passagem, passeio]);
+  const quadro = comPortas(vc.quadro, vc.comprimento, listaFolhas);
+  return { quadro, passeio, temEscada: !!escada, entrada, resumo, pessoas, folhas: listaFolhas, fimConstrucao: vc.marcas[0], comprimento: vc.comprimento };
 }

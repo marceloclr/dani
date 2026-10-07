@@ -114,7 +114,7 @@ export function Viewport() {
     previa.current = new PreviaVoo(
       cena.current,
       Math.max(s.video.segundos, 30),
-      (u) => dias && st().definirDia(diaDoVoo(u, dias)),
+      (u) => dias && st().definirDia(diaDoVoo(u, dias, cena.current?.voo()?.fimConstrucao)),
       () => {
         previa.current = null;
         setModoDrone(null);

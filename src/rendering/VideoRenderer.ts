@@ -144,7 +144,6 @@ export async function gerarVideo(cena: Cena, pedido: PedidoVideo): Promise<Arqui
     p.aplicarDia(p.diaNoQuadro ? p.diaNoQuadro(i, total) : diaDoQuadro(i, total, p.diasDeObra));
     if (p.quadroLivre) {
       cena.posicionarLivre(camera, p.quadroLivre(i / p.fps));
-      cena.atualizarPortas(camera.position); // as portas abrem quando o drone chega
     } else cena.posicionar(camera, p.poseNoTempo(i / p.fps));
     desenhista.desenhar(camera);
     if (marca) {

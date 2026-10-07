@@ -13,7 +13,7 @@ import { parametros, type PosicaoElemento, type PosicaoFila } from "../fourd/ani
 import type { Desvio, EstadoElemento, ModoAnimacao, PlantaSobreposta } from "../types";
 import { distanciaDeEnquadramento, poseDaPosicao, poseDoPreset, posicaoDaPose, type Enquadramento, type Pose, type Preset } from "./cameras";
 import { arvore, carregarFotos, criarFundo, montarChao, neblina, pessoa, semRepeticao, type Foto, type MapasFoto } from "./ambiente";
-import { aberturaDaPorta, anguloDaPorta, montarVoo, type QuadroCamera, type Voo } from "./drone";
+import { aberturaDaPorta, anguloDaPorta, montarVoo, type EstadoPorta, type QuadroCamera, type Voo } from "./drone";
 import type { Solido } from "./navegacao";
 import { CLASSES_HUMANIZACAO } from "../fourd/regras";
 
@@ -99,8 +99,8 @@ export class Cena {
   private pessoas = new THREE.Group();
   private vooCache: Voo | null = null;
   private fora = new Set<string>();
-  /** Abertura (0 a 1) de cada porta com o drone por perto (ADR-23). */
-  private aberturas = new Map<string, number>();
+  /** Portas abertas pelo drone (ADR-23): abertura (0 a 1) e lado do giro. */
+  private aberturas = new Map<string, EstadoPorta>();
 
   constructor(private readonly host: HTMLElement) {
     this.renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
@@ -375,8 +375,15 @@ export class Cena {
     this.aberturas.clear();
     if (cam && voo) for (const f of voo.folhas) {
       const a = aberturaDaPorta(f, [cam.x, cam.y, cam.z]);
-      if (a > 0) this.aberturas.set(f.guid, a);
+      if (a > 0) this.aberturas.set(f.guid, { abertura: a, lado: f.lado });
     }
+    this.aplicarPortas();
+    this.pedirQuadro();
+  }
+
+  /** Estado das portas num instante do voo automático (calculado pelo tempo, não pela proximidade). */
+  definirPortas(portas: Map<string, EstadoPorta> | null): void {
+    this.aberturas = new Map(portas ?? []);
     this.aplicarPortas();
     this.pedirQuadro();
   }
@@ -387,8 +394,9 @@ export class Cena {
     for (const f of voo.folhas) {
       const m = this.malhas.get(f.guid);
       if (!m) continue;
-      const a = this.aberturas.get(f.guid) ?? 0;
-      const t = anguloDaPorta(f, a), c = Math.cos(t), s = Math.sin(t);
+      const e = this.aberturas.get(f.guid);
+      const a = e?.abertura ?? 0;
+      const t = anguloDaPorta(f, a, e?.lado), c = Math.cos(t), s = Math.sin(t);
       const [hx, hz] = f.dobradica;
       // giro em torno do eixo vertical da dobradiça (a geometria já está em coordenadas da cena)
       m.rotation.y = t;
@@ -400,6 +408,7 @@ export class Cena {
 
   /** Coloca uma câmera num quadro livre do voo de drone. */
   posicionarLivre(camera: THREE.PerspectiveCamera, q: QuadroCamera): void {
+    if (q.portas) this.definirPortas(q.portas);
     camera.position.set(q.pos[0], q.pos[1], q.pos[2]);
     camera.up.set(0, 1, 0);
     camera.fov = q.fov;

@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { beforeAll, describe, expect, it } from "vitest";
 import { IfcAPI } from "web-ifc";
 import { lerIfc } from "../src/bim/parseIfc";
-import { FRACAO_CONSTRUCAO, aberturaDaPorta, diaDoVoo, girarNaDobradica, montarVoo } from "../src/rendering/drone";
+import { FRACAO_CONSTRUCAO, diaDoVoo, girarNaDobradica, montarVoo } from "../src/rendering/drone";
 import { caixaDe, gradeDoPavimento, livreEm, type Solido } from "../src/rendering/navegacao";
 
 const api = new IfcAPI();
@@ -76,9 +76,35 @@ describe("voo no sobrado de exemplo", () => {
     expect(voo.pessoas.length).toBe(4);
     expect(voo.pessoas.filter((p) => p.pos[1] > 2)).toHaveLength(1);
   });
+  it("velocidade constante e pessoas sempre sobre piso", () => {
+    // comprimento percorrido em cada passo de tempo (subdividido, para medir o caminho e não a corda)
+    const passos: number[] = [];
+    let a = voo.quadro(0).pos;
+    for (let i = 1; i <= 2000; i++) {
+      let soma = 0;
+      for (let k = 1; k <= 10; k++) {
+        const b = voo.quadro((i - 1 + k / 10) / 2000).pos;
+        soma += Math.hypot(b[0] - a[0], b[1] - a[1], b[2] - a[2]);
+        a = b;
+      }
+      passos.push(soma);
+    }
+    const media = passos.reduce((x, y) => x + y, 0) / passos.length;
+    expect(Math.max(...passos) / media).toBeLessThan(1.15);
+    expect(Math.min(...passos) / media).toBeGreaterThan(0.85);
+    expect(voo.fimConstrucao).toBeGreaterThan(0.2);
+    expect(voo.fimConstrucao).toBeLessThan(0.8);
+    for (const p of voo.pessoas.filter((x) => x.pos[1] > 1)) {
+      expect(p.pos[0]).toBeGreaterThan(0); // dentro das paredes do sobrado (x de 0 a 8, z de 0 a −12)
+      expect(p.pos[0]).toBeLessThan(8);
+      expect(p.pos[2]).toBeLessThan(0);
+      expect(p.pos[2]).toBeGreaterThan(-12);
+    }
+  });
   it("a obra é montada na primeira metade e fica pronta na segunda", () => {
     expect(diaDoVoo(0, 270)).toBe(0);
     expect(diaDoVoo(FRACAO_CONSTRUCAO / 2, 270)).toBeCloseTo(135);
+    expect(diaDoVoo(voo.fimConstrucao / 2, 270, voo.fimConstrucao)).toBeCloseTo(135);
     expect(Math.floor(diaDoVoo(0.8, 270))).toBe(269);
   });
 });
@@ -127,7 +153,7 @@ function maisPerto(p: V, a: V, b: V, c: V): number {
   return dist([a[0]+ab[0]*v+ac[0]*w, a[1]+ab[1]*v+ac[1]*w, a[2]+ab[2]*v+ac[2]*w]);
 }
 
-/** Percorre o voo e devolve onde a câmera atravessa a obra pronta (portas giradas como na cena) ou chega a menos de 0,3 m dela. */
+/** Percorre o voo e devolve onde a câmera atravessa a obra pronta (portas giradas como na cena) ou chega a menos de 0,25 m dela. */
 function colisoes(s: Modelo, voo: VooMontado): string[] {
   const casa = s.solidos.filter((x) => x.ifcType !== "IfcGeographicElement");
   const tris: { a: V; b: V; c: V; guid: string; nome: string; porta: boolean }[] = [];
@@ -141,13 +167,13 @@ function colisoes(s: Modelo, voo: VooMontado): string[] {
   const N = 3000;
   let antes = voo.quadro(0).pos as V;
   for (let i = 1; i <= N; i++) {
-    const u = i / N, p = voo.quadro(u).pos as V, d = sub(p, antes);
+    const q = voo.quadro(i / N), u = i / N, p = q.pos as V, d = sub(p, antes);
     let menor = Infinity, perto = "";
     for (const t of tris) {
       let { a, b, c } = t;
       if (t.porta) {
-        const f = folha.get(t.guid)!, ab = aberturaDaPorta(f, p);
-        [a, b, c] = [girarNaDobradica(f, ab, a), girarNaDobradica(f, ab, b), girarNaDobradica(f, ab, c)];
+        const f = folha.get(t.guid)!, e = q.portas?.get(t.guid), ab = e?.abertura ?? 0;
+        [a, b, c] = [girarNaDobradica(f, ab, a, e?.lado), girarNaDobradica(f, ab, b, e?.lado), girarNaDobradica(f, ab, c, e?.lado)];
       }
       if (cruza(antes, d, a, b, c)) out.push(`${u.toFixed(3)} atravessa ${t.nome}`);
       if (i % 5 === 0) {
@@ -155,7 +181,7 @@ function colisoes(s: Modelo, voo: VooMontado): string[] {
         if (dd < menor) [menor, perto] = [dd, t.nome];
       }
     }
-    if (menor < 0.3) out.push(`${u.toFixed(3)} a ${menor.toFixed(2)} m de ${perto}`);
+    if (menor < 0.25) out.push(`${u.toFixed(3)} a ${menor.toFixed(2)} m de ${perto}`);
     antes = p;
   }
   return out;

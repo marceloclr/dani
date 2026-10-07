@@ -30,6 +30,9 @@ export function PainelVideo() {
   const { largura, altura } = RESOLUCOES[video.formato];
   const roteiro = video.roteiro ?? roteiroPadrao(video.segundos);
   const comDrone = video.camera === "drone";
+  const vooAtual = comDrone ? obterCena()?.voo() : null;
+  const fimVoo = vooAtual?.fimConstrucao ?? FRACAO_CONSTRUCAO;
+  const comprimentoVoo = vooAtual?.comprimento ?? 0;
   const dias = cronograma ? duracaoObra(cronograma.tarefas) : 0;
   const quadros = totalDeQuadros(video.segundos, video.fps);
 
@@ -70,8 +73,8 @@ export function PainelVideo() {
     const voo = comDrone ? cena.voo() : null;
     if (voo) {
       cena.posicionarLivre(cena.camera, voo.quadro(t / video.segundos));
-      st().definirDia(diaDoVoo(t / video.segundos, dias));
-      cena.atualizarPortas(cena.camera.position);
+      st().definirDia(diaDoVoo(t / video.segundos, dias, voo.fimConstrucao));
+      cena.pedirQuadro();
       return;
     }
     cena.mostrarPose(poseNoTempo(roteiro, cena.enquadramento(), t, video.segundos));
@@ -115,7 +118,7 @@ export function PainelVideo() {
         ...(voo
           ? {
               quadroLivre: (t: number) => voo.quadro(t / seg),
-              diaNoQuadro: (i: number, n: number) => diaDoVoo(n > 1 ? i / (n - 1) : 1, dias),
+              diaNoQuadro: (i: number, n: number) => diaDoVoo(n > 1 ? i / (n - 1) : 1, dias, voo.fimConstrucao),
             }
           : {}),
         sinal: ac.signal,
@@ -185,12 +188,12 @@ export function PainelVideo() {
           data-tip-t="Tempo da obra → tempo do vídeo"
           data-tip={
             comDrone
-              ? `Fórmula: dias por segundo = dias de obra ÷ (duração × ${FRACAO_CONSTRUCAO})\nCom o drone, a obra é montada na primeira metade do vídeo; a segunda mostra a obra pronta.\nDias de obra: ${dias}\nMontagem: ${fmt(video.segundos * FRACAO_CONSTRUCAO)} s`
+              ? `Fórmula: dias por segundo = dias de obra ÷ tempo de montagem\nTempo de montagem = duração × fração do voo até a obra ficar pronta (${fmt(fimVoo * 100)}%)\nO drone voa sempre na mesma velocidade: ${fmt(comprimentoVoo)} m em ${video.segundos} s = ${fmt(comprimentoVoo / video.segundos, 2)} m/s\nDias de obra: ${dias}\nMontagem: ${fmt(video.segundos * fimVoo)} s`
               : `Fórmula: dias por segundo = dias de obra ÷ duração do vídeo\nDias de obra: ${dias}\nDuração: ${video.segundos} s\nQuadros: ${video.segundos} s × ${video.fps} fps = ${quadros}\nCada quadro avança ${fmt(dias / quadros, 2)} dia`
           }
         >
           {comDrone
-            ? `${dias} dias → ${fmt(video.segundos * FRACAO_CONSTRUCAO)} s de montagem: ${fmt(dias / (video.segundos * FRACAO_CONSTRUCAO))} dias por segundo, depois a obra pronta`
+            ? `${dias} dias → ${fmt(video.segundos * fimVoo)} s de montagem: ${fmt(dias / (video.segundos * fimVoo))} dias por segundo, depois a obra pronta`
             : `${dias} dias → ${video.segundos} s: ${fmt(dias / video.segundos)} dias por segundo`}
         </p>
 

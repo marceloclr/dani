@@ -151,8 +151,8 @@ export class PreviaVoo {
     const passo = (agora: number) => {
       const u = Math.min((agora - this.inicio) / 1000 / this.segundos, 1);
       this.aoDia(u);
-      cena.posicionarLivre(cena.camera, voo.quadro(u));
-      cena.atualizarPortas(cena.camera.position);
+      cena.posicionarLivre(cena.camera, voo.quadro(u)); // as portas abrem junto, pelo tempo do voo
+      cena.pedirQuadro();
       if (u < 1) this.quadro = requestAnimationFrame(passo);
       else this.parar();
     };

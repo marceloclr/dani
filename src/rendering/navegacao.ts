@@ -85,16 +85,22 @@ export const livreEm = (g: Grade, x: number, z: number) => {
  * Mapa de ocupação de um pavimento: corta os obstáculos à altura do joelho e do peito acima do piso
  * e alarga cada obstáculo pela folga do corpo (o "drone" não raspa nas paredes).
  */
-export function gradeDoPavimento(solidos: Solido[], piso: number, area: Caixa2D, passo = 0.1, folga = 0.25): Grade {
+export function gradeDoPavimento(solidos: Solido[], piso: number, area: Caixa2D, passo = 0.1, folga = 0.3): Grade {
   const nx = Math.max(1, Math.ceil((area.x1 - area.x0) / passo));
   const nz = Math.max(1, Math.ceil((area.z1 - area.z0) / passo));
   const g: Grade = { x0: area.x0, z0: area.z0, passo, nx, nz, livre: new Uint8Array(nx * nz).fill(1), distancia: new Float32Array(nx * nz) };
   const ocupado = new Uint8Array(nx * nz);
-  const marcar = (x: number, z: number) => {
+  const porta = new Uint8Array(nx * nz); // folhas fechadas: não barram, mas o caminho mantém distância delas
+  const marcar = (x: number, z: number, alvo = ocupado) => {
     const [i, j] = celula(g, x, z);
-    if (dentro(g, i, j)) ocupado[indice(g, i, j)] = 1;
+    if (dentro(g, i, j)) alvo[indice(g, i, j)] = 1;
   };
   for (const s of solidos) {
+    if (s.ifcType === "IfcDoor")
+      for (const [a, b] of fatiar(s, piso + 1.2)) {
+        const n = Math.max(1, Math.ceil(Math.hypot(b[0] - a[0], b[1] - a[1]) / (passo / 2)));
+        for (let k = 0; k <= n; k++) marcar(a[0] + ((b[0] - a[0]) * k) / n, a[1] + ((b[1] - a[1]) * k) / n, porta);
+      }
     if (NAO_BARRAM.has(s.ifcType)) continue;
     for (const y of [piso + 0.5, piso + 1.2]) {
       for (const [a, b] of fatiar(s, y)) {
@@ -106,7 +112,7 @@ export function gradeDoPavimento(solidos: Solido[], piso: number, area: Caixa2D,
   // distância ao obstáculo (chanfro 3-4), para o caminho preferir o meio dos cômodos
   const INF = 1e9;
   const dd = new Float32Array(nx * nz);
-  for (let k = 0; k < nx * nz; k++) dd[k] = ocupado[k] ? 0 : INF;
+  for (let k = 0; k < nx * nz; k++) dd[k] = ocupado[k] || porta[k] ? 0 : INF;
   const relaxar = (i: number, j: number, di: number, dj: number, c: number) => {
     const ni = i + di, nj = j + dj;
     if (ni < 0 || nj < 0 || ni >= nx || nj >= nz) return;
@@ -259,7 +265,7 @@ export function simplificar(g: Grade, pts: P2[]): P2[] {
 }
 
 /** Ponto livre mais distante (pelo caminho) de `de`, dentro de `limite`: o fundo da casa, o quarto mais afastado. */
-export function maisDistante(g: Grade, de: P2, limite?: Caixa2D, evitar: P2[] = [], raio = 1.8): P2 | null {
+export function maisDistante(g: Grade, de: P2, limite?: Caixa2D, evitar: P2[] = [], raio = 1.8, folgaMinima = 0): P2 | null {
   const a = livreMaisProximo(g, de);
   if (!a) return null;
   const [ai, aj] = celula(g, a[0], a[1]);
@@ -271,7 +277,7 @@ export function maisDistante(g: Grade, de: P2, limite?: Caixa2D, evitar: P2[] = 
     const k = fila[q];
     // o ponto de parada não fica junto de uma porta (a folha abre ali)
     const [cx, cz] = centro(g, k % g.nx, Math.floor(k / g.nx));
-    if (!evitar.some((p) => Math.hypot(p[0] - cx, p[1] - cz) < raio)) ultimo = k;
+    if (!evitar.some((p) => Math.hypot(p[0] - cx, p[1] - cz) < raio) && g.distancia[k] >= folgaMinima) ultimo = k;
     const i = k % g.nx, j = (k - i) / g.nx;
     for (const [di, dj] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
       const ni = i + di, nj = j + dj;
@@ -366,6 +372,54 @@ export function escadas(solidos: Solido[]): Escada[] {
 }
 
 // ------------------------------------------------------------------ polilinhas
+
+/** Tira os recuos curtos (vaivém de menos de 0,6 m com virada de mais de 150°), que fariam a câmera parar e voltar. */
+export function semVaivem(pts: P3[]): P3[] {
+  let p = pts;
+  for (let volta = 0; volta < 4; volta++) {
+    const out: P3[] = [p[0]];
+    for (let i = 1; i < p.length - 1; i++) {
+      const a = out[out.length - 1], b = p[i], c = p[i + 1];
+      const u: P3 = [b[0] - a[0], b[1] - a[1], b[2] - a[2]], v: P3 = [c[0] - b[0], c[1] - b[1], c[2] - b[2]];
+      const lu = Math.hypot(...u), lv = Math.hypot(...v);
+      if (lu < 1e-6) continue;
+      const cos = lv < 1e-6 ? 1 : (u[0] * v[0] + u[1] * v[1] + u[2] * v[2]) / (lu * lv);
+      if (cos < -0.866 && Math.min(lu, lv) < 0.6) continue;
+      out.push(b);
+    }
+    out.push(p[p.length - 1]);
+    if (out.length === p.length) return out;
+    p = out;
+  }
+  return p;
+}
+
+/** Troca cada virada fechada (mais de 60°) por um arco curto de raio `r`: a câmera vira sem parar. */
+export function arredondar(pts: P3[], r = 0.35): P3[] {
+  if (pts.length < 3) return pts;
+  const out: P3[] = [pts[0]];
+  for (let i = 1; i < pts.length - 1; i++) {
+    const a = pts[i - 1], b = pts[i], c = pts[i + 1];
+    const u: P3 = [b[0] - a[0], b[1] - a[1], b[2] - a[2]], v: P3 = [c[0] - b[0], c[1] - b[1], c[2] - b[2]];
+    const lu = Math.hypot(...u), lv = Math.hypot(...v);
+    if (lu < 1e-6 || lv < 1e-6) continue;
+    const cos = (u[0] * v[0] + u[1] * v[1] + u[2] * v[2]) / (lu * lv);
+    if (cos > 0.5) {
+      out.push(b);
+      continue;
+    }
+    const k = Math.min(r, lu / 2, lv / 2);
+    const p0: P3 = [b[0] - (u[0] / lu) * k, b[1] - (u[1] / lu) * k, b[2] - (u[2] / lu) * k];
+    const p1: P3 = [b[0] + (v[0] / lv) * k, b[1] + (v[1] / lv) * k, b[2] + (v[2] / lv) * k];
+    // curva de Bézier quadrática com o vértice como controle
+    for (let s = 0; s <= 6; s++) {
+      const t = s / 6, w0 = (1 - t) * (1 - t), w1 = 2 * t * (1 - t), w2 = t * t;
+      out.push([w0 * p0[0] + w1 * b[0] + w2 * p1[0], w0 * p0[1] + w1 * b[1] + w2 * p1[1], w0 * p0[2] + w1 * b[2] + w2 * p1[2]]);
+    }
+  }
+  out.push(pts[pts.length - 1]);
+  return out;
+}
 
 /** Suaviza uma polilinha 3D (Chaikin), mantendo as pontas. */
 export function suavizar(pts: P3[], vezes = 2): P3[] {
