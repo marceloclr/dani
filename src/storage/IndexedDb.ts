@@ -6,7 +6,7 @@ import type { RegistroProjeto } from "./projeto";
 interface Esquema extends DBSchema {
   projetos: { key: string; value: RegistroProjeto; indexes: { atualizadoEm: string } };
   modelos: { key: string; value: { id: string; ifc: Blob } };
-  /** chave: "<projeto>/foto/<id>" ou "<projeto>/planta" */
+  /** chave: "<projeto>/foto/<id>", "<projeto>/planta" ou "<projeto>/apresentadora" */
   anexos: { key: string; value: { chave: string; projetoId: string; blob: Blob }; indexes: { projetoId: string } };
   /** chave: "<abrangência>|<dia>|<nome>"; abrangência "CE" ou o id do município */
   feriados: { key: string; value: Feriado & { chave: string }; indexes: { abrangencia: string } };
@@ -39,6 +39,8 @@ function abrir() {
 
 export const chaveFoto = (projetoId: string, fotoId: string) => `${projetoId}/foto/${fotoId}`;
 export const chavePlanta = (projetoId: string) => `${projetoId}/planta`;
+/** Vídeo da apresentadora (ADR-24): fica no navegador, fora do .4dstudio. */
+export const chaveApresentadora = (projetoId: string) => `${projetoId}/apresentadora`;
 
 export async function listarProjetos(): Promise<RegistroProjeto[]> {
   const todos = await (await abrir()).getAll("projetos");

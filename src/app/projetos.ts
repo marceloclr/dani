@@ -3,7 +3,7 @@ import { carregarIfc, carregarParametrico, ifcDoModeloAtual, limparModelo } from
 import { descreverParametros } from "../bim/parametrico";
 import { aplicarMapeamento, contarPorTarefa, descreverRegras, semTarefa } from "../fourd/regras";
 import { formatarISO } from "../fourd/tempo";
-import { chaveFoto, chavePlanta, excluirProjeto, gravarAnexo, gravarProjeto, lerProjeto, listarProjetos, pedirPersistencia } from "../storage/IndexedDb";
+import { chaveApresentadora, chaveFoto, chavePlanta, excluirProjeto, gravarAnexo, gravarProjeto, lerProjeto, listarProjetos, pedirPersistencia } from "../storage/IndexedDb";
 import { blobDaFoto, blobDaPlanta, gravarTodosAnexos, limparAnexos, restaurarAnexos } from "./anexos";
 import { ErroProjeto, exportar4dstudio, importar4dstudio, type ArquivosAnexos, type RegistroProjeto } from "../storage/projeto";
 import { useProjeto, type Estado } from "../state/projectStore";
@@ -147,7 +147,7 @@ export async function abrirProjeto(id: string): Promise<boolean> {
     const b = lido.anexos.get(chaveFoto(r.id, f.id));
     if (b) fotosDoProjeto.set(f.id, b);
   }
-  restaurarAnexos(fotosDoProjeto, r.planta ? lido.anexos.get(chavePlanta(r.id)) ?? null : null);
+  restaurarAnexos(fotosDoProjeto, r.planta ? lido.anexos.get(chavePlanta(r.id)) ?? null : null, lido.anexos.get(chaveApresentadora(r.id)) ?? null);
   let ok: boolean;
   if (r.modelo.tipo === "PARAMETRICO") ok = carregarParametrico(r.modelo.parametros);
   else if (lido.ifc) ok = await carregarIfc(r.modelo.arquivo, await lido.ifc.arrayBuffer(), r.demo);

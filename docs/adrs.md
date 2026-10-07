@@ -184,6 +184,9 @@ Versões fixas no `package.json`, em vez de pedir à IA que "confirme a API atua
 | h264-mp4-encoder | 1.0.12 (minih264, domínio público; libmp4v2, MPL 1.1) | MIT |
 | gifenc | 1.0.3 | MIT |
 | xlsx (SheetJS) | 0.20.3, do tarball https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz | Apache-2.0 |
+| @mediapipe/tasks-vision | 1.1.0 (e o modelo `selfie_segmenter.tflite`) | Apache-2.0 (ADR-24) |
+| @mediabunny/aac-encoder | 1.61.3 (codificador AAC do FFmpeg em WebAssembly) | MPL-2.0; o FFmpeg embutido é LGPL-2.1+ (ADR-24) |
+| Texturas do Poly Haven | `public/texturas/` | CC0 (ADR-23 e ADR-24) |
 
 MPL-2.0 é copyleft por arquivo: pode ser usada sem problema, desde que alterações nos próprios arquivos da biblioteca sejam publicadas. O §44 passa a citá-la explicitamente.
 
@@ -354,4 +357,110 @@ Testes: lógica, parsing de CSV e de IFC no Vitest (Node). Exportação de víde
   - **pessoas sobre piso**: só ficam onde há laje ou piso até 35 cm abaixo dos pés;
   - teste: o voo inteiro dos dois modelos não atravessa paredes nem portas (com as folhas giradas no tempo certo) e fica a pelo menos 25 cm da obra.
 - **Limites:** escadas em L ou em U são percorridas em linha reta entre o pé e o topo; sem porta externa, o voo fica do lado de fora; o modelo paramétrico ainda não tem mobília.
+
+## ADR-24 — Imagem mais real, marca da cliente e apresentadora em primeiro plano
+
+**Status:** aceito em 2026-10-07 (INC-10).
+
+**Pedido.** "Aprofunde o aprimoramento da imagem do vídeo para melhorar a realidade dos materiais, mesclar com uma imagem de vídeo de uma pessoa real falando em primeiro plano com o vídeo do projeto rodando em segundo plano." A referência de qualidade é um reel de arquitetura (noite, LED quente, pedra, porcelanato), e a identidade é a da engenheira **Daniella Pompeu** (@daniellapompeuengenharia).
+
+**Contexto.**
+- O app renderiza em tempo real no navegador (rasterização). Não há placa de vídeo dedicada garantida: a máquina de referência tem GPU integrada Intel.
+- Os materiais do ADR-21 eram procedurais e o pós-processamento perdia o antialias.
+- Os vídeos saíam mudos.
+- Restrição do projeto: nada de CDN em tempo de execução (§43).
+
+**Opções consideradas para o realismo.**
+
+| Opção | Qualidade | Tempo de 30 s em 9:16 | Complexidade |
+|---|---|---|---|
+| A. Melhorar o tempo real (fotos PBR, MSAA, luz noturna, acabamento) | boa, "Twinmotion simples" | 2 a 10 min | média |
+| B. Traçador de caminhos no navegador | ótima, mas ruído e horas por vídeo | horas | alta |
+| C. Exportar para o Blender (EEVEE ou Cycles) | a mais próxima do reel | 1 a 2 h (EEVEE) | alta, depende de instalar o Blender |
+
+**Decisão.** Opção A agora. B e C ficam como passo seguinte opcional. O limite principal não é o motor, e sim o detalhe do IFC: um modelo sem acabamento e sem mobiliário não vira fotografia em nenhum motor.
+
+**Materiais.**
+- Fotos PBR (cor, relevo e rugosidade) do Poly Haven, CC0, em 1K, para alvenaria, reboco, concreto, telha cerâmica, telha metálica, madeira, porcelanato e pedra em cacos. Os materiais recorrentes nos posts dela são ripado de madeira, pedra, porcelanato claro e tijolo aparente.
+- Cada foto é levada ao tom de referência do material (`tingir`, conta feita no espaço linear).
+- A pintura usa a cor da tinta com o relevo da foto do reboco. A tinta branca do realista fica um tom abaixo do branco puro, para o relevo aparecer ao sol.
+- A quebra de repetição (`semRepeticao`) vale para reboco, concreto, terra e grama. Não vale para tijolo e telha, que têm fiadas.
+- Vidro e porcelanato passam a ser materiais físicos: o vidro com reflexo do céu, o porcelanato com verniz leve.
+- Sem uma foto (rede falhou), volta a textura procedural. Novas palavras no nome do material: pedra, moledo, cacos, quartzo, bancada, ripado e freijó.
+
+**Imagem.**
+- O composer desenha num alvo com MSAA (4 amostras).
+- No fim entra um **acabamento de câmera**: curva de contraste suave, saturação de 1,08, vinheta, leve aquecimento e granulação fina com semente pelo número do quadro (o vídeo sai igual a cada geração).
+- O brilho (bloom) só fica ligado no entardecer e à noite. De dia, o céu claro passaria do limiar e enevoaria a imagem; o limiar 4, em luz linear, fica acima de uma fachada branca ao sol.
+
+**Luz** (`src/rendering/iluminacao.ts`).
+- Três luzes, na viewport, no vídeo e no relatório:
+  - **Dia**: sol alto da frente e da direita, exposição de 0,82;
+  - **Entardecer**: sol a 6°, cor âmbar, céu de Preetham mais turvo;
+  - **Noite**: hora azul, com céu em degradê e estrelas fixas, porque o Preetham fica preto com o sol abaixo do horizonte, e luar.
+- **Luminárias** calculadas do IFC: em cada pavimento (térreo e topo de cada escada), as células do mapa de ocupação mais distantes das paredes são o meio dos cômodos.
+  - Ficam no máximo 8 por pavimento, com 2,8 m entre si, logo abaixo da laje.
+  - Cada uma é uma luz pontual a 2.700 K, mais forte nos cômodos maiores, e um disco aceso no teto.
+  - Só acendem com a obra pronta (como a mobília), no entardecer (70 %) e à noite.
+- A luz fica em `video.luz` (no `settings.json`). O seletor aparece na viewport (só no Realista) e na aba Vídeo.
+
+**Qualidade Máxima** (aba Vídeo).
+- Cada quadro é desenhado a 1,5 × (2,25 vezes os pixels) e reduzido.
+- A sombra do sol sobe para 4.096 px e o GTAO usa 24 amostras.
+- Leva cerca de 2,5 vezes o tempo da Normal. A viewport não muda.
+
+**Marca** (`src/app/marca.ts`, `src/rendering/marcaVideo.ts`).
+- Cores medidas nos posts: dourado `#b88848` e grafite `#2c2c2c`. Caixa-alta espaçada, como no logo.
+- O monograma DP é **provisório**, redesenhado em vetor a partir da foto de perfil (`public/marca/monograma-provisorio.svg`), até chegar o arquivo oficial.
+- **Assinatura**: faixa grafite com filete dourado, monograma, "DANIELLA POMPEU", "ENGENHARIA QUE TRANSFORMA" e, como linha secundária, o slogan do produto.
+- **Vinheta** de abertura e encerramento em ardósia, com o monograma: cheia até 1,2 s e some até 2 s; o inverso no fim. Ocupa o próprio tempo do vídeo e não entra em vídeos com menos de 6 s.
+- A tela inicial e o rodapé do relatório trazem a marca dela. O cabeçalho mantém o slogan do produto.
+- Os prints do perfil ficam em `docs/referencias/`, fora do git: têm fotos de pessoas e o repositório é público.
+
+**Apresentadora** (`src/rendering/apresentadora.ts`, `src/rendering/composicao.ts`, `src/components/SecaoApresentadora.tsx`).
+- **Entrada:** só arquivo enviado (MP4 ou MOV do celular, ou WebM). Ela é decodificada quadro a quadro pelo mediabunny (`CanvasSink.canvasesAtTimestamps`), no tempo do vídeo; sem WebCodecs, um `<video>` com busca por quadro, mais lento.
+- **Recorte, à escolha:**
+  - **IA**: segmentação de selfie do MediaPipe, com o modelo de 250 KB em `public/mediapipe/` e o wasm copiado no build, carregados só quando usados. A imagem é reduzida para 384 px antes da segmentação, e a máscara é ampliada no shader.
+  - **Fundo verde**: chave de croma em (Cb, Cr), que ignora o brilho e por isso apaga também a sombra no pano. Tem tolerância, borda e supressão do verde que vaza, e a cor da chave sai de um conta-gotas no primeiro quadro.
+- **Composição** (um só shader): borda suavizada e sombra leve deslocada, para não parecer recortada.
+  - Ordem: cena → apresentadora → assinatura → vinheta.
+  - A apresentadora fica ancorada embaixo, à esquerda, ao centro ou à direita, com 40 % a 100 % da altura (padrão 72 %).
+  - A assinatura vai para o canto oposto ao dela.
+- **Duração:** com "acompanhar a fala" (padrão), o vídeo dura o mesmo que a fala, arredondado ao décimo, entre 6 s e 5 min. O voo do drone e o roteiro se ajustam à duração.
+- **Áudio da fala** (decodificado pelo `decodeAudioData` e intercalado com os quadros em pedaços de 0,5 s):
+  - MP4 alta: AAC;
+  - WebM: Opus;
+  - MP4 para WhatsApp: o H.264 próprio sai mudo e é **remontado** sem recodificar, com o AAC intercalado e o índice no início;
+  - WebM em tempo real (sem WebCodecs): a fala toca num destino de gravação do Web Audio;
+  - sem AAC no navegador (Chromium e Brave no Linux): `@mediabunny/aac-encoder`;
+  - GIF e PNG: sem som, e a tela avisa.
+- **Guarda:** o vídeo fica no IndexedDB (`<projeto>/apresentadora`) e a configuração em `video.apresentadora`. O `.4dstudio` não leva o vídeo, para não ficar pesado. Ao importar, a tela pede o arquivo de novo e mantém a configuração.
+
+**Consequências.**
+- Fica mais fácil: vídeo com cara profissional sem sair do navegador, a cliente reconhecível em cada vídeo, Reels com a voz dela.
+- Fica mais difícil:
+  - mais 2,4 MB de texturas;
+  - cerca de 25 MB de wasm do MediaPipe no site publicado (só baixado ao usar o recorte por IA);
+  - o vídeo com IA é mais lento (segmentação por quadro).
+- **Limites honestos:**
+  - continua sendo tempo real, sem luz indireta verdadeira;
+  - a IA pode recortar mal cabelos soltos contra fundos parecidos (o fundo verde é a opção limpa);
+  - vídeos HEVC do iPhone podem não abrir em todos os navegadores; a orientação é exportar em H.264;
+  - o logo é provisório.
+
+**Verificação.**
+- Vitest: luminárias nos dois modelos (dentro da casa, longe das paredes, espaçadas), parâmetros de luz, curva de contraste, tingimento, vinheta, layout, chave de croma, derrame e duração pela fala.
+- Playwright:
+  - luz da noite acendendo as luminárias só com a obra pronta;
+  - GIF realista em qualidade Máxima;
+  - prévia do fundo verde sem verde e com a figura;
+  - MP4 para WhatsApp com H.264 + AAC, 8 s e voz audível (ffprobe/volumedetect);
+  - WebM com Opus;
+  - recorte por IA sem nenhuma requisição externa.
+
+**Próximos passos possíveis.**
+- Exportar a cena para o Blender (render cinematográfico).
+- Biblioteca de móveis, luminárias e vegetação CC0 no lugar das caixas.
+- Logo oficial.
+- Legendas da fala no estilo dos reels dela.
 

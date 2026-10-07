@@ -1,13 +1,16 @@
-// Anexos da obra (ADR-14): fotos e planta. Os arquivos (Blobs) ficam aqui; o estado guarda só os dados.
+// Anexos da obra (ADR-14): fotos, planta e o vídeo da apresentadora (ADR-24). Os arquivos (Blobs) ficam aqui; o estado guarda só os dados.
 import { dataExif, lerFotosCsv } from "../importers/fotos";
 import { lerData } from "../fourd/tempo";
-import { chaveFoto, chavePlanta, excluirAnexo, gravarAnexo } from "../storage/IndexedDb";
+import { chaveApresentadora, chaveFoto, chavePlanta, excluirAnexo, gravarAnexo } from "../storage/IndexedDb";
+import { APRESENTADORA_PADRAO } from "../rendering/composicao";
 import { useProjeto } from "../state/projectStore";
 import type { FotoObra, PlantaSobreposta } from "../types";
 
 const fotos = new Map<string, Blob>();
 const urls = new Map<string, string>();
 let planta: Blob | null = null;
+let apresentadora: Blob | null = null;
+const ouvintesApresentadora = new Set<() => void>();
 let urlPlanta: string | null = null;
 const ouvintesPlanta = new Set<() => void>();
 
@@ -16,6 +19,18 @@ const TIPOS_FOTO = ["image/jpeg", "image/png", "image/webp"];
 
 export const blobDaFoto = (id: string) => fotos.get(id) ?? null;
 export const blobDaPlanta = () => planta;
+export const blobDaApresentadora = () => apresentadora;
+
+/** O painel do vídeo se inscreve para saber quando o arquivo da apresentadora chega ou sai. */
+export function aoMudarApresentadora(f: () => void): () => void {
+  ouvintesApresentadora.add(f);
+  return () => ouvintesApresentadora.delete(f);
+}
+
+function definirApresentadora(b: Blob | null): void {
+  apresentadora = b;
+  ouvintesApresentadora.forEach((f) => f());
+}
 
 export function urlDaFoto(id: string): string | null {
   const b = fotos.get(id);
@@ -46,6 +61,7 @@ export function limparAnexos(): void {
   urls.clear();
   fotos.clear();
   definirImagemPlanta(null);
+  definirApresentadora(null);
 }
 
 function definirImagemPlanta(b: Blob | null): void {
@@ -56,16 +72,18 @@ function definirImagemPlanta(b: Blob | null): void {
 }
 
 /** Restaura anexos lidos do IndexedDB ou de um .4dstudio. */
-export function restaurarAnexos(fotosDoProjeto: Map<string, Blob>, imagemPlanta: Blob | null): void {
+export function restaurarAnexos(fotosDoProjeto: Map<string, Blob>, imagemPlanta: Blob | null, videoApresentadora: Blob | null = null): void {
   limparAnexos();
   fotosDoProjeto.forEach((b, id) => fotos.set(id, b));
   definirImagemPlanta(imagemPlanta);
+  definirApresentadora(videoApresentadora);
 }
 
 /** Grava todos os anexos atuais no projeto (ao criar ou duplicar). */
 export async function gravarTodosAnexos(projetoId: string): Promise<void> {
   for (const [id, b] of fotos) await gravarAnexo(projetoId, chaveFoto(projetoId, id), b);
   if (planta) await gravarAnexo(projetoId, chavePlanta(projetoId), planta);
+  if (apresentadora) await gravarAnexo(projetoId, chaveApresentadora(projetoId), apresentadora);
 }
 
 const projetoAberto = () => useProjeto.getState().projetoId;
@@ -183,4 +201,39 @@ export async function removerPlanta(): Promise<void> {
   definirImagemPlanta(null);
   const pid = projetoAberto();
   if (pid) await excluirAnexo(chavePlanta(pid));
+}
+
+/** Vídeos aceitos para a apresentadora: os do celular (MP4, MOV) e WebM. */
+const TIPOS_VIDEO = /^video\/(mp4|quicktime|webm|x-m4v)$/;
+
+/**
+ * Recebe o vídeo da apresentadora (ADR-24): lê duração e tamanho, guarda o arquivo no navegador e a
+ * configuração no projeto. Mantém o recorte, a posição e o tamanho já escolhidos.
+ */
+export async function carregarApresentadora(f: File): Promise<void> {
+  const st = useProjeto.getState();
+  try {
+    if (f.type && !TIPOS_VIDEO.test(f.type) && !/\.(mp4|mov|m4v|webm)$/i.test(f.name)) throw new TypeError("formato");
+    const { lerInfoDaFala } = await import("../rendering/apresentadora");
+    const info = await lerInfoDaFala(f);
+    if (!(info.duracaoS > 0) || !info.largura) throw new Error("vídeo sem duração ou sem imagem");
+    definirApresentadora(f);
+    const atual = st.video.apresentadora;
+    st.definirVideo({ apresentadora: { ...APRESENTADORA_PADRAO, ...(atual ?? {}), arquivo: f.name, ...info } });
+    const pid = projetoAberto();
+    if (pid) await gravarAnexo(pid, chaveApresentadora(pid), f);
+  } catch (e) {
+    st.mostrarErro(
+      e instanceof TypeError
+        ? { mensagem: "Formato de vídeo não aceito.", orientacao: "Use MP4 ou MOV (do celular) ou WebM." }
+        : { mensagem: "Não foi possível abrir o vídeo da apresentadora.", orientacao: "Confira se o arquivo toca no computador. Vídeos HEVC (H.265) do iPhone podem não abrir em todos os navegadores: exporte em H.264 (\"Mais compatível\").", detalhes: String((e as Error)?.stack ?? e) },
+    );
+  }
+}
+
+export async function removerApresentadora(): Promise<void> {
+  useProjeto.getState().definirVideo({ apresentadora: null });
+  definirApresentadora(null);
+  const pid = projetoAberto();
+  if (pid) await excluirAnexo(chaveApresentadora(pid));
 }

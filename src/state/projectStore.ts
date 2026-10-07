@@ -5,6 +5,7 @@ import type { PontoRoteiro } from "../rendering/cameras";
 import type { ParametrosCasa } from "../bim/parametrico";
 import type { Aparencia3D } from "../rendering/aparencia";
 import type { Luz } from "../rendering/iluminacao";
+import type { ConfigApresentadora } from "../rendering/composicao";
 import type { FotoObra, PlantaSobreposta, Tarefa, Visao } from "../types";
 import type { Problema } from "../importers/cronograma";
 import { aplicarMapeamento, regrasPadrao } from "../fourd/regras";
@@ -37,6 +38,8 @@ export interface ConfigVideo {
   vinheta?: boolean;
   /** Luz da cena no realista (ADR-24): dia (padrão), entardecer ou noite. Vale para a viewport também. */
   luz?: Luz;
+  /** Apresentadora em primeiro plano (ADR-24); o arquivo fica no IndexedDB. null = sem apresentadora. */
+  apresentadora?: ConfigApresentadora | null;
   /** Qualidade do vídeo (ADR-24): máxima renderiza a 1,5× e reduz (mais lento). */
   qualidade?: "normal" | "maxima";
 }

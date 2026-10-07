@@ -152,7 +152,7 @@ export function desenharVinheta(largura: number, altura: number, t: TextoMarca):
   return c;
 }
 
-/** Sobreposição ortográfica de um canvas na tela do vídeo (canto inferior esquerdo ou tela cheia). */
+/** Sobreposição ortográfica de um canvas na tela do vídeo (canto inferior esquerdo ou direito, ou tela cheia). */
 export interface Sobreposicao {
   cena: THREE.Scene;
   camera: THREE.OrthographicCamera;
@@ -160,14 +160,14 @@ export interface Sobreposicao {
   dispose(): void;
 }
 
-export function sobrepor(c: HTMLCanvasElement, largura: number, altura: number, onde: "canto" | "cheia", margem = 0): Sobreposicao {
+export function sobrepor(c: HTMLCanvasElement, largura: number, altura: number, onde: "canto" | "canto-direito" | "cheia", margem = 0): Sobreposicao {
   const tex = new THREE.CanvasTexture(c);
   tex.colorSpace = THREE.SRGBColorSpace;
   const mat = new THREE.MeshBasicMaterial({ map: tex, transparent: true, toneMapped: false, depthTest: false });
   const plano = new THREE.Mesh(new THREE.PlaneGeometry(c.width, c.height), mat);
-  if (onde === "canto") {
+  if (onde !== "cheia") {
     const m = margem || Math.round(Math.min(largura, altura) * 0.03);
-    plano.position.set(m + c.width / 2, m + c.height / 2, 0);
+    plano.position.set(onde === "canto" ? m + c.width / 2 : largura - m - c.width / 2, m + c.height / 2, 0);
   } else plano.position.set(largura / 2, altura / 2, 0);
   const cena = new THREE.Scene();
   cena.add(plano);

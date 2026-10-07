@@ -8,3 +8,4 @@ playwright-report/
 public/pdfjs/
 public/vendor/
 docs/referencias/
+public/mediapipe/wasm/

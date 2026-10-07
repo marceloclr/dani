@@ -1,4 +1,7 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { aoMudarApresentadora, blobDaApresentadora } from "../app/anexos";
+import { duracaoDoVideo } from "../rendering/composicao";
+import { SecaoApresentadora } from "./SecaoApresentadora";
 import { camadasPara, obterCena } from "../app/estadoCena";
 import { duracaoObra } from "../fourd/simulacao";
 import { PRESETS, diaDoQuadro, poseNoTempo, roteiroPadrao, totalDeQuadros, type PontoRoteiro, type Preset } from "../rendering/cameras";
@@ -30,13 +33,18 @@ export function PainelVideo() {
   const gerando = useProjeto((s) => s.gerandoVideo);
   const st = useProjeto.getState;
   const { largura, altura } = RESOLUCOES[video.formato];
-  const roteiro = video.roteiro ?? roteiroPadrao(video.segundos);
+  // com a apresentadora, a duração pode acompanhar a fala (ADR-24)
+  const blobFala = useSyncExternalStore(aoMudarApresentadora, blobDaApresentadora);
+  const fala = blobFala ? video.apresentadora ?? null : null;
+  const segundos = duracaoDoVideo(video.segundos, fala);
+  const acompanha = !!fala?.acompanharFala;
+  const roteiro = video.roteiro ?? roteiroPadrao(segundos);
   const comDrone = video.camera === "drone";
   const vooAtual = comDrone ? obterCena()?.voo() : null;
   const fimVoo = vooAtual?.fimConstrucao ?? FRACAO_CONSTRUCAO;
   const comprimentoVoo = vooAtual?.comprimento ?? 0;
   const dias = cronograma ? duracaoObra(cronograma.tarefas) : 0;
-  const quadros = totalDeQuadros(video.segundos, video.fps);
+  const quadros = totalDeQuadros(segundos, video.fps);
 
   const [caps, setCaps] = useState<Capacidades | null>(null);
   const [saida, setSaida] = useState<Saida | null>(null);
@@ -74,12 +82,12 @@ export function PainelVideo() {
     cena.pararGiro();
     const voo = comDrone ? cena.voo() : null;
     if (voo) {
-      cena.posicionarLivre(cena.camera, voo.quadro(t / video.segundos));
-      st().definirDia(diaDoVoo(t / video.segundos, dias, voo.fimConstrucao));
+      cena.posicionarLivre(cena.camera, voo.quadro(t / segundos));
+      st().definirDia(diaDoVoo(t / segundos, dias, voo.fimConstrucao));
       cena.pedirQuadro();
       return;
     }
-    cena.mostrarPose(poseNoTempo(roteiro, cena.enquadramento(), t, video.segundos));
+    cena.mostrarPose(poseNoTempo(roteiro, cena.enquadramento(), t, segundos));
     st().definirDia(diaDoQuadro(Math.round(t * video.fps), quadros, dias));
   };
 
@@ -104,21 +112,22 @@ export function PainelVideo() {
     const r = roteiro;
     const e = cena.enquadramento();
     const voo = comDrone ? cena.voo() : null;
-    const seg = video.segundos;
+    const seg = segundos;
     try {
       const arq = await gerarVideo(cena, {
         saida,
         largura,
         altura,
         fps: video.fps,
-        segundos: video.segundos,
+        segundos: segundos,
         diasDeObra: dias,
-        nomeBase: `obra-4d-${video.formato}-${video.segundos}s`,
+        nomeBase: `obra-4d-${video.formato}-${segundos}s`,
         aplicarDia: (d) => cena.aplicar(camadasPara(st(), cena, d, true)),
         maxima: video.qualidade === "maxima" && st().aparencia3d === "realista",
+        ...(fala && blobFala ? { apresentadora: { arquivo: blobFala, cfg: fala } } : {}),
         ...(video.assinatura !== false ? { assinatura: { nome: CLIENTE.nome, slogan: CLIENTE.slogan, secundario: SLOGAN } } : {}),
-        ...(video.vinheta !== false && video.segundos >= 6 ? { vinheta: { nome: CLIENTE.nome, slogan: CLIENTE.slogan, secundario: `${NOME_MARCA} · ${SLOGAN}` } } : {}),
-        poseNoTempo: (t) => poseNoTempo(r, e, t, video.segundos),
+        ...(video.vinheta !== false && segundos >= 6 ? { vinheta: { nome: CLIENTE.nome, slogan: CLIENTE.slogan, secundario: `${NOME_MARCA} · ${SLOGAN}` } } : {}),
+        poseNoTempo: (t) => poseNoTempo(r, e, t, segundos),
         ...(voo
           ? {
               quadroLivre: (t: number) => voo.quadro(t / seg),
@@ -133,7 +142,7 @@ export function PainelVideo() {
         },
       });
       const d = dimensoesDaSaida(saida, largura, altura, video.fps);
-      setResultado({ ...arq, url: URL.createObjectURL(arq.blob), resumo: `${d.largura} × ${d.altura} · ${d.fps} fps · ${totalDeQuadros(video.segundos, d.fps)} quadros` });
+      setResultado({ ...arq, url: URL.createObjectURL(arq.blob), resumo: `${d.largura} × ${d.altura} · ${d.fps} fps · ${totalDeQuadros(segundos, d.fps)} quadros` });
     } catch (err) {
       if (err instanceof Cancelado) setAviso("Geração cancelada. Nenhum arquivo foi criado.");
       else st().mostrarErro({ mensagem: "Não foi possível gerar o vídeo.", orientacao: "Tente outro formato de saída ou uma duração menor.", detalhes: String((err as Error)?.stack ?? err) });
@@ -148,7 +157,7 @@ export function PainelVideo() {
   const pct = progresso ? Math.round((progresso.quadro / progresso.total) * 100) : 0;
   const semMp4 = caps !== null && !caps.h264Nativo;
   const efetivo = saida ? dimensoesDaSaida(saida, largura, altura, video.fps) : { largura, altura, fps: video.fps };
-  const quadrosSaida = totalDeQuadros(video.segundos, efetivo.fps);
+  const quadrosSaida = totalDeQuadros(segundos, efetivo.fps);
 
   return (
     <div className="painel-video" data-testid="painel-video">
@@ -176,7 +185,7 @@ export function PainelVideo() {
           </label>
           <label className="campo">
             <span>Duração</span>
-            <select data-testid="video-duracao" value={video.segundos} onChange={(e) => st().definirVideo({ segundos: Number(e.target.value) as ConfigVideo["segundos"] })}>
+            <select data-testid="video-duracao" value={video.segundos} disabled={acompanha} onChange={(e) => st().definirVideo({ segundos: Number(e.target.value) as ConfigVideo["segundos"] })}>
               {DURACOES.map((d) => (
                 <option key={d} value={d}>
                   {d} s
@@ -192,13 +201,13 @@ export function PainelVideo() {
           data-tip-t="Tempo da obra → tempo do vídeo"
           data-tip={
             comDrone
-              ? `Fórmula: dias por segundo = dias de obra ÷ tempo de montagem\nTempo de montagem = duração × fração do voo até a obra ficar pronta (${fmt(fimVoo * 100)}%)\nO drone voa sempre na mesma velocidade: ${fmt(comprimentoVoo)} m em ${video.segundos} s = ${fmt(comprimentoVoo / video.segundos, 2)} m/s\nDias de obra: ${dias}\nMontagem: ${fmt(video.segundos * fimVoo)} s`
-              : `Fórmula: dias por segundo = dias de obra ÷ duração do vídeo\nDias de obra: ${dias}\nDuração: ${video.segundos} s\nQuadros: ${video.segundos} s × ${video.fps} fps = ${quadros}\nCada quadro avança ${fmt(dias / quadros, 2)} dia`
+              ? `Fórmula: dias por segundo = dias de obra ÷ tempo de montagem\nTempo de montagem = duração × fração do voo até a obra ficar pronta (${fmt(fimVoo * 100)}%)\nO drone voa sempre na mesma velocidade: ${fmt(comprimentoVoo)} m em ${segundos} s = ${fmt(comprimentoVoo / segundos, 2)} m/s\nDias de obra: ${dias}\nMontagem: ${fmt(segundos * fimVoo)} s`
+              : `Fórmula: dias por segundo = dias de obra ÷ duração do vídeo\nDias de obra: ${dias}\nDuração: ${segundos} s\nQuadros: ${segundos} s × ${video.fps} fps = ${quadros}\nCada quadro avança ${fmt(dias / quadros, 2)} dia`
           }
         >
           {comDrone
-            ? `${dias} dias → ${fmt(video.segundos * fimVoo)} s de montagem: ${fmt(dias / (video.segundos * fimVoo))} dias por segundo, depois a obra pronta`
-            : `${dias} dias → ${video.segundos} s: ${fmt(dias / video.segundos)} dias por segundo`}
+            ? `${dias} dias → ${fmt(segundos * fimVoo)} s de montagem: ${fmt(dias / (segundos * fimVoo))} dias por segundo, depois a obra pronta`
+            : `${dias} dias → ${segundos} s: ${fmt(dias / segundos)} dias por segundo`}
         </p>
 
         <h4>Câmera do vídeo</h4>
@@ -221,7 +230,7 @@ export function PainelVideo() {
         {comDrone && (
           <p className="relacao" data-testid="resumo-drone">
             {obterCena()?.voo()?.resumo ?? "O voo é calculado a partir do modelo."}
-            {video.segundos < 60 && " · com menos de 60 s o passeio fica rápido."}
+            {segundos < 60 && " · com menos de 60 s o passeio fica rápido."}
           </p>
         )}
         {!comDrone && (
@@ -231,11 +240,11 @@ export function PainelVideo() {
               <input
                 type="number"
                 min={0}
-                max={video.segundos}
+                max={segundos}
                 step={0.5}
                 value={Number(p.segundo.toFixed(2))}
                 aria-label="Segundo"
-                onChange={(e) => definirRoteiro(roteiro.map((x, j) => (j === i ? { ...x, segundo: Math.min(Math.max(Number(e.target.value), 0), video.segundos) } : x)))}
+                onChange={(e) => definirRoteiro(roteiro.map((x, j) => (j === i ? { ...x, segundo: Math.min(Math.max(Number(e.target.value), 0), segundos) } : x)))}
               />
               <span className="tenue">s</span>
               <select
@@ -259,7 +268,7 @@ export function PainelVideo() {
         )}
         <label className="campo" data-tip="Mostra na viewport a câmera e o estado da obra neste segundo do vídeo.">
           <span>Prévia {comDrone ? "do voo" : "do roteiro"}: {fmt(previa)} s</span>
-          <input type="range" min={0} max={video.segundos} step={0.1} value={previa} onChange={(e) => mostrarPrevia(Number(e.target.value))} />
+          <input type="range" min={0} max={segundos} step={0.1} value={previa} onChange={(e) => mostrarPrevia(Number(e.target.value))} />
         </label>
         {!comDrone && (
         <div className="botoes">
@@ -296,6 +305,9 @@ export function PainelVideo() {
           </label>
         </div>
         {!realista && <p className="tenue pequeno">Luz e qualidade valem na aparência Realista.</p>}
+
+        <h4>Apresentadora</h4>
+        <SecaoApresentadora largura={largura} altura={altura} segundosEscolhidos={video.segundos} />
 
         <label className="marcar" data-tip={`Faixa grafite e dourada no canto inferior esquerdo, com o monograma:\n${CLIENTE.nome.toUpperCase()}\n${CLIENTE.slogan.toUpperCase()}\n${SLOGAN}`}>
           <input type="checkbox" checked={video.assinatura !== false} onChange={(e) => st().definirVideo({ assinatura: e.target.checked })} data-testid="video-assinatura" />
@@ -368,7 +380,7 @@ export function PainelVideo() {
       )}
       {resultado && (
         <div className="resultado-video" data-testid="resultado-video">
-          {resultado.tipo === "video" && <video src={resultado.url} controls muted playsInline className="previa-canvas" />}
+          {resultado.tipo === "video" && <video src={resultado.url} controls muted={!resultado.comAudio} playsInline className="previa-canvas" data-com-audio={resultado.comAudio ? "sim" : "nao"} />}
           {resultado.tipo === "gif" && <img src={resultado.url} alt="Prévia do GIF" className="previa-canvas" />}
           <a className="btn primario largo" href={resultado.url} download={resultado.nome} data-testid="baixar-video">
             Baixar {resultado.nome} ({mb(resultado.blob.size)})

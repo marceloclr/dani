@@ -62,12 +62,13 @@ e publique a pasta `dist/` (GitHub Pages, Cloudflare Pages, Netlify ou Vercel). 
 5. Escolha a **Animação** na timeline:
    - **Progressivo** (padrão): os elementos de cada etapa se formam um a um ao longo do prazo. Paredes e pilares sobem, lajes, vigas e pisos avançam, e o resto aparece aos poucos. Cada um ganha a cor final ao terminar.
    - Os outros modos: Aparecimento, Fade-in, Crescimento e Por fases.
-6. Na aba **Vídeo**, escolha formato (16:9, 9:16 ou 1:1), fps e duração e a câmera: **Roteiro de vistas** (presets ou a câmera atual, capturada pela prévia) ou **Drone: voo e passeio** (recomendado com 60 s ou mais). Gere o arquivo: o painel mostra o progresso, permite cancelar e, ao fim, pré-visualizar e baixar. A assinatura da marca (nome e slogan) vai no canto do vídeo e pode ser desligada.
-7. **Drone** na viewport: pilote com W A S D ou as setas, E e Q para subir e descer, arraste para olhar, roda para a velocidade e Esc para sair; no celular, use o direcional da tela. **Voo automático** mostra na viewport o mesmo voo da câmera Drone: a obra é montada enquanto o drone voa em volta e entra pela porta; pronta, ganha mobília e pessoas, e o drone gira pelas fachadas, entra, sobe e desce a escada.
-8. **Projetos**, no alto: o projeto é salvo sozinho neste navegador (a demonstração só com "Salvar cópia"). Dali se abre, duplica, exporta e importa `.4dstudio`, e se exportam o cronograma (JSON ou CSV para o Excel) e o mapeamento (JSON).
-9. Aba **Obra**: avanço planejado e real com fórmula, fotos da obra (com data do EXIF ou de um `fotos.csv`), planta sobreposta em PNG, JPG ou PDF, e o **relatório PDF** da data da simulação. Na viewport, alterne entre **Planejado**, **Real** e **Comparar**: no modo Comparar, o carmim marca o que está atrasado e a ardósia, o que está adiantado.
+6. Na aba **Vídeo**, escolha formato (16:9, 9:16 ou 1:1), fps e duração e a câmera: **Roteiro de vistas** (presets ou a câmera atual, capturada pela prévia) ou **Drone: voo e passeio** (recomendado com 60 s ou mais). Gere o arquivo: o painel mostra o progresso, permite cancelar e, ao fim, pré-visualizar e baixar. A assinatura da marca de Daniella Pompeu (monograma, nome e "Engenharia que transforma", com o slogan do produto como linha secundária) vai no canto do vídeo. A vinheta de abertura e encerramento também pode ser desligada. Em **Imagem**, escolha a luz (Dia, Entardecer ou Noite) e a qualidade (Normal ou Máxima, mais lenta e mais limpa).
+7. **Apresentadora** (aba Vídeo): envie o vídeo da fala (MP4 ou MOV do celular, ou WebM). A pessoa aparece em primeiro plano, recortada por IA (qualquer fundo) ou por fundo verde (conta-gotas, tolerância e borda), à esquerda, ao centro ou à direita, com a obra rodando atrás. Por padrão, a duração do vídeo acompanha a fala, e o arquivo final leva a voz dela: AAC no MP4, Opus no WebM. GIF e PNG saem sem som. O vídeo da fala fica salvo só neste navegador, e o `.4dstudio` não o leva.
+8. **Drone** na viewport: pilote com W A S D ou as setas, E e Q para subir e descer, arraste para olhar, roda para a velocidade e Esc para sair; no celular, use o direcional da tela. **Voo automático** mostra na viewport o mesmo voo da câmera Drone: a obra é montada enquanto o drone voa em volta e entra pela porta; pronta, ganha mobília e pessoas, e o drone gira pelas fachadas, entra, sobe e desce a escada.
+9. **Projetos**, no alto: o projeto é salvo sozinho neste navegador (a demonstração só com "Salvar cópia"). Dali se abre, duplica, exporta e importa `.4dstudio`, e se exportam o cronograma (JSON ou CSV para o Excel) e o mapeamento (JSON).
+10. Aba **Obra**: avanço planejado e real com fórmula, fotos da obra (com data do EXIF ou de um `fotos.csv`), planta sobreposta em PNG, JPG ou PDF, e o **relatório PDF** da data da simulação. Na viewport, alterne entre **Planejado**, **Real** e **Comparar**: no modo Comparar, o carmim marca o que está atrasado e a ardósia, o que está adiantado.
 
-A viewport tem duas aparências: **Realista** (padrão) e **Técnica**. Na Realista, os materiais têm textura e a cena tem sol, sombras e céu. Na Técnica, os elementos em execução aparecem em latão; os concluídos, com a cor do material; os que nenhuma tarefa faz surgir ficam translúcidos ("fantasma"). Paredes mudam de cor quando o reboco e a pintura terminam.
+A viewport tem duas aparências: **Realista** (padrão) e **Técnica**. Na Realista, os materiais são fotografias PBR em escala real (tijolo, reboco, concreto, telhas, madeira, porcelanato e pedra), e a cena tem sol, sombras, céu e acabamento de câmera. A luz pode ser **Dia**, **Entardecer** ou **Noite**: no entardecer e à noite, as luminárias da obra pronta acendem no meio de cada cômodo. Na Técnica, os elementos em execução aparecem em latão; os concluídos, com a cor do material; os que nenhuma tarefa faz surgir ficam translúcidos ("fantasma"). Paredes mudam de cor quando o reboco e a pintura terminam.
 
 ## Modelos de arquivo
 
@@ -106,7 +107,7 @@ Categorias com regra automática: `terreno`, `fundacao`, `estrutura`, `alvenaria
 
 | Saída | Para quê | Detalhes |
 |-------|----------|----------|
-| **MP4 para WhatsApp e celulares** (padrão) | WhatsApp, Instagram, celulares, TVs | H.264 Baseline, yuv420p, 720p, sem áudio, índice no início; codificador próprio em WebAssembly, igual em qualquer navegador |
+| **MP4 para WhatsApp e celulares** (padrão) | WhatsApp, Instagram, celulares, TVs | H.264 Baseline, yuv420p, 720p, índice no início; codificador próprio em WebAssembly, igual em qualquer navegador; com apresentadora, AAC remontado sem recodificar o vídeo |
 | MP4 alta qualidade (1080p) | YouTube, apresentações | H.264 perfil Main pelo codificador do navegador (só quando ele existe) |
 | WebM (VP9 ou VP8) | Navegadores, VLC | WebCodecs + Mediabunny |
 | WebM em tempo real | Navegador sem WebCodecs | MediaRecorder; leva a duração do vídeo |
@@ -132,7 +133,8 @@ Depois de gerar, o painel mostra a pré-visualização, o botão Baixar e:
 - A planta é só uma imagem de referência: não vira modelo BIM.
 - Fotos e plantas ocupam o armazenamento do navegador; em obras com muitas fotos, exporte o `.4dstudio` periodicamente.
 - Os projetos ficam no navegador em que foram criados; para levar a outro computador, exporte o `.4dstudio`.
-- O vídeo não tem áudio nem legendas; vídeos longos em 1080p ficam na memória até o download (≈ 10 MB por 15 s em VP9).
+- O vídeo só tem áudio com a apresentadora (a voz dela) e ainda não tem legendas; vídeos longos em 1080p ficam na memória até o download (≈ 10 MB por 15 s em VP9).
+- O recorte por IA pode falhar em cabelos soltos contra fundos parecidos; o fundo verde é a opção limpa. Vídeos HEVC (H.265) do iPhone podem não abrir em todos os navegadores: exporte em H.264 ("Mais compatível"). O monograma da marca é provisório até chegar o logo oficial (ADR-24).
 - O projeto não é salvo: ao recarregar a página, o modelo, o cronograma e as exceções se perdem (IndexedDB no incremento 3).
 - XLSX e edição de tarefas na tela ainda não existem; edite o CSV e carregue de novo.
 - As datas das tarefas são em dias corridos; os dias úteis aparecem na estimativa (segunda a sexta, fora feriados do Ceará e do município, de 2026 a 2030), mas não reprogramam as tarefas. Sem predecessoras.
@@ -160,10 +162,11 @@ Chrome, Edge ou Brave atualizados (testado no Chromium 153 do Playwright). Firef
 | [prompts/incremento-7.md](prompts/incremento-7.md) | Prompt do incremento 7 |
 | [prompts/incremento-8.md](prompts/incremento-8.md) | Prompt do incremento 8 (dias úteis) |
 | [prompts/incremento-9.md](prompts/incremento-9.md) | Prompt do incremento 9 (drone e obra humanizada) |
+| [docs/adrs.md](docs/adrs.md#adr-24--imagem-mais-real-marca-da-cliente-e-apresentadora-em-primeiro-plano) | ADR-24: materiais fotográficos, luz, marca e apresentadora (incremento 10) |
 | [docs/feriados.md](docs/feriados.md) | Feriados do Ceará e da RMF, com fontes |
 | [public/modelos/](public/modelos/) | Modelos de arquivo para download |
 | [public/samples/](public/samples/) | Casa de demonstração e cronograma |
-| [tools/](tools/) | Gerador do IFC de demonstração, prévia estática, modelos de arquivo e cópia dos ativos locais (wasm, fontes do pdf.js, codificador H.264) |
+| [tools/](tools/) | Gerador do IFC de demonstração, prévia estática, modelos de arquivo e cópia dos ativos locais (wasm, fontes do pdf.js, codificador H.264, MediaPipe) e `captura.mjs` (capturas de comparação: `node tools/captura.mjs <url> <pasta> [dia\|entardecer\|noite]`) |
 
 Interface no padrão [Papel e Tinta](https://github.com/marceloclr/design-system).
 
