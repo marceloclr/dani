@@ -140,13 +140,28 @@ export function desenharTextura(tipo: TipoTextura, tamanho = 512, cor: [number, 
       break;
     }
     case "madeira": {
-      ctx.fillStyle = "#8a5a32";
-      ctx.fillRect(0, 0, s, s);
-      for (let y = 0; y < s; y += 2) {
-        const v = 0.8 + 0.25 * Math.sin(y * 0.08 + Math.sin(y * 0.013) * 6) + rnd() * 0.08;
-        ctx.fillStyle = hex(140 * v, 92 * v, 52 * v);
-        ctx.fillRect(0, y, s, 2);
+      // tábuas verticais com veios finos e ondulados (a escala de 0,8 m dá 4 tábuas de 20 cm)
+      const tabuas = 4, lt = s / tabuas;
+      for (let t = 0; t < tabuas; t++) {
+        const tom = 0.88 + rnd() * 0.2;
+        ctx.fillStyle = hex(150 * tom, 100 * tom, 60 * tom);
+        ctx.fillRect(t * lt, 0, lt, s);
+        for (let k = 0; k < 26; k++) {
+          const x0 = t * lt + rnd() * lt, fase = rnd() * 6, amp = 1 + rnd() * 3, v = 0.72 + rnd() * 0.3;
+          ctx.strokeStyle = `rgba(${90 * v | 0},${56 * v | 0},${30 * v | 0},${0.25 + rnd() * 0.3})`;
+          ctx.lineWidth = 0.6 + rnd() * 1.4;
+          ctx.beginPath();
+          for (let y = 0; y <= s; y += 8) {
+            const x = x0 + Math.sin(y * 0.02 + fase) * amp;
+            if (y === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+          }
+          ctx.stroke();
+        }
+        ctx.fillStyle = "rgba(40,24,12,0.35)"; // junta entre tábuas
+        ctx.fillRect(t * lt, 0, Math.max(1, s / 400), s);
       }
+      granulado(ctx, s * 2, s, s, rnd, 0.05);
       break;
     }
     case "porcelanato": {

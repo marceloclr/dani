@@ -9,12 +9,17 @@ import { fotoAte, temDadosReais } from "../fourd/real";
 import { formatarBR } from "../fourd/tempo";
 import { useUi } from "../state/uiStore";
 import type { Visao } from "../types";
+import { AJUDA_VOO, PreviaVoo, VooManual, type Comando } from "../rendering/voo";
+import { diaDoVoo } from "../rendering/drone";
 
 export function Viewport() {
   const host = useRef<HTMLDivElement>(null);
   const cena = useRef<Cena | null>(null);
   const toque = useRef<{ x: number; y: number } | null>(null);
   const [orbita, setOrbita] = useState(false);
+  const drone = useRef<VooManual | null>(null);
+  const previa = useRef<PreviaVoo | null>(null);
+  const [modoDrone, setModoDrone] = useState<"manual" | "automatico" | null>(null);
 
   const selecionado = useProjeto((s) => s.selecionado);
   const ocultos = useProjeto((s) => s.ocultosUsuario);
@@ -70,6 +75,8 @@ export function Viewport() {
     preferencia.addEventListener("change", aoMudarPreferencia);
     (window as unknown as { __cena?: Cena }).__cena = c; // usado pelos testes de ponta a ponta
     return () => {
+      drone.current?.parar();
+      previa.current?.parar();
       sairMalhas();
       sairEstado();
       sairPlanta();
@@ -81,7 +88,42 @@ export function Viewport() {
     };
   }, [st]);
 
+  const pararDrone = () => {
+    drone.current?.parar();
+    previa.current?.parar();
+  };
+  const alternarManual = () => {
+    if (modoDrone === "manual") return pararDrone();
+    pararDrone();
+    if (!cena.current) return;
+    drone.current = new VooManual(cena.current, () => {
+      drone.current = null;
+      setModoDrone(null);
+    });
+    setOrbita(false);
+    setModoDrone("manual");
+  };
+  const alternarAutomatico = () => {
+    if (modoDrone === "automatico") return pararDrone();
+    pararDrone();
+    if (!cena.current) return;
+    const s = st();
+    const dias = s.cronograma?.tarefas.length ? Math.max(...s.cronograma.tarefas.map((t) => t.fim)) + 1 : 0;
+    setOrbita(false);
+    setModoDrone("automatico");
+    previa.current = new PreviaVoo(
+      cena.current,
+      Math.max(s.video.segundos, 30),
+      (u) => dias && st().definirDia(diaDoVoo(u, dias)),
+      () => {
+        previa.current = null;
+        setModoDrone(null);
+      },
+    );
+  };
+
   const aoSoltar = (e: React.PointerEvent) => {
+    if (modoDrone) return; // no drone, arrastar é olhar, não selecionar
     const t = toque.current;
     toque.current = null;
     if (!t || !modoSelecao || !cena.current) return;
@@ -132,6 +174,27 @@ export function Viewport() {
             {x.rotulo}
           </button>
         ))}
+        <span className="sep" />
+        <button
+          type="button"
+          className="btn"
+          aria-pressed={modoDrone === "manual"}
+          data-testid="drone-manual"
+          data-tip={`Pilote um drone por dentro e por fora da obra enquanto ela é montada.\n${AJUDA_VOO}`}
+          onClick={alternarManual}
+        >
+          Drone
+        </button>
+        <button
+          type="button"
+          className="btn"
+          aria-pressed={modoDrone === "automatico"}
+          data-testid="drone-automatico"
+          data-tip={"Voo automático: o drone voa em volta e por dentro da obra enquanto ela é montada; com a obra pronta e humanizada, gira pelas fachadas, entra, sobe e desce a escada.\nÉ o mesmo voo da câmera Drone do vídeo."}
+          onClick={alternarAutomatico}
+        >
+          Voo automático
+        </button>
         <SeletorAparencia />
         {temCronograma && <SeletorVisao />}
       </div>
@@ -148,9 +211,53 @@ export function Viewport() {
         }}
         onPointerUp={aoSoltar}
       />
+      {modoDrone === "manual" && <ComandosDrone voo={drone} aoSair={pararDrone} />}
+      {modoDrone === "automatico" && (
+        <div className="ajuda-drone" role="status">
+          Voo automático em andamento ·{" "}
+          <button type="button" className="link" onClick={pararDrone}>
+            parar
+          </button>
+        </div>
+      )}
       {temCronograma && <Legenda />}
       <FotoFlutuante />
       {gerandoVideo && <div className="aviso-video">Gerando vídeo: a pré-visualização está no painel Vídeo.</div>}
+    </div>
+  );
+}
+
+/** Ajuda e direcional na tela, para pilotar também pelo toque. */
+function ComandosDrone({ voo, aoSair }: { voo: React.MutableRefObject<VooManual | null>; aoSair(): void }) {
+  const botao = (c: Comando, rotulo: string, nome: string) => (
+    <button
+      type="button"
+      className="btn mini"
+      aria-label={nome}
+      onPointerDown={(e) => {
+        e.currentTarget.setPointerCapture(e.pointerId);
+        voo.current?.comando(c, true);
+      }}
+      onPointerUp={() => voo.current?.comando(c, false)}
+      onPointerCancel={() => voo.current?.comando(c, false)}
+    >
+      {rotulo}
+    </button>
+  );
+  return (
+    <div className="ajuda-drone" data-testid="ajuda-drone">
+      <span>{AJUDA_VOO}</span>
+      <div className="direcional">
+        {botao("frente", "▲", "Para a frente")}
+        {botao("esquerda", "◀", "Para a esquerda")}
+        {botao("tras", "▼", "Para trás")}
+        {botao("direita", "▶", "Para a direita")}
+        {botao("subir", "⤒", "Subir")}
+        {botao("descer", "⤓", "Descer")}
+      </div>
+      <button type="button" className="link" onClick={aoSair}>
+        sair do drone
+      </button>
     </div>
   );
 }

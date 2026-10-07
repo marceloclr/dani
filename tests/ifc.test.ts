@@ -14,11 +14,11 @@ beforeAll(async () => {
 describe("IFC de demonstração", () => {
   const modelo = () => lerIfc(api, new Uint8Array(readFileSync("public/samples/demo.ifc")));
 
-  it("carrega 146 elementos com metadados e geometria", () => {
+  it("carrega 167 elementos (146 da obra e 21 móveis) com metadados e geometria", () => {
     const m = modelo();
     expect(m.esquema).toBe("IFC4");
-    expect(m.elementos).toHaveLength(146);
-    expect(m.malhas).toHaveLength(146);
+    expect(m.elementos).toHaveLength(167);
+    expect(m.malhas).toHaveLength(167);
     const parede = m.elementos.find((e) => e.nome === "Parede: Fachada frontal")!;
     expect(parede).toMatchObject({ ifcType: "IfcWall", pavimento: "Térreo", material: "Bloco cerâmico" });
     expect(parede.guid).toHaveLength(22);

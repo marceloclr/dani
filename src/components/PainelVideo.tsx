@@ -2,6 +2,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { camadasPara, obterCena } from "../app/estadoCena";
 import { duracaoObra } from "../fourd/simulacao";
 import { PRESETS, diaDoQuadro, poseNoTempo, roteiroPadrao, totalDeQuadros, type PontoRoteiro, type Preset } from "../rendering/cameras";
+import { FRACAO_CONSTRUCAO, diaDoVoo } from "../rendering/drone";
+import { NOME_MARCA, SLOGAN } from "../app/marca";
 import { Cancelado, DESCRICAO_SAIDA, NOME_SAIDA, capacidades, dimensoesDaSaida, dispositivoLimitado, estimarZipMB, gerarVideo, type ArquivoGerado, type Capacidades, type Saida } from "../rendering/VideoRenderer";
 import { RESOLUCOES, useProjeto, type ConfigVideo, type FormatoVideo } from "../state/projectStore";
 import { baixar } from "../utils/baixar";
@@ -27,6 +29,7 @@ export function PainelVideo() {
   const st = useProjeto.getState;
   const { largura, altura } = RESOLUCOES[video.formato];
   const roteiro = video.roteiro ?? roteiroPadrao(video.segundos);
+  const comDrone = video.camera === "drone";
   const dias = cronograma ? duracaoObra(cronograma.tarefas) : 0;
   const quadros = totalDeQuadros(video.segundos, video.fps);
 
@@ -64,6 +67,13 @@ export function PainelVideo() {
     const cena = obterCena();
     if (!cena) return;
     cena.pararGiro();
+    const voo = comDrone ? cena.voo() : null;
+    if (voo) {
+      cena.posicionarLivre(cena.camera, voo.quadro(t / video.segundos));
+      st().definirDia(diaDoVoo(t / video.segundos, dias));
+      cena.pedirQuadro();
+      return;
+    }
     cena.mostrarPose(poseNoTempo(roteiro, cena.enquadramento(), t, video.segundos));
     st().definirDia(diaDoQuadro(Math.round(t * video.fps), quadros, dias));
   };
@@ -88,6 +98,8 @@ export function PainelVideo() {
     setProgresso({ quadro: 0, total: quadros, restanteS: null });
     const r = roteiro;
     const e = cena.enquadramento();
+    const voo = comDrone ? cena.voo() : null;
+    const seg = video.segundos;
     try {
       const arq = await gerarVideo(cena, {
         saida,
@@ -98,7 +110,14 @@ export function PainelVideo() {
         diasDeObra: dias,
         nomeBase: `obra-4d-${video.formato}-${video.segundos}s`,
         aplicarDia: (d) => cena.aplicar(camadasPara(st(), cena, d, true)),
+        ...(video.assinatura !== false ? { assinatura: { nome: NOME_MARCA, slogan: SLOGAN } } : {}),
         poseNoTempo: (t) => poseNoTempo(r, e, t, video.segundos),
+        ...(voo
+          ? {
+              quadroLivre: (t: number) => voo.quadro(t / seg),
+              diaNoQuadro: (i: number, n: number) => diaDoVoo(n > 1 ? i / (n - 1) : 1, dias),
+            }
+          : {}),
         sinal: ac.signal,
         aoProgredir: setProgresso,
         aoCriarCanvas: (c) => {
@@ -164,12 +183,41 @@ export function PainelVideo() {
           tabIndex={0}
           data-testid="relacao-tempo"
           data-tip-t="Tempo da obra → tempo do vídeo"
-          data-tip={`Fórmula: dias por segundo = dias de obra ÷ duração do vídeo\nDias de obra: ${dias}\nDuração: ${video.segundos} s\nQuadros: ${video.segundos} s × ${video.fps} fps = ${quadros}\nCada quadro avança ${fmt(dias / quadros, 2)} dia`}
+          data-tip={
+            comDrone
+              ? `Fórmula: dias por segundo = dias de obra ÷ (duração × ${FRACAO_CONSTRUCAO})\nCom o drone, a obra é montada na primeira metade do vídeo; a segunda mostra a obra pronta.\nDias de obra: ${dias}\nMontagem: ${fmt(video.segundos * FRACAO_CONSTRUCAO)} s`
+              : `Fórmula: dias por segundo = dias de obra ÷ duração do vídeo\nDias de obra: ${dias}\nDuração: ${video.segundos} s\nQuadros: ${video.segundos} s × ${video.fps} fps = ${quadros}\nCada quadro avança ${fmt(dias / quadros, 2)} dia`
+          }
         >
-          {dias} dias → {video.segundos} s: {fmt(dias / video.segundos)} dias por segundo
+          {comDrone
+            ? `${dias} dias → ${fmt(video.segundos * FRACAO_CONSTRUCAO)} s de montagem: ${fmt(dias / (video.segundos * FRACAO_CONSTRUCAO))} dias por segundo, depois a obra pronta`
+            : `${dias} dias → ${video.segundos} s: ${fmt(dias / video.segundos)} dias por segundo`}
         </p>
 
         <h4>Câmera do vídeo</h4>
+        <div className="segmentos" role="tablist" aria-label="Câmera do vídeo">
+          <button type="button" role="tab" className="seg" aria-selected={!comDrone} data-testid="camera-roteiro" data-tip="Vistas fixas em sequência (frontal, isométrica, lateral, superior) ou o seu roteiro de câmeras capturadas." onClick={() => st().definirVideo({ camera: "roteiro" })}>
+            Roteiro de vistas
+          </button>
+          <button
+            type="button"
+            role="tab"
+            className="seg"
+            aria-selected={comDrone}
+            data-testid="camera-drone"
+            data-tip={"Na primeira metade, a obra é montada enquanto o drone voa em volta e entra pela porta.\nNa segunda, com a obra pronta e humanizada, gira pelas fachadas, entra, sobe e desce a escada.\nRecomendado: 60 s ou mais."}
+            onClick={() => st().definirVideo({ camera: "drone" })}
+          >
+            Drone: voo e passeio
+          </button>
+        </div>
+        {comDrone && (
+          <p className="relacao" data-testid="resumo-drone">
+            {obterCena()?.voo()?.resumo ?? "O voo é calculado a partir do modelo."}
+            {video.segundos < 60 && " · com menos de 60 s o passeio fica rápido."}
+          </p>
+        )}
+        {!comDrone && (
         <ul className="roteiro" data-testid="roteiro">
           {roteiro.map((p, i) => (
             <li key={i}>
@@ -201,10 +249,12 @@ export function PainelVideo() {
             </li>
           ))}
         </ul>
+        )}
         <label className="campo" data-tip="Mostra na viewport a câmera e o estado da obra neste segundo do vídeo.">
-          <span>Prévia do roteiro: {fmt(previa)} s</span>
+          <span>Prévia {comDrone ? "do voo" : "do roteiro"}: {fmt(previa)} s</span>
           <input type="range" min={0} max={video.segundos} step={0.1} value={previa} onChange={(e) => mostrarPrevia(Number(e.target.value))} />
         </label>
+        {!comDrone && (
         <div className="botoes">
           <button type="button" className="btn" data-tip="Grava a câmera atual da viewport como ponto-chave no segundo da prévia." onClick={capturar}>
             Capturar câmera atual
@@ -213,6 +263,12 @@ export function PainelVideo() {
             Roteiro padrão
           </button>
         </div>
+        )}
+
+        <label className="marcar" data-tip={`Faixa discreta no canto inferior esquerdo:\n${NOME_MARCA}\n${SLOGAN}`}>
+          <input type="checkbox" checked={video.assinatura !== false} onChange={(e) => st().definirVideo({ assinatura: e.target.checked })} data-testid="video-assinatura" />
+          Assinatura da marca no vídeo
+        </label>
 
         <h4>Saída</h4>
         {semMp4 && (

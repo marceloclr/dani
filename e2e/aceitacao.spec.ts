@@ -34,7 +34,7 @@ test("incremento 1 de ponta a ponta com a demonstração", async ({ page }) => {
   await page.getByTestId("abrir-demo").click();
   await expect(page.getByTestId("selo-demo")).toBeVisible({ timeout: 60_000 });
   await expect(page.locator(".tela3d canvas")).toBeVisible();
-  await expect(page.getByTestId("situacao")).toContainText("146 elementos");
+  await expect(page.getByTestId("situacao")).toContainText("167 elementos");
   await expect(page.getByTestId("modo-animacao")).toHaveValue("progressivo"); // padrão desde o incremento 5
   await page.getByTestId("modo-animacao").selectOption("aparecimento"); // este roteiro confere a ordem das etapas
   await page.getByTestId("aparencia-tecnica").click(); // quadros leves: no Chromium sem GPU o realista atrasa o clique de pausa
@@ -67,7 +67,7 @@ test("incremento 1 de ponta a ponta com a demonstração", async ({ page }) => {
   expect(v.IfcWindow ?? 0).toBe(0);
   await irPara(page, "2026-07-03"); // entrega
   v = await tiposVisiveis(page);
-  expect(Object.values(v).reduce((a, b) => a + b, 0)).toBe(146);
+  expect(Object.values(v).reduce((a, b) => a + b, 0)).toBe(167); // 146 da obra + 21 móveis, que aparecem com a obra pronta (ADR-23)
   await page.screenshot({ path: "e2e/resultados/2-concluida.png" });
 
   // PLAY a 4×: o dia avança e a casa cresce
@@ -115,7 +115,7 @@ test("incremento 1 de ponta a ponta com a demonstração", async ({ page }) => {
   await expect(page.getByTestId("erro")).toContainText("O arquivo não parece ser um modelo IFC.");
   await expect(page.getByTestId("erro")).toContainText("Detalhes técnicos");
   await expect(page.locator(".tela3d canvas")).toBeVisible();
-  await expect(page.getByTestId("situacao")).toContainText("146 elementos");
+  await expect(page.getByTestId("situacao")).toContainText("167 elementos");
 
   expect(errosConsole).toEqual([]);
 });

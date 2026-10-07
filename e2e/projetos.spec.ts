@@ -53,7 +53,7 @@ test("salvar cópia, editar, recarregar e reabrir com tudo intacto", async ({ pa
   await page.getByTestId("abrir-projetos").click();
   await expect(page.getByTestId("lista-projetos")).toContainText("Demonstração");
   await page.getByTestId("abrir-projeto").first().click();
-  await expect(page.getByText("146 elementos")).toBeVisible({ timeout: 60_000 });
+  await expect(page.getByText("167 elementos")).toBeVisible({ timeout: 60_000 });
   expect(await estado(page)).toEqual(antes);
   await expect(page.getByTestId("selo-demo")).toBeVisible(); // continua fictício
 });
@@ -72,7 +72,7 @@ test("exportar e importar .4dstudio", async ({ page }) => {
   await expect(page.getByTestId("abrir-demo")).toBeVisible();
   await page.getByTestId("abrir-projetos").click();
   await page.getByTestId("entrada-4dstudio").setInputFiles(caminho);
-  await expect(page.getByText("146 elementos")).toBeVisible({ timeout: 60_000 });
+  await expect(page.getByText("167 elementos")).toBeVisible({ timeout: 60_000 });
   expect(await estado(page)).toEqual(antes);
   await expect(page.getByTestId("situacao")).toContainText(/salvo às/);
 

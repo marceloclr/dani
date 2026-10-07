@@ -63,5 +63,7 @@ export function camadasPara(s: Estado, cena: Cena, dia: number, paraVideo = fals
     modo: s.modoAnimacao,
     fila: fila(s, cena),
     tipos: tipos(s),
+    // obra concluída no último dia (ou sem cronograma): mostra a humanização (ADR-23)
+    concluida: !s.cronograma || !s.cronograma.tarefas.length || dia >= Math.max(...s.cronograma.tarefas.map((t) => t.fim)),
   };
 }

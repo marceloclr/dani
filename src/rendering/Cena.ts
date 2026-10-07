@@ -6,14 +6,18 @@ import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
 import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { GTAOPass } from "three/addons/postprocessing/GTAOPass.js";
 import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
-import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
 import { materialRealista, uvsPorProjecao, type Aparencia3D } from "./aparencia";
 import { ESCALA_M, desenharTextura, type TipoTextura } from "./texturas";
 import type { MalhaElemento } from "../bim/parseIfc";
 import { parametros, type PosicaoElemento, type PosicaoFila } from "../fourd/animacao";
 import type { Desvio, EstadoElemento, ModoAnimacao, PlantaSobreposta } from "../types";
 import { distanciaDeEnquadramento, poseDaPosicao, poseDoPreset, posicaoDaPose, type Enquadramento, type Pose, type Preset } from "./cameras";
+import { arvore, carregarFotos, criarFundo, montarChao, neblina, pessoa, semRepeticao, type Foto, type MapasFoto } from "./ambiente";
+import { montarVoo, type QuadroCamera, type Voo } from "./drone";
+import type { Solido } from "./navegacao";
+import { CLASSES_HUMANIZACAO } from "../fourd/regras";
 
+const ehArvore = (m: MetaVisual | undefined) => !!m && m.ifcType === "IfcGeographicElement" && /copa|arvore|árvore|tree/i.test((m.material ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, ""));
 /** Cores de aparência por acabamento concluído; "base" usa a cor do IFC. */
 const APARENCIAS: Record<string, string> = { reboco: "#cfc9bd", pintura: "#f1ede4" };
 const COR_EM_EXECUCAO = new THREE.Color("#c4a45e"); // --latao (escuro), legível nos dois temas
@@ -35,6 +39,8 @@ export interface Camadas {
   tipos: Map<string, string>;
   /** Modo Comparar (ADR-13): desvio de cada elemento; os estados são os reais. */
   desvios?: Map<string, Desvio> | null;
+  /** Obra concluída: mostra a humanização (mobília e pessoas, ADR-23). Ausente = concluída. */
+  concluida?: boolean;
 }
 
 /** Dados de um elemento usados para escolher o material realista. */
@@ -85,6 +91,14 @@ export class Cena {
   private readonly sol = new THREE.DirectionalLight(0xffffff, 1.6);
   private readonly contraluz = new THREE.DirectionalLight(0xffffff, 0.5);
   private desenhista: Desenhista;
+  // ambiente realista e humanização (ADR-23)
+  private fotos: Map<Foto, MapasFoto> | null = null;
+  private readonly prontoFotos: Promise<void>;
+  private ambiente = new THREE.Group();
+  private arvores = new Map<string, THREE.Group>();
+  private pessoas = new THREE.Group();
+  private vooCache: Voo | null = null;
+  private fora = new Set<string>();
 
   constructor(private readonly host: HTMLElement) {
     this.renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
@@ -101,9 +115,21 @@ export class Cena {
 
     this.observador = new ResizeObserver(() => this.redimensionar());
     this.observador.observe(host);
+    this.scene.add(this.ambiente, this.pessoas);
     this.atualizarTema();
     this.definirAparencia(this.aparencia);
     this.redimensionar();
+    this.prontoFotos = carregarFotos().then((f) => {
+      this.fotos = f;
+      for (const [k, m] of this.materiais) if (k.startsWith("real|terra") || k.startsWith("real|grama")) (m.dispose(), this.materiais.delete(k));
+      this.montarAmbiente();
+      if (this.ultimasCamadas) this.aplicar(this.ultimasCamadas);
+    });
+  }
+
+  /** Espera as texturas fotográficas (o vídeo e o relatório só começam com elas prontas). */
+  preparar(): Promise<void> {
+    return this.prontoFotos;
   }
 
   /** Céu em degradê (fundo do modo realista). */
@@ -129,6 +155,8 @@ export class Cena {
     this.aparencia = a;
     const real = a === "realista";
     this.scene.background = real ? this.texturaCeu() : this.corPapel;
+    this.scene.fog = real && !this.caixa.isEmpty() ? neblina(this.enquadramento().raio) : null;
+    this.ambiente.visible = real;
     this.hemi.color.set(real ? 0xdde8f4 : 0xffffff);
     this.hemi.groundColor.set(real ? 0x6e5c46 : 0x8a8170);
     this.hemi.intensity = real ? 1.1 : 1.6;
@@ -182,12 +210,8 @@ export class Cena {
     if (!real) {
       return { desenhar: (cam) => renderer.render(this.scene, cam), redimensionar: () => {}, dispose: () => {} };
     }
-    // ambiente para reflexos: é um alvo de renderização, então cada renderizador gera o seu
-    const pmrem = new THREE.PMREMGenerator(renderer);
-    const sala = new RoomEnvironment();
-    const ambiente = pmrem.fromScene(sala, 0.04);
-    sala.dispose();
-    pmrem.dispose();
+    // céu e reflexos: alvos de renderização, então cada renderizador gera os seus
+    const fundo = criarFundo(renderer);
     const camBase = new THREE.PerspectiveCamera();
     const composer = new EffectComposer(renderer);
     const passoCena = new RenderPass(this.scene, camBase);
@@ -202,18 +226,20 @@ export class Cena {
     composer.setSize(largura, altura);
     return {
       desenhar: (cam) => {
-        const anterior = this.scene.environment;
-        this.scene.environment = ambiente.texture;
+        const anterior = this.scene.environment, ceu = this.scene.background;
+        this.scene.environment = fundo.environment;
+        this.scene.background = fundo.background;
         passoCena.camera = cam;
         gtao.camera = cam;
         composer.render();
         this.scene.environment = anterior;
+        this.scene.background = ceu;
       },
       redimensionar: (w, h) => composer.setSize(w, h),
       dispose: () => {
         composer.dispose();
         gtao.dispose();
-        ambiente.dispose();
+        fundo.dispose();
       },
     };
   }
@@ -251,6 +277,7 @@ export class Cena {
   carregar(malhas: MalhaElemento[], foraDoEnquadramento: Set<string> = new Set(), metas: Map<string, MetaVisual> = new Map()): void {
     this.limpar();
     this.metas = metas;
+    this.fora = foraDoEnquadramento;
     this.ultimasCamadas = null;
     for (const m of malhas) {
       const geo = new THREE.BufferGeometry();
@@ -279,7 +306,74 @@ export class Cena {
     for (const [guid, m] of this.malhas) if (!foraDoEnquadramento.has(guid)) this.caixa.union(m.geometry.boundingBox!);
     if (this.caixa.isEmpty()) for (const m of this.malhas.values()) this.caixa.union(m.geometry.boundingBox!);
     this.ajustarSol();
+    this.vooCache = null;
+    this.scene.fog = this.aparencia === "realista" && !this.caixa.isEmpty() ? neblina(this.enquadramento().raio) : null;
+    this.montarAmbiente();
     this.vista("isometrica");
+  }
+
+  /** Sólidos da obra (sem terreno), para a navegação do drone. */
+  private solidos(): Solido[] {
+    return [...this.malhas]
+      .filter(([g]) => !this.fora.has(g))
+      .map(([guid, m]) => ({ guid, ifcType: this.metas.get(guid)?.ifcType ?? "", posicoes: m.geometry.getAttribute("position").array as Float32Array, indices: m.geometry.getIndex()!.array }));
+  }
+
+  /** Voo de drone e passeio (ADR-23), calculado uma vez por modelo. */
+  voo(): Voo | null {
+    if (this.caixa.isEmpty()) return null;
+    if (!this.vooCache) {
+      const e = this.enquadramento();
+      this.vooCache = montarVoo(this.solidos(), { min: this.caixa.min.toArray(), max: this.caixa.max.toArray() }, e.centro, e.raio);
+    }
+    return this.vooCache;
+  }
+
+  /** Chão até o horizonte, cava, árvores e pessoas (aparência realista). */
+  private montarAmbiente(): void {
+    for (const o of [...this.ambiente.children, ...this.pessoas.children]) {
+      o.traverse((x) => {
+        if (x instanceof THREE.Mesh) x.geometry.dispose();
+      });
+    }
+    this.ambiente.clear();
+    this.pessoas.clear();
+    this.arvores.clear();
+    if (this.caixa.isEmpty() || !this.fotos) return;
+    // lote do IFC (terreno e paisagismo) ou, sem ele, a casa com folga
+    const lote = new THREE.Box3();
+    let semente = 1;
+    for (const g of this.fora) {
+      const m = this.malhas.get(g)!;
+      if (ehArvore(this.metas.get(g))) {
+        const a = arvore(m.geometry.boundingBox!, semente++ * 97);
+        this.arvores.set(g, a);
+        this.ambiente.add(a);
+      } else lote.union(m.geometry.boundingBox!);
+    }
+    const paredes = [...this.malhas].filter(([g]) => /IfcWall/.test(this.metas.get(g)?.ifcType ?? "")).map(([, m]) => m.geometry.boundingBox!.min.y);
+    const piso = paredes.length ? Math.min(...paredes) : this.caixa.min.y;
+    const buraco = lote.isEmpty()
+      ? { x0: this.caixa.min.x - 0.8, x1: this.caixa.max.x + 0.8, z0: this.caixa.min.z - 0.8, z1: this.caixa.max.z + 0.8 }
+      : { x0: lote.min.x, x1: lote.max.x, z0: lote.min.z, z1: lote.max.z };
+    const y = lote.isEmpty() ? piso - 0.02 : lote.max.y - 0.05;
+    this.ambiente.add(montarChao(this.fotos, buraco, y, Math.min(this.caixa.min.y, y - 0.5) - 0.1));
+    const voo = this.voo();
+    voo?.pessoas.forEach((p, i) => this.pessoas.add(pessoa(p.pos, p.olhar, 31 + i * 17)));
+    this.pessoas.visible = false;
+    this.ambiente.visible = this.aparencia === "realista";
+  }
+
+  /** Coloca uma câmera num quadro livre do voo de drone. */
+  posicionarLivre(camera: THREE.PerspectiveCamera, q: QuadroCamera): void {
+    camera.position.set(q.pos[0], q.pos[1], q.pos[2]);
+    camera.up.set(0, 1, 0);
+    camera.fov = q.fov;
+    camera.near = 0.05;
+    camera.far = Math.max(this.enquadramento().raio * 80, 1500);
+    camera.lookAt(q.alvo[0], q.alvo[1], q.alvo[2]);
+    camera.updateProjectionMatrix();
+    camera.updateMatrixWorld();
   }
 
   /** Cota da base de um elemento (para ordenar pavimentos). */
@@ -349,6 +443,16 @@ export class Cena {
     const op = Math.round((r.opacidade ?? opacidade) * 20) / 20;
     const chave = `real|${r.textura}|${cor?.getHexString() ?? ""}|${op}|${selecionado ? 1 : 0}`;
     let m = this.materiais.get(chave);
+    const foto = (r.textura === "terra" || r.textura === "grama") && this.fotos?.get(r.textura);
+    if (!m && foto) {
+      m = semRepeticao(new THREE.MeshStandardMaterial({ map: foto.map, normalMap: foto.normalMap, roughnessMap: foto.roughnessMap, roughness: 1, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1 }));
+      if (r.textura === "grama") m.color.set("#b9d79a");
+      if (selecionado) {
+        m.emissive = COR_SELECAO;
+        m.emissiveIntensity = 0.55;
+      }
+      this.materiais.set(chave, m);
+    }
     if (!m) {
       const mapa = this.textura(r.textura, r.textura === "liso" || r.textura === "pintura" ? (cor ?? new THREE.Color(0.95, 0.94, 0.91)) : null);
       m = new THREE.MeshStandardMaterial({
@@ -390,7 +494,15 @@ export class Cena {
       const p = estado ? parametros(estado, c.modo, c.tipos.get(guid) ?? "", c.fila?.get(guid)) : { opacidade: 1, escalaY: 1 };
       const opacidadeBase = malha.userData.opacidadeBase as number;
       if (p.opacidade * opacidadeBase < 0.025) visivel = false;
+      // humanização (ADR-23): a mobília só aparece com a obra pronta
+      const tipo = this.metas.get(guid)?.ifcType ?? "";
+      if (CLASSES_HUMANIZACAO.has(tipo)) visivel = (c.concluida ?? true) && !c.ocultos.has(guid) && !(c.isolados && !c.isolados.has(guid));
       malha.visible = visivel;
+      const arv = this.arvores.get(guid);
+      if (arv) {
+        arv.visible = visivel && real;
+        if (real) malha.visible = false;
+      }
       // crescimento: escala vertical com pivô na base; avanço horizontal com pivô na borda mínima
       const by = this.baseY.get(guid)!;
       malha.scale.set(1, p.escalaY, 1);
@@ -401,6 +513,7 @@ export class Cena {
         malha.position[h.eixo] = h.min * (1 - p.escalaH);
       }
       if (!visivel) continue;
+      if (arv && real) continue;
 
       const base = this.corBase.get(guid)!;
       const sel = c.selecionado === guid;
@@ -432,6 +545,7 @@ export class Cena {
         malha.material = this.material(COR_FANTASMA, 0.15, sel);
       }
     }
+    this.pessoas.visible = real && (c.concluida ?? true) && !c.isolados;
     this.pedirQuadro();
   }
 
@@ -482,6 +596,7 @@ export class Cena {
 
   /** Imagem da cena numa resolução qualquer, para o relatório (PNG). */
   async capturar(largura: number, altura: number, pose: Pose): Promise<Blob> {
+    await this.prontoFotos;
     const canvas = document.createElement("canvas");
     const r = new THREE.WebGLRenderer({ canvas, antialias: true, preserveDrawingBuffer: true });
     const d = this.criarDesenhista(r, largura, altura);
@@ -527,6 +642,7 @@ export class Cena {
   /** Coloca uma câmera na pose dada, para a proporção dessa câmera. */
   posicionar(camera: THREE.PerspectiveCamera, pose: Pose): void {
     const e = this.enquadramento();
+    camera.fov = 45; // o drone usa lente mais aberta; os presets e o roteiro voltam à de 45°
     const dEnq = distanciaDeEnquadramento(e.raio, camera.fov, camera.aspect);
     const [x, y, z] = posicaoDaPose(pose, dEnq);
     camera.position.set(x, y, z);
@@ -605,6 +721,7 @@ export class Cena {
   }
 
   private limpar(): void {
+    this.vooCache = null;
     for (const m of this.malhas.values()) {
       m.geometry.dispose();
       this.scene.remove(m);

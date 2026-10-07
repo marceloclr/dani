@@ -62,9 +62,13 @@ export function casa(e: ElementoMeta, f: FiltroRegra): boolean {
 }
 
 /** Resolve regras e exceções: guid → vínculos. */
+/** Mobília: humanização da obra pronta (ADR-23), fora do 4D; aparece quando a obra termina. */
+export const CLASSES_HUMANIZACAO = new Set(["IfcFurnishingElement", "IfcFurniture", "IfcSystemFurnitureElement"]);
+
 export function aplicarMapeamento(elementos: ElementoMeta[], regras: Regra[], excecoes: Excecao[]): Map<string, Vinculo[]> {
   const mapa = new Map<string, Vinculo[]>();
   for (const e of elementos) {
+    if (CLASSES_HUMANIZACAO.has(e.ifcType)) continue;
     const lista: Vinculo[] = [];
     for (const r of regras) if (casa(e, r.onde)) lista.push({ taskId: r.taskId, acao: r.acao, origem: "regra" });
     mapa.set(e.guid, lista);

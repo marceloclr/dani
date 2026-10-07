@@ -6,6 +6,7 @@ import { Zip, ZipPassThrough } from "fflate";
 import { GIFEncoder, applyPalette, quantize } from "gifenc";
 import type { Cena } from "./Cena";
 import type { Pose } from "./cameras";
+import type { QuadroCamera } from "./drone";
 import { diaDoQuadro, totalDeQuadros } from "./cameras";
 
 export type Saida = "mp4-whatsapp" | "mp4-alta" | "webm-vp9" | "webm-vp8" | "webm-tempo-real" | "gif" | "png-zip";
@@ -94,6 +95,12 @@ export interface PedidoVideo {
   aplicarDia(dia: number): void;
   /** Pose da câmera no segundo `t` do vídeo. */
   poseNoTempo(t: number): Pose;
+  /** Câmera livre (drone, ADR-23): substitui a pose quando informada. */
+  quadroLivre?(t: number): QuadroCamera;
+  /** Dia da obra no quadro i de n; sem ele, a obra vai do primeiro ao último dia no vídeo inteiro. */
+  diaNoQuadro?(i: number, n: number): number;
+  /** Nome e slogan da marca no canto do vídeo; ausente = sem assinatura. */
+  assinatura?: { nome: string; slogan: string };
   sinal: AbortSignal;
   aoProgredir(p: { quadro: number; total: number; restanteS: number | null }): void;
   /** Recebe o canvas do vídeo, para pré-visualização durante a geração. */
@@ -117,6 +124,7 @@ const ceder = () => new Promise<void>((r) => setTimeout(r, 0));
 const pad = (n: number, w: number) => String(n).padStart(w, "0");
 
 export async function gerarVideo(cena: Cena, pedido: PedidoVideo): Promise<ArquivoGerado> {
+  await cena.preparar(); // texturas fotográficas prontas antes do primeiro quadro
   const d = dimensoesDaSaida(pedido.saida, pedido.largura, pedido.altura, pedido.fps);
   const p = { ...pedido, largura: d.largura, altura: d.altura, fps: d.fps };
   const canvas = document.createElement("canvas");
@@ -127,14 +135,21 @@ export async function gerarVideo(cena: Cena, pedido: PedidoVideo): Promise<Arqui
   renderer.setSize(p.largura, p.altura, false);
   const desenhista = cena.criarDesenhista(renderer, p.largura, p.altura); // mesma aparência da viewport (ADR-21)
   const camera = new THREE.PerspectiveCamera(45, p.largura / p.altura, 0.05, 4000);
+  const marca = p.assinatura ? criarAssinatura(p.largura, p.altura, p.assinatura.nome, p.assinatura.slogan) : null;
   p.aoCriarCanvas?.(canvas);
 
   const total = totalDeQuadros(p.segundos, p.fps);
   const inicio = performance.now();
   const desenhar = (i: number) => {
-    p.aplicarDia(diaDoQuadro(i, total, p.diasDeObra));
-    cena.posicionar(camera, p.poseNoTempo(i / p.fps));
+    p.aplicarDia(p.diaNoQuadro ? p.diaNoQuadro(i, total) : diaDoQuadro(i, total, p.diasDeObra));
+    if (p.quadroLivre) cena.posicionarLivre(camera, p.quadroLivre(i / p.fps));
+    else cena.posicionar(camera, p.poseNoTempo(i / p.fps));
     desenhista.desenhar(camera);
+    if (marca) {
+      renderer.autoClear = false;
+      renderer.render(marca.cena, marca.camera);
+      renderer.autoClear = true;
+    }
   };
   const progredir = (i: number) => {
     const feito = i + 1;
@@ -155,6 +170,7 @@ export async function gerarVideo(cena: Cena, pedido: PedidoVideo): Promise<Arqui
   } finally {
     cena.silencioso = false;
     desenhista.dispose();
+    marca?.dispose();
     renderer.dispose();
     renderer.forceContextLoss();
   }
@@ -389,4 +405,51 @@ export function dispositivoLimitado(): string | null {
   if (nav.deviceMemory && nav.deviceMemory <= 2) motivos.push(`${nav.deviceMemory} GB de memória`);
   if (/Android|iPhone|iPad|Mobile/i.test(navigator.userAgent)) motivos.push("celular ou tablet");
   return motivos.length ? motivos.join(", ") : null;
+}
+
+/**
+ * Assinatura da marca no canto inferior esquerdo do vídeo (incremento 9): nome e slogan numa faixa
+ * translúcida, desenhada por cima da cena num segundo passo, em qualquer formato de saída.
+ */
+export function criarAssinatura(largura: number, altura: number, nome: string, slogan: string): { cena: THREE.Scene; camera: THREE.OrthographicCamera; dispose(): void } {
+  const base = Math.min(largura, altura);
+  const f1 = Math.round(base * 0.034), f2 = Math.round(base * 0.024), pad = Math.round(base * 0.02);
+  const c = document.createElement("canvas");
+  const ctx = c.getContext("2d")!;
+  const fonte1 = `600 ${f1}px "IBM Plex Sans", "Segoe UI", sans-serif`, fonte2 = `italic 400 ${f2}px "IBM Plex Serif", Georgia, serif`;
+  ctx.font = fonte1;
+  const w1 = ctx.measureText(nome).width;
+  ctx.font = fonte2;
+  const w2 = Math.min(ctx.measureText(slogan).width, largura - 6 * pad);
+  c.width = Math.ceil(Math.max(w1, w2) + 2 * pad);
+  c.height = Math.ceil(f1 + f2 + pad * 2.6);
+  ctx.fillStyle = "rgba(22, 26, 30, 0.55)";
+  ctx.beginPath();
+  ctx.roundRect(0, 0, c.width, c.height, pad * 0.8);
+  ctx.fill();
+  ctx.fillStyle = "#ffffff";
+  ctx.textBaseline = "top";
+  ctx.font = fonte1;
+  ctx.fillText(nome, pad, pad);
+  ctx.fillStyle = "#e6d3a3";
+  ctx.font = fonte2;
+  ctx.fillText(slogan, pad, pad + f1 + pad * 0.5, w2);
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  const mat = new THREE.MeshBasicMaterial({ map: tex, transparent: true, toneMapped: false, depthTest: false });
+  const plano = new THREE.Mesh(new THREE.PlaneGeometry(c.width, c.height), mat);
+  const m = Math.round(base * 0.03);
+  plano.position.set(m + c.width / 2, m + c.height / 2, 0);
+  const cena = new THREE.Scene();
+  cena.add(plano);
+  const camera = new THREE.OrthographicCamera(0, largura, altura, 0, -1, 1);
+  return {
+    cena,
+    camera,
+    dispose: () => {
+      tex.dispose();
+      mat.dispose();
+      plano.geometry.dispose();
+    },
+  };
 }

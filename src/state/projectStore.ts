@@ -28,6 +28,10 @@ export interface ConfigVideo {
   segundos: 15 | 30 | 60 | 90 | 120;
   /** null = roteiro padrão do §21 para a duração escolhida. */
   roteiro: PontoRoteiro[] | null;
+  /** Câmera do vídeo: roteiro de vistas (padrão) ou drone, com voo e passeio pela obra pronta (ADR-23). */
+  camera?: "roteiro" | "drone";
+  /** Nome e slogan da marca no canto do vídeo (padrão: ligado). */
+  assinatura?: boolean;
 }
 
 /** Tarefa em edição, com datas absolutas (dia civil). */

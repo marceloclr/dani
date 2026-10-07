@@ -17,7 +17,7 @@ async function importarExemplo(page: Page) {
   await page.goto("/");
   await page.getByTestId("abrir-projetos").click();
   await page.getByTestId("entrada-4dstudio").setInputFiles("public/modelos/exemplo.4dstudio");
-  await expect(page.getByTestId("situacao")).toContainText("146 elementos", { timeout: 60_000 });
+  await expect(page.getByTestId("situacao")).toContainText("167 elementos", { timeout: 60_000 });
 }
 
 test("exemplo: planejado × real, fotos na timeline e relatório PDF", async ({ page }) => {

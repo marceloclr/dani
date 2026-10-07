@@ -7,6 +7,7 @@ import { ModalFoto } from "../components/ModalFoto";
 import { ModalModelos } from "../components/ModalModelos";
 import { ModalEstimativa } from "../components/ModalEstimativa";
 import { carregarFeriados } from "../storage/IndexedDb";
+import { SLOGAN } from "./marca";
 import { PainelLateral } from "../components/PainelLateral";
 import { SeletorArquivo } from "../components/SeletorArquivo";
 import { TelaInicial } from "../components/TelaInicial";
@@ -73,7 +74,9 @@ export function App() {
         <div className="topo-linha">
           <div className="brasao" aria-hidden>4D</div>
           <div className="titulo-bloco">
-            <h1>Construction 4D Studio</h1>
+            <h1>
+              Construction 4D Studio <span className="slogan" data-testid="slogan">{SLOGAN}</span>
+            </h1>
             <span className="sub" data-testid="situacao">{situacao}</span>
           </div>
           {demo && (

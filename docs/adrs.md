@@ -327,3 +327,24 @@ Testes: lógica, parsing de CSV e de IFC no Vitest (Node). Exportação de víde
 - O município escolhido fica no cronograma (`municipio`, em `schedule.json`).
 - Depois de 2030, a contagem desconta só sábados e domingos, e a tela avisa. Para estender, acrescentar os anos e subir `VERSAO_FERIADOS`.
 
+## ADR-23 — Drone, obra pronta humanizada e ambiente realista
+
+**Pedido.** "Voar por dentro e por fora da construção enquanto ela é montada, como um drone. Depois de montada, girar pelas fachadas e entrar na obra pronta humanizada, inclusive subir e descer as escadas."
+
+- **Navegação a partir do IFC** (`src/rendering/navegacao.ts`, pura e testada no Node):
+  - mapa de ocupação de cada pavimento: os triângulos de paredes, pilares, janelas, escadas e móveis são cortados a 0,5 m e a 1,2 m acima do piso; portas, lajes e pisos não barram;
+  - folga de 0,25 m do corpo e mapa de distância aos obstáculos; o A* (8 direções, sem cortar quinas) encarece passar a menos de 0,9 m deles, e a simplificação por linha de visada mantém essa margem: a câmera segue pelo meio dos cômodos;
+  - portas externas pela normal da folha (para longe do centro da casa); a da frente é a que mais olha para +z;
+  - escadas: pé e topo pelos vértices mais baixos e mais altos acima da base, com 0,9 m de patamar antes e depois; no pavimento de cima, o vão da escada é bloqueado.
+- **Roteiro** (`src/rendering/drone.ts`): metade do tempo com a obra sendo montada (voo em espiral descendo, entrada pela porta da frente, travessia até a porta dos fundos ou ida e volta, subida e giro alto) e metade com a obra pronta (volta completa pelas fachadas na altura de quem passa na rua, entrada pela porta, subida da escada, ida ao cômodo mais distante, volta, descida e sala). Lente de 50° por fora e 62° a 68° por dentro. Transições suaves; o teste garante saltos menores que 0,5 m entre 2.000 amostras.
+- **Humanização:** a mobília do IFC (`IfcFurniture`, `IfcFurnishingElement`) fica fora do mapeamento 4D (não gera aviso de "sem tarefa") e só aparece com a obra concluída (último dia do cronograma). Pessoas estilizadas, determinísticas, ficam na frente da casa e em cada pavimento, perto do caminho da câmera sem cruzar com ele. Os dois modelos de exemplo ganharam mobília (`tools/mobilia.py`), acrescentada no fim dos arquivos para não mudar os GUIDs existentes.
+- **Ambiente realista** (`src/rendering/ambiente.ts`):
+  - céu físico de Preetham com nuvens procedurais do Three.js, com o sol na mesma direção da luz da cena; o céu é desenhado num cubo (fundo) e pré-filtrado (PMREM) para os reflexos, no lugar do RoomEnvironment;
+  - chão até 1,5 km com a grama fotográfica, com um buraco no lugar do lote e uma cava de solo embaixo (a fundação aparece escavada, sem céu por baixo do terreno); a repetição da foto é quebrada misturando-a com ela mesma numa escala 7× maior; neblina leve no horizonte;
+  - texturas fotográficas de grama (`sparse_grass`) e solo (`grass_path_2`) do Poly Haven, licença CC0, em `public/texturas/` (1,5 MB); o vídeo e o relatório esperam que elas carreguem;
+  - árvores procedurais no lugar das caixas de paisagismo do IFC;
+  - madeira com tábuas e veios no lugar das listras.
+- **Controles:** botão **Drone** (W A S D/setas, E/Q, arrastar para olhar, roda para a velocidade, Esc; direcional na tela para o toque) e **Voo automático** na viewport; câmera **Drone: voo e passeio** no vídeo, com a obra montada na primeira metade.
+- **Marca:** slogan "Produtor de Vídeos das obras da Super Influencer Dani, a engenheira." no cabeçalho, na tela inicial, no rodapé do relatório e numa faixa discreta no canto do vídeo (desligável).
+- **Limites:** escadas em L ou em U são percorridas em linha reta entre o pé e o topo; sem porta externa, o voo fica do lado de fora; o modelo paramétrico ainda não tem mobília.
+

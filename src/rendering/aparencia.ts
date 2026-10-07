@@ -31,6 +31,11 @@ export function materialRealista(material: string | null, ifcType: string, acaba
   if (revestivel && acabamento === "reboco") return M("reboco", 0.95, 0, 0.015);
 
   const n = norm(material ?? "");
+  // mobília da obra pronta (ADR-23)
+  if (/tecido|estofad|fabric/.test(n)) return M("liso", 0.95, 0, 0, { usarCorIfc: true });
+  if (/tela de tv|monitor/.test(n)) return M("liso", 0.25, 0, 0, { usarCorIfc: true });
+  if (/inox/.test(n)) return M("liso", 0.35, 0.85, 0, { usarCorIfc: true });
+  if (/terracota/.test(n)) return M("liso", 0.9, 0, 0, { usarCorIfc: true });
   if (/vidro|glass/.test(n)) return M("liso", 0.05, 0, 0, { opacidade: 0.32, usarCorIfc: true });
   if (/telha metal|metalica|aco|steel|zinco|aluminio/.test(n)) return M("telha-metalica", 0.45, 0.6, 0.01);
   if (/telha|ceramica de cobertura|roof tile/.test(n)) return M("telha-ceramica", 0.8, 0, 0.03);

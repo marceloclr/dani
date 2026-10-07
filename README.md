@@ -1,15 +1,20 @@
 # Dani: Construction 4D Studio
 
+*Produtor de Vídeos das obras da Super Influencer Dani, a engenheira.*
+
 Aplicação web estática que transforma um modelo de residência (IFC) e o cronograma da obra numa simulação 4D navegável: a casa surge etapa por etapa, dia a dia. Tudo é processado no navegador; nenhum arquivo sai do dispositivo.
 
-**Estado:** incrementos 1 a 4 implementados:
+**Estado:** incrementos 1 a 9 implementados:
 - IFC → 3D → cronograma → mapeamento → timeline → simulação 4D;
 - quatro modos de animação, presets e roteiro de câmera, e geração de vídeo real;
 - projetos salvos no navegador, arquivo `.4dstudio`, cronograma em XLSX, edição de tarefas e modo paramétrico;
 - acompanhamento da obra: planejado × real, fotos na timeline e na simulação, planta sobreposta, relatório PDF e modelos de arquivo para download;
 - revelação progressiva da obra (padrão) e vídeo pronto para compartilhar: MP4 para WhatsApp, MP4 1080p, WebM, GIF e quadros PNG;
 - cronograma estimado automaticamente (§13) e tarefas por pavimento;
-- aparência realista (padrão) na tela, no vídeo e no relatório: texturas de tijolo, reboco, pintura, concreto, telha, madeira, porcelanato, vidro, terra e grama, sol com sombras, céu, reflexos e sombreamento nos cantos (GTAO).
+- aparência realista (padrão) na tela, no vídeo e no relatório: texturas de tijolo, reboco, pintura, concreto, telha, madeira e porcelanato, sol com sombras, reflexos e sombreamento nos cantos (GTAO);
+- dias úteis na estimativa pelo calendário oficial do Ceará e da Região Metropolitana de Fortaleza (feriados de 2026 a 2030 no banco local);
+- drone: voo manual e automático por dentro e por fora da obra enquanto ela é montada; com a obra pronta e humanizada (mobília e pessoas), volta pelas fachadas, entrada pela porta, subida e descida da escada; também como câmera do vídeo;
+- céu físico com nuvens, chão até o horizonte com grama e solo fotográficos (Poly Haven, CC0), cava da fundação e árvores.
 
 Ficam para depois (`[FUTURO]` na [especificação](docs/especificacao.md)): IA e multiusuário. PWA foi descartado.
 
@@ -57,9 +62,10 @@ e publique a pasta `dist/` (GitHub Pages, Cloudflare Pages, Netlify ou Vercel). 
 5. Escolha a **Animação** na timeline:
    - **Progressivo** (padrão): os elementos de cada etapa se formam um a um ao longo do prazo. Paredes e pilares sobem, lajes, vigas e pisos avançam, e o resto aparece aos poucos. Cada um ganha a cor final ao terminar.
    - Os outros modos: Aparecimento, Fade-in, Crescimento e Por fases.
-6. Na aba **Vídeo**, escolha formato (16:9, 9:16 ou 1:1), fps e duração, ajuste o roteiro de câmera (presets ou a câmera atual, capturada pela prévia) e gere o arquivo. O painel mostra o progresso, permite cancelar e, ao fim, pré-visualizar e baixar.
-7. **Projetos**, no alto: o projeto é salvo sozinho neste navegador (a demonstração só com "Salvar cópia"). Dali se abre, duplica, exporta e importa `.4dstudio`, e se exportam o cronograma (JSON ou CSV para o Excel) e o mapeamento (JSON).
-8. Aba **Obra**: avanço planejado e real com fórmula, fotos da obra (com data do EXIF ou de um `fotos.csv`), planta sobreposta em PNG, JPG ou PDF, e o **relatório PDF** da data da simulação. Na viewport, alterne entre **Planejado**, **Real** e **Comparar**: no modo Comparar, o carmim marca o que está atrasado e a ardósia, o que está adiantado.
+6. Na aba **Vídeo**, escolha formato (16:9, 9:16 ou 1:1), fps e duração e a câmera: **Roteiro de vistas** (presets ou a câmera atual, capturada pela prévia) ou **Drone: voo e passeio** (recomendado com 60 s ou mais). Gere o arquivo: o painel mostra o progresso, permite cancelar e, ao fim, pré-visualizar e baixar. A assinatura da marca (nome e slogan) vai no canto do vídeo e pode ser desligada.
+7. **Drone** na viewport: pilote com W A S D ou as setas, E e Q para subir e descer, arraste para olhar, roda para a velocidade e Esc para sair; no celular, use o direcional da tela. **Voo automático** mostra na viewport o mesmo voo da câmera Drone: a obra é montada enquanto o drone voa em volta e entra pela porta; pronta, ganha mobília e pessoas, e o drone gira pelas fachadas, entra, sobe e desce a escada.
+8. **Projetos**, no alto: o projeto é salvo sozinho neste navegador (a demonstração só com "Salvar cópia"). Dali se abre, duplica, exporta e importa `.4dstudio`, e se exportam o cronograma (JSON ou CSV para o Excel) e o mapeamento (JSON).
+9. Aba **Obra**: avanço planejado e real com fórmula, fotos da obra (com data do EXIF ou de um `fotos.csv`), planta sobreposta em PNG, JPG ou PDF, e o **relatório PDF** da data da simulação. Na viewport, alterne entre **Planejado**, **Real** e **Comparar**: no modo Comparar, o carmim marca o que está atrasado e a ardósia, o que está adiantado.
 
 A viewport tem duas aparências: **Realista** (padrão) e **Técnica**. Na Realista, os materiais têm textura e a cena tem sol, sombras e céu. Na Técnica, os elementos em execução aparecem em latão; os concluídos, com a cor do material; os que nenhuma tarefa faz surgir ficam translúcidos ("fantasma"). Paredes mudam de cor quando o reboco e a pintura terminam.
 
@@ -119,7 +125,10 @@ Depois de gerar, o painel mostra a pré-visualização, o botão Baixar e:
 - O modo paramétrico tem uma planta-tipo fixa (dois cômodos na frente, sala e cozinha no fundo, escada na lateral) e não tem instalações nem louças; é para animar, não é projeto (ADR-12).
 - Simulação real: tarefa sem início real conta como não iniciada; com início e sem fim real, segue em execução indefinidamente (ADR-13).
 - O relatório PDF usa a fonte Helvetica do próprio PDF, não a IBM Plex (ADR-15).
-- A aparência realista é renderização em tempo real, não fotografia: sem luz indireta verdadeira; a geometria vem do IFC (árvores do exemplo são caixas). Um quadro fotorrealista exigiria um traçador de caminhos, mais lento (ADR-21).
+- A aparência realista é renderização em tempo real, não fotografia: sem luz indireta verdadeira (por dentro, a casa fica clara por igual). Um quadro fotorrealista exigiria um traçador de caminhos, mais lento (ADR-21).
+- O drone calcula o caminho pela geometria do IFC (paredes, pilares, janelas e móveis na altura do joelho e do peito). Escadas em L ou em U são percorridas em linha reta entre o pé e o topo; sem porta externa, o voo fica só do lado de fora (ADR-23).
+- A humanização usa a mobília do IFC (`IfcFurniture`/`IfcFurnishingElement`) e pessoas estilizadas geradas pelo app; o modelo paramétrico ainda não tem mobília.
+- Sem placa de vídeo, o vídeo realista leva cerca de 0,7 s por quadro (360 quadros ≈ 4 min).
 - A planta é só uma imagem de referência: não vira modelo BIM.
 - Fotos e plantas ocupam o armazenamento do navegador; em obras com muitas fotos, exporte o `.4dstudio` periodicamente.
 - Os projetos ficam no navegador em que foram criados; para levar a outro computador, exporte o `.4dstudio`.
@@ -149,6 +158,9 @@ Chrome, Edge ou Brave atualizados (testado no Chromium 153 do Playwright). Firef
 | [prompts/incremento-5.md](prompts/incremento-5.md) | Prompt do incremento 5 |
 | [prompts/incremento-6.md](prompts/incremento-6.md) | Prompt do incremento 6 |
 | [prompts/incremento-7.md](prompts/incremento-7.md) | Prompt do incremento 7 |
+| [prompts/incremento-8.md](prompts/incremento-8.md) | Prompt do incremento 8 (dias úteis) |
+| [prompts/incremento-9.md](prompts/incremento-9.md) | Prompt do incremento 9 (drone e obra humanizada) |
+| [docs/feriados.md](docs/feriados.md) | Feriados do Ceará e da RMF, com fontes |
 | [public/modelos/](public/modelos/) | Modelos de arquivo para download |
 | [public/samples/](public/samples/) | Casa de demonstração e cronograma |
 | [tools/](tools/) | Gerador do IFC de demonstração, prévia estática, modelos de arquivo e cópia dos ativos locais (wasm, fontes do pdf.js, codificador H.264) |
@@ -159,18 +171,19 @@ Interface no padrão [Papel e Tinta](https://github.com/marceloclr/design-system
 
 ```
 src/
-├── app/          App, carga, projetos, anexos (fotos e planta), relatorio (PDF), estadoCena
+├── app/          App, carga, projetos, anexos (fotos e planta), relatorio (PDF), estadoCena, marca (slogan)
 ├── bim/          parseIfc (web-ifc → metadados e malhas), Web Worker, ModelAdapter, parametrico
-├── fourd/        tempo, regras, simulacao (avaliar), animacao, real (planejado × real), estimativa, validacao
+├── fourd/        tempo, regras, simulacao (avaliar), animacao, real (planejado × real), estimativa, feriados, validacao
 ├── importers/    CSV, XLSX e JSON do cronograma, fotos (EXIF e fotos.csv), texto
-├── storage/      IndexedDB (projetos, modelos e anexos) e arquivo .4dstudio
-├── rendering/    Cena (Three.js, seleção, camadas, aparência), cameras, aparencia e texturas (realista), VideoRenderer
+├── storage/      IndexedDB (projetos, modelos, anexos e feriados) e arquivo .4dstudio
+├── rendering/    Cena (Three.js, seleção, camadas, aparência), cameras, aparencia e texturas (realista), ambiente (céu, chão,
+│                 árvores, pessoas), navegacao e drone (caminhos e voo), voo (drone na viewport), VideoRenderer
 ├── components/   tela inicial, viewport, timeline, painel lateral, painel de vídeo, erros
 ├── state/        projectStore e uiStore (Zustand)
 ├── estilos/      tokens do design system e layout
 └── utils/        dicas com fórmula
 tests/            Vitest (núcleo, animação, câmeras, IFC, paramétrico, XLSX, .4dstudio, real, fotos, modelos)
-e2e/              Playwright (aceitação dos incrementos 1 a 4) e gerador do exemplo.4dstudio
+e2e/              Playwright (aceitação dos incrementos 1 a 9) e gerador do exemplo.4dstudio
 ```
 
 `src/fourd/` não importa Three.js nem o DOM e roda no Node.
@@ -183,5 +196,6 @@ Gerados por script (ADR-08). Para regenerar:
 python -m venv .venv && .venv/bin/pip install ifcopenshell==0.9.0 matplotlib
 .venv/bin/python tools/gerar_demo_ifc.py      # public/samples/demo.ifc (casa térrea)
 .venv/bin/python tools/gerar_sobrado_ifc.py   # public/modelos/sobrado-exemplo.ifc
+# a mobília dos dois vem de tools/mobilia.py e fica no fim do arquivo (os GUIDs antigos não mudam)
 .venv/bin/python tools/previa_demo.py      # docs/demo-etapas.png
 ```

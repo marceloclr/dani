@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { abrirDemonstracao, demonstracaoDisponivel } from "../app/carregamento";
+import { SLOGAN } from "../app/marca";
 import { useProjeto } from "../state/projectStore";
 import { useUi } from "../state/uiStore";
 import { SeletorArquivo } from "./SeletorArquivo";
@@ -23,6 +24,7 @@ export function TelaInicial() {
       <div className="inicial-in">
         <p className="kicker">Simulação 4D de obras residenciais</p>
         <h1>Construction 4D Studio</h1>
+        <p className="slogan-inicial" data-testid="slogan-inicial">{SLOGAN}</p>
         <p className="lede">Carregue o modelo IFC e o cronograma da obra para ver a casa sendo construída dia a dia. Tudo é processado e salvo neste navegador.</p>
 
         <ol className="passos">

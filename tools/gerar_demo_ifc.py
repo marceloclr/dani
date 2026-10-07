@@ -29,6 +29,10 @@ import ifcopenshell.api.unit
 import ifcopenshell.guid
 from ifcopenshell.util.shape_builder import ShapeBuilder, V
 
+import sys
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from mobilia import MATERIAIS_MOBILIA, armario, cadeira, cama, mesa, planta, rack, sofa, tapete, travesseiros, tv, vaso  # noqa: E402
+
 SAIDA = Path(__file__).resolve().parent.parent / "public" / "samples" / "demo.ifc"
 
 # Alturas (m)
@@ -88,6 +92,7 @@ MATERIAIS = {
     "Copa de árvore": ((0.31, 0.48, 0.23), 0.0),
     "Tronco": ((0.42, 0.29, 0.18), 0.0),
 }
+MATERIAIS.update(MATERIAIS_MOBILIA)
 _mat, _estilo = {}, {}
 for nome, (rgb, transp) in MATERIAIS.items():
     _mat[nome] = ifcopenshell.api.material.add_material(m, name=nome)
@@ -313,6 +318,36 @@ paisagismo("Gramado frontal", "Grama", [(-1.65, -5.0, -0.10, 11.65, -0.60, -0.05
 paisagismo("Gramado do quintal", "Grama", [(-1.65, 18.60, -0.10, 11.65, 25.0, -0.05)])
 for i, (x, y) in enumerate([(-0.80, 21.5), (5.0, 23.0), (10.8, 21.5)], start=1):
     paisagismo(f"Árvore {i}", "Copa de árvore", [(x - 0.12, y - 0.12, -0.05, x + 0.12, y + 0.12, 2.20), (x - 1.0, y - 1.0, 2.20, x + 1.0, y + 1.0, 4.00)])
+
+# ---------------------------------------------------------------- mobília (humanização da obra pronta, ADR-23)
+# no fim do arquivo, para não mudar os GUIDs dos elementos anteriores
+def movel(nome, material, caixas, tipo="USERDEFINED"):
+    elemento("IfcFurniture", nome, material, caixas, predefined=tipo)
+
+
+P = 0.02  # piso acabado
+# sala (0–10 × 7,5–13,5)
+movel("Sofá da sala", "Tecido", sofa(6.3, 7.7, 8.7, 8.6, P, "y0"), "SOFA")
+movel("Tapete da sala", "Tecido claro", tapete(6.2, 8.9, 8.8, 11.6, P))
+movel("Mesa de centro", "Madeira", mesa(6.9, 9.3, 8.1, 9.9, P, 0.42), "TABLE")
+movel("Rack da TV", "Madeira", rack(6.4, 12.9, 8.6, 13.35, P))
+movel("TV da sala", "Tela de TV", tv(6.4, 12.9, 8.6, 13.35, P, "y1"))
+movel("Mesa de jantar", "Madeira clara", mesa(1.2, 9.5, 2.8, 11.0, P), "TABLE")
+for i, (x, y, c) in enumerate([(1.6, 9.1, "y0"), (2.4, 9.1, "y0"), (1.6, 11.4, "y1"), (2.4, 11.4, "y1")], start=1):
+    movel(f"Cadeira de jantar {i}", "Madeira clara", cadeira(x, y, P, c), "CHAIR")
+movel("Vaso da sala", "Terracota", vaso(9.4, 8.1, P))
+movel("Planta da sala", "Folhagem", planta(9.4, 8.1, P))
+# suítes (0–4 e 6–10 × 0–5)
+movel("Cama da suíte oeste", "Tecido claro", cama(0.15, 1.6, 2.15, 3.2, P, "x0"), "BED")
+movel("Travesseiros da suíte oeste", "Tecido", travesseiros(0.15, 1.6, 2.15, 3.2, P, "x0"))
+movel("Guarda-roupa da suíte oeste", "Madeira", armario(3.3, 0.3, 3.9, 2.3, P), "SHELF")
+movel("Cama da suíte leste", "Tecido claro", cama(7.85, 1.6, 9.85, 3.2, P, "x1"), "BED")
+movel("Travesseiros da suíte leste", "Tecido", travesseiros(7.85, 1.6, 9.85, 3.2, P, "x1"))
+movel("Guarda-roupa da suíte leste", "Madeira", armario(6.1, 0.3, 6.7, 2.3, P), "SHELF")
+# cozinha (0–6 × 13,5–18)
+movel("Bancada da cozinha", "Madeira clara", [(0.15, 13.9, P, 0.75, 14.9, 0.85), (0.15, 16.9, P, 0.75, 17.8, 0.85)], "USERDEFINED")
+movel("Geladeira", "Aço inox", armario(5.15, 17.1, 5.85, 17.8, P, 1.8))
+movel("Mesa da cozinha", "Madeira clara", mesa(2.4, 15.4, 3.6, 16.2, P), "TABLE")
 
 # ---------------------------------------------------------------- gravação
 SAIDA.parent.mkdir(parents=True, exist_ok=True)

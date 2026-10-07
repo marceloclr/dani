@@ -63,7 +63,7 @@ test("GIF com aparência realista", async ({ page }) => {
 test("sobrado de exemplo pela tela inicial", async ({ page }) => {
   await page.goto("/");
   await page.getByTestId("abrir-sobrado").click();
-  await expect(page.getByTestId("situacao")).toContainText("Sobrado de exemplo · 101 elementos", { timeout: 60_000 });
+  await expect(page.getByTestId("situacao")).toContainText("Sobrado de exemplo · 125 elementos", { timeout: 60_000 });
   await expect(page.locator(".gantt .linha")).toHaveCount(18);
   await page.getByTestId("data-simulacao").fill("2026-05-10"); // alvenaria do térreo
   await page.getByTestId("modo-animacao").selectOption("aparecimento");

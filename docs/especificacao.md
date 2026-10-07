@@ -13,6 +13,8 @@ Versão enxuta do [prompt mestre](../prompt-mestre-original.md). Cada requisito 
 | `[INC-5]` | Incremento 5: revelação progressiva e vídeo para compartilhar |
 | `[INC-6]` | Incremento 6: cronograma estimado, tarefas por pavimento e WhatsApp no computador |
 | `[INC-7]` | Incremento 7: aparência realista e segundo modelo de teste |
+| `[INC-8]` | Incremento 8: dias úteis na estimativa pelo calendário oficial do Ceará |
+| `[INC-9]` | Incremento 9: drone, obra pronta humanizada, céu e terreno realistas, slogan da marca |
 | `[FUTURO]` | Não implementar. A arquitetura só não deve impedir |
 | `[SEMPRE]` | Princípio válido em todos os incrementos |
 
@@ -104,6 +106,7 @@ interface Tarefa {
 - `[INC-4]` Fotos da obra na timeline e na simulação; planejado × real com datas reais, avanço físico e modo Comparar (§30, §31, §58; ADR-13, ADR-14).
 - `[INC-4]` Relatório PDF (§59; ADR-15) e modelos de arquivo para download, preenchidos.
 - `[INC-7]` Aparência realista na viewport, no vídeo e no relatório (ADR-21); sobrado IFC de exemplo; tema claro como padrão.
+- `[INC-9]` Drone: voo manual e automático por dentro e por fora da obra; obra pronta humanizada (mobília do IFC e pessoas); volta pelas fachadas, entrada, subida e descida da escada; câmera Drone no vídeo; céu físico com nuvens e terreno fotográfico até o horizonte; slogan da marca no app, no relatório e no vídeo (ADR-23).
 - `[INC-6]` Envio pelo WhatsApp no computador sem Web Share de arquivos (ADR-20).
 - `[INC-5]` Revelação progressiva como padrão e vídeo para compartilhar (MP4 para WhatsApp, GIF, Compartilhar) (ADR-16, ADR-17).
 - `[FUTURO]` Multiusuário (§60). PWA (§46) foi descartado pelo usuário em 2026-10-07.
