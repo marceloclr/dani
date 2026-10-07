@@ -4,7 +4,7 @@ import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import type { MalhaElemento } from "../bim/parseIfc";
 import { parametros, type PosicaoElemento, type PosicaoFila } from "../fourd/animacao";
-import type { EstadoElemento, ModoAnimacao } from "../types";
+import type { Desvio, EstadoElemento, ModoAnimacao, PlantaSobreposta } from "../types";
 import { distanciaDeEnquadramento, poseDaPosicao, poseDoPreset, posicaoDaPose, type Enquadramento, type Pose, type Preset } from "./cameras";
 
 /** Cores de aparência por acabamento concluído; "base" usa a cor do IFC. */
@@ -12,6 +12,8 @@ const APARENCIAS: Record<string, string> = { reboco: "#cfc9bd", pintura: "#f1ede
 const COR_EM_EXECUCAO = new THREE.Color("#c4a45e"); // --latao (escuro), legível nos dois temas
 const COR_SELECAO = new THREE.Color("#3f5c78"); // --ardosia
 const COR_FANTASMA = new THREE.Color("#8d949d");
+const COR_ATRASADO = new THREE.Color("#b54a4a"); // carmim
+const COR_ADIANTADO = new THREE.Color("#4f7aa8"); // ardósia
 
 export interface Camadas {
   /** Estado 4D por guid (camada de baixo). */
@@ -24,6 +26,8 @@ export interface Camadas {
   modo: ModoAnimacao;
   fila: Map<string, PosicaoFila> | null;
   tipos: Map<string, string>;
+  /** Modo Comparar (ADR-13): desvio de cada elemento; os estados são os reais. */
+  desvios?: Map<string, Desvio> | null;
 }
 
 export class Cena {
@@ -41,7 +45,11 @@ export class Cena {
   private pendente = false;
   private observador: ResizeObserver;
   private raycaster = new THREE.Raycaster();
+  /** Contagem de desvios da última aplicação (modo Comparar), para os testes e a legenda. */
+  ultimosDesvios = { atrasado: 0, adiantado: 0 };
   private girando = false;
+  private planta: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial> | null = null;
+  private urlPlanta: string | null = null;
   private ultimoGiro = 0;
 
   constructor(private readonly host: HTMLElement) {
@@ -160,12 +168,15 @@ export class Cena {
 
   /** Aplica as camadas: estado 4D (com o modo de animação) < ocultos pelo usuário < isolamento (ADR-02). */
   aplicar(c: Camadas): void {
+    this.ultimosDesvios = { atrasado: 0, adiantado: 0 };
     for (const [guid, malha] of this.malhas) {
       const estado = c.estados?.get(guid);
       let visivel = estado ? estado.visivel : true;
       if (c.ocultos.has(guid)) visivel = false;
       if (c.isolados && !c.isolados.has(guid)) visivel = false;
 
+      const desvio = c.desvios?.get(guid);
+      if (desvio === "atrasado") visivel = !c.ocultos.has(guid) && !(c.isolados && !c.isolados.has(guid)); // o que devia existir aparece, marcado
       const p = estado ? parametros(estado, c.modo, c.tipos.get(guid) ?? "", c.fila?.get(guid)) : { opacidade: 1, escalaY: 1 };
       const opacidadeBase = malha.userData.opacidadeBase as number;
       if (p.opacidade * opacidadeBase < 0.025) visivel = false;
@@ -178,6 +189,18 @@ export class Cena {
 
       const base = this.corBase.get(guid)!;
       const sel = c.selecionado === guid;
+      if (desvio === "atrasado") {
+        this.ultimosDesvios.atrasado++;
+        malha.scale.y = 1;
+        malha.position.y = 0;
+        malha.material = this.material(estado?.visivel ? base.clone().lerp(COR_ATRASADO, 0.75) : COR_ATRASADO, estado?.visivel ? opacidadeBase : 0.4, sel);
+        continue;
+      }
+      if (desvio === "adiantado") {
+        this.ultimosDesvios.adiantado++;
+        malha.material = this.material(base.clone().lerp(COR_ADIANTADO, 0.7), opacidadeBase * p.opacidade, sel);
+        continue;
+      }
       if (!estado || estado.fase === "concluido") {
         const ap = estado && APARENCIAS[estado.aparencia];
         malha.material = this.material(ap ? new THREE.Color(ap) : base, opacidadeBase * p.opacidade, sel);
@@ -189,6 +212,69 @@ export class Cena {
       }
     }
     this.pedirQuadro();
+  }
+
+  /** Caixa da casa em planta (x e z), para posicionar a planta sobreposta. */
+  caixaPlanta(): { x0: number; x1: number; z0: number; z1: number } | null {
+    if (this.caixa.isEmpty()) return null;
+    return { x0: this.caixa.min.x, x1: this.caixa.max.x, z0: this.caixa.min.z, z1: this.caixa.max.z };
+  }
+
+  /** Planta sobreposta (§29): textura num plano horizontal logo acima do contrapiso. */
+  definirPlanta(p: PlantaSobreposta | null, url: string | null): void {
+    if (!p || !url) {
+      if (this.planta) {
+        this.scene.remove(this.planta);
+        this.planta.geometry.dispose();
+        this.planta.material.map?.dispose();
+        this.planta.material.dispose();
+        this.planta = null;
+        this.urlPlanta = null;
+      }
+      this.pedirQuadro();
+      return;
+    }
+    if (!this.planta) {
+      const geo = new THREE.PlaneGeometry(1, 1);
+      geo.rotateX(-Math.PI / 2);
+      const mat = new THREE.MeshBasicMaterial({ transparent: true, depthWrite: false, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+      this.planta = new THREE.Mesh(geo, mat);
+      this.planta.renderOrder = 1;
+      this.scene.add(this.planta);
+    }
+    if (url !== this.urlPlanta) {
+      this.urlPlanta = url;
+      this.planta.material.map?.dispose();
+      const tex = new THREE.TextureLoader().load(url, () => this.pedirQuadro());
+      tex.colorSpace = THREE.SRGBColorSpace;
+      tex.anisotropy = Math.min(8, this.renderer.capabilities.getMaxAnisotropy());
+      this.planta.material.map = tex;
+      this.planta.material.needsUpdate = true;
+    }
+    this.planta.visible = p.visivel;
+    this.planta.material.opacity = p.opacidade;
+    this.planta.scale.set(p.larguraM, 1, p.larguraM * p.proporcao);
+    this.planta.position.set(p.x, 0.03, p.z);
+    this.planta.rotation.y = THREE.MathUtils.degToRad(-p.rotacaoGraus);
+    this.pedirQuadro();
+  }
+
+  /** Imagem da cena numa resolução qualquer, para o relatório (PNG). */
+  async capturar(largura: number, altura: number, pose: Pose): Promise<Blob> {
+    const canvas = document.createElement("canvas");
+    const r = new THREE.WebGLRenderer({ canvas, antialias: true, preserveDrawingBuffer: true });
+    try {
+      r.setPixelRatio(1);
+      r.setSize(largura, altura, false);
+      r.outputColorSpace = THREE.SRGBColorSpace;
+      const cam = new THREE.PerspectiveCamera(45, largura / altura, 0.05, 4000);
+      this.posicionar(cam, pose);
+      r.render(this.scene, cam);
+      return await new Promise<Blob>((ok, falha) => canvas.toBlob((b) => (b ? ok(b) : falha(new Error("toBlob falhou"))), "image/jpeg", 0.9));
+    } finally {
+      r.dispose();
+      r.forceContextLoss();
+    }
   }
 
   /** guid do elemento sob o ponteiro (coordenadas do cliente). */
@@ -309,6 +395,7 @@ export class Cena {
 
   dispose(): void {
     this.pararGiro();
+    this.definirPlanta(null, null);
     this.limpar();
     this.observador.disconnect();
     this.controls.dispose();

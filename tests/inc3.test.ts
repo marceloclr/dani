@@ -123,7 +123,8 @@ describe(".4dstudio (§38)", () => {
     const ifc = new Uint8Array(readFileSync("public/samples/demo.ifc"));
     const { registro: r, ifc: i } = importar4dstudio(exportar4dstudio(registro, ifc));
     const { id: _id, ...semId } = registro;
-    expect(r).toEqual(semId);
+    expect(r).toEqual({ ...semId, fotos: [], planta: null }); // v2 sempre devolve os anexos
+
     expect(i!.length).toBe(ifc.length);
   });
   it("modelo paramétrico vai sem IFC", () => {

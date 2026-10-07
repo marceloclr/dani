@@ -8,6 +8,7 @@ import { SeletorArquivo } from "./SeletorArquivo";
 import { ACEITA_CRONO, DICA_CRONO, abrirCronograma } from "./acoesArquivo";
 import { useUi } from "../state/uiStore";
 import { usarCronogramaDemo } from "../app/carregamento";
+import { dataDeStatus } from "../fourd/real";
 
 /** 1× = 6 dias por segundo: 180 dias em 30 s, a duração-padrão do vídeo (§23). */
 export const DIAS_POR_SEGUNDO = 6;
@@ -43,6 +44,7 @@ export function Timeline() {
   const vinculos = useProjeto((s) => s.vinculos);
   const tarefaIsolada = useProjeto((s) => s.tarefaIsolada);
   const modo = useProjeto((s) => s.modoAnimacao);
+  const fotos = useProjeto((s) => s.fotos);
   const gerando = useProjeto((s) => s.gerandoVideo);
   const st = useProjeto.getState;
   const escala = useRef<HTMLDivElement>(null);
@@ -92,6 +94,14 @@ export function Timeline() {
   }
 
   const contagem = contarPorTarefa(vinculos);
+  const status = dataDeStatus(cronograma.tarefas, fotos.map((f) => f.dia - cronograma.inicio));
+  // fotos agrupadas por dia (relativo ao início da obra)
+  const fotosPorDia = new Map<number, typeof fotos>();
+  for (const f of fotos) {
+    const d = f.dia - cronograma.inicio;
+    if (d < 0 || d >= total) continue;
+    fotosPorDia.set(d, [...(fotosPorDia.get(d) ?? []), f]);
+  }
   const pct = (d: number) => `${(d / total) * 100}%`;
   const diaPeloPonteiro = (x: number) => {
     const r = escala.current!.getBoundingClientRect();
@@ -209,6 +219,22 @@ export function Timeline() {
                 {m.rotulo}
               </span>
             ))}
+            {status !== null && status >= 0 && status < total && (
+              <span className="status" style={{ left: pct(status + 1) }} data-tip={`Data de status: ${formatarBR(cronograma.inicio + status)}\nÚltima data real informada ou da última foto.`} />
+            )}
+            {[...fotosPorDia].map(([d, fs]) => (
+              <button
+                key={d}
+                type="button"
+                className="marca-foto"
+                style={{ left: pct(d + 0.5) }}
+                data-testid="marca-foto"
+                aria-label={`${fs.length} ${fs.length === 1 ? "foto" : "fotos"} em ${formatarBR(cronograma.inicio + d)}`}
+                data-tip={`${fs.length} ${fs.length === 1 ? "foto" : "fotos"} em ${formatarBR(cronograma.inicio + d)}${fs[0].descricao ? `\n${fs[0].descricao}` : ""}`}
+                onPointerDown={(e) => e.stopPropagation()}
+                onClick={() => useUi.getState().abrir({ foto: fs[0].id })}
+              />
+            ))}
             <span className="cursor" style={{ left: pct(dia + 0.5) }} />
           </div>
         </div>
@@ -221,7 +247,7 @@ export function Timeline() {
                 <button
                   type="button"
                   className="rotulo-col"
-                  data-tip={`${t.nome} (${t.id})\nInício: ${formatarBR(cronograma.inicio + t.ini)}\nFim: ${formatarBR(cronograma.inicio + t.fim)}\nDuração: ${duracao(t.ini, t.fim)} dias\nElementos: ${n}\nClique para ver só os elementos desta tarefa.`}
+                  data-tip={`${t.nome} (${t.id})\nInício: ${formatarBR(cronograma.inicio + t.ini)}\nFim: ${formatarBR(cronograma.inicio + t.fim)}\nDuração: ${duracao(t.ini, t.fim)} dias\nElementos: ${n}${t.realIni !== undefined ? `\nInício real: ${formatarBR(cronograma.inicio + t.realIni)}` : ""}${t.realFim !== undefined ? `\nFim real: ${formatarBR(cronograma.inicio + t.realFim)}` : ""}${t.avanco !== undefined ? `\nAvanço físico: ${Math.round(t.avanco * 100)}%` : ""}\nClique para ver só os elementos desta tarefa.`}
                   onClick={() => st().isolarTarefa(tarefaIsolada === t.id ? null : t.id)}
                 >
                   <span className="nome">{t.nome}</span>
@@ -232,6 +258,13 @@ export function Timeline() {
                     className="barra"
                     style={{ left: pct(t.ini), width: pct(duracao(t.ini, t.fim)), ["--cor" as string]: COR_CATEGORIA[t.categoria] ?? "var(--grafite)" }}
                   />
+                  {t.realIni !== undefined && (
+                    <span
+                      className={`barra-real${t.realFim === undefined ? " aberta" : ""}${(t.realFim ?? status ?? t.realIni) > t.fim ? " atrasada" : ""}`}
+                      data-testid={`real-${t.id}`}
+                      style={{ left: pct(Math.max(t.realIni, 0)), width: pct(Math.max((t.realFim ?? status ?? t.realIni) - Math.max(t.realIni, 0) + 1, 0.5)) }}
+                    />
+                  )}
                   <span className="cursor" style={{ left: pct(dia + 0.5) }} />
                 </div>
               </div>

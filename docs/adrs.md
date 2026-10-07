@@ -17,6 +17,9 @@ Versões e licenças conferidas no registro npm em 2026-10-07.
 | 10 | Reprodução: 1× = 6 dias por segundo | Aceita |
 | 11 | Ciclo de vida do projeto e gravação automática | Aceita |
 | 12 | Modo paramétrico com as mesmas classes IFC | Aceita |
+| 13 | Dados reais da obra e comparação | Aceita |
+| 14 | Anexos: fotos e planta | Aceita |
+| 15 | Relatório PDF com jsPDF | Aceita |
 
 ---
 
@@ -170,6 +173,8 @@ Versões fixas no `package.json`, em vez de pedir à IA que "confirme a API atua
 | @thatopen/components | 3.4.9 | MIT (fora do MVP, ver ADR-01) |
 | @fontsource/ibm-plex-sans, -serif, -mono | 5.3.0 | OFL-1.1 (fontes do design system servidas localmente, para funcionar offline) |
 | @vitejs/plugin-react | 6.1.2 | MIT |
+| jspdf | 4.2.1 | MIT |
+| pdfjs-dist | 6.4.299 | Apache-2.0 |
 | xlsx (SheetJS) | 0.20.3, do tarball https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz | Apache-2.0 |
 
 MPL-2.0 é copyleft por arquivo: pode ser usada sem problema, desde que alterações nos próprios arquivos da biblioteca sejam publicadas. O §44 passa a citá-la explicitamente.
@@ -201,3 +206,31 @@ Testes: lógica, parsing de CSV e de IFC no Vitest (Node). Exportação de víde
   - recuos de 5 m na frente, 3 m no fundo e 1,5 m nas laterais.
 - Coberturas: laje plana com platibanda, telhado de uma água (15%) ou de duas águas (30%), sempre sobre laje de forro.
 - Na interface o modelo é marcado como PARAMÉTRICO: representação simplificada para animação, não é projeto executivo.
+
+## ADR-13 — Dados reais da obra
+
+- Cada tarefa ganha campos opcionais: `realIni` e `realFim` (índice de dia, como `ini` e `fim`) e `avanco` (0 a 1, avanço físico informado).
+- No CSV, XLSX e JSON, as colunas são `inicio_real`, `fim_real` e `avanco` (aceita "45%", "0,45" ou "45"). Não alteram a simulação planejada.
+- A **simulação real** usa as datas reais. Tarefa sem início real ainda não começou; tarefa com início e sem fim real está em execução até a **data de status**: a última data real informada ou a data da última foto, o que for maior.
+- O modo **Comparar** mostra o real e marca cada elemento por desvio: atrasado (devia existir pelo planejado e ainda não existe, em carmim translúcido), adiantado (existe antes do previsto, em ardósia) ou em dia (cores normais).
+- **Avanço planejado** no dia d = soma das durações já decorridas ÷ soma das durações. **Avanço real** = média dos `avanco` ponderada pela duração. Quando a tarefa não tem `avanco`, ele é deduzido das datas reais (1 se terminou, fração do tempo se está em execução).
+
+## ADR-14 — Anexos: fotos e planta
+
+- Fotos: JPEG, PNG ou WebP, com data, local, descrição e etapa (ID da tarefa). A data vem do EXIF (`DateTimeOriginal`) quando houver; senão, da data do arquivo, e pode ser editada.
+- Um `fotos.csv` opcional (`arquivo;data;local;descricao;etapa`) enviado junto preenche os dados pelo nome do arquivo.
+- Planta: PNG, JPG ou PDF (primeira página, pelo pdf.js 6.4.299, com o worker servido pelo app). Vira textura num plano horizontal sob o modelo, com escala, deslocamento, rotação e opacidade ajustáveis. É só referência visual (§29): nada é convertido em BIM.
+- Os anexos ficam no IndexedDB (depósito novo `anexos`) e vão no `.4dstudio`, que passa à versão 2 com `assets/fotos/*`, `assets/planta.*` e `attachments.json`. A versão 1 continua sendo lida.
+
+## ADR-15 — Relatório PDF
+
+- Gerado com jsPDF 4.2.1 (MIT), em A4 retrato, com a fonte Helvetica do próprio PDF (cobre os acentos do português; a IBM Plex fica para quando houver TTF local).
+- Conteúdo:
+  - cabeçalho com projeto e data;
+  - imagem da obra na data, renderizada na hora em 1600 × 900;
+  - avanço planejado e real;
+  - etapas concluídas, em andamento e próximas;
+  - desvios;
+  - até 4 fotos dos 30 dias anteriores.
+- O rodapé diz se os dados são de demonstração ou se o modelo é paramétrico.
+

@@ -26,7 +26,38 @@ export interface Tarefa {
   ini: number;
   fim: number;
   progresso?: number; // informativo; a simulação planejada o ignora
+  /** Dados reais (ADR-13): índices de dia como ini/fim; avanço físico 0..1. */
+  realIni?: number;
+  realFim?: number;
+  avanco?: number;
 }
+
+/** Foto da obra (ADR-14). O arquivo (Blob) fica fora do estado, por id. */
+export interface FotoObra {
+  id: string;
+  arquivo: string;
+  tipo: string;
+  dia: number; // dia civil
+  local: string;
+  descricao: string;
+  etapa: string | null; // ID da tarefa
+}
+
+/** Planta sobreposta (§29): só referência visual. */
+export interface PlantaSobreposta {
+  arquivo: string;
+  tipo: string;
+  larguraM: number; // largura da imagem em metros
+  x: number;
+  z: number;
+  rotacaoGraus: number;
+  opacidade: number;
+  visivel: boolean;
+  proporcao: number; // altura ÷ largura da imagem
+}
+
+export type Visao = "planejado" | "real" | "comparar";
+export type Desvio = "atrasado" | "adiantado" | "em-dia";
 
 export interface Cronograma {
   /** Início da obra como dia civil (dias desde 1970-01-01, sem fuso). */

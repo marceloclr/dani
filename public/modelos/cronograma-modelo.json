@@ -1,0 +1,125 @@
+{
+  "tarefas": [
+    {
+      "id": "PRE-01",
+      "nome": "Serviços preliminares e locação",
+      "categoria": "terreno",
+      "inicio": "2026-01-05",
+      "fim": "2026-01-14",
+      "inicio_real": "2026-01-05",
+      "fim_real": "2026-01-15",
+      "avanco": 1
+    },
+    {
+      "id": "FUN-01",
+      "nome": "Fundação (sapatas e baldrames)",
+      "categoria": "fundacao",
+      "inicio": "2026-01-15",
+      "fim": "2026-02-03",
+      "inicio_real": "2026-01-16",
+      "fim_real": "2026-02-08",
+      "avanco": 1
+    },
+    {
+      "id": "EST-01",
+      "nome": "Estrutura (pilares e vigas)",
+      "categoria": "estrutura",
+      "inicio": "2026-02-04",
+      "fim": "2026-02-28",
+      "inicio_real": "2026-02-09",
+      "fim_real": "2026-03-06",
+      "avanco": 1
+    },
+    {
+      "id": "ALV-01",
+      "nome": "Alvenaria",
+      "categoria": "alvenaria",
+      "inicio": "2026-03-01",
+      "fim": "2026-03-30",
+      "inicio_real": "2026-03-07",
+      "fim_real": "2026-04-10",
+      "avanco": 1
+    },
+    {
+      "id": "LAJ-01",
+      "nome": "Laje de forro",
+      "categoria": "laje",
+      "inicio": "2026-03-31",
+      "fim": "2026-04-14",
+      "inicio_real": "2026-04-11",
+      "avanco": 0.6
+    },
+    {
+      "id": "COB-01",
+      "nome": "Cobertura",
+      "categoria": "cobertura",
+      "inicio": "2026-04-15",
+      "fim": "2026-05-04"
+    },
+    {
+      "id": "INS-01",
+      "nome": "Instalações hidráulicas e elétricas",
+      "categoria": "instalacoes",
+      "inicio": "2026-04-20",
+      "fim": "2026-05-14",
+      "inicio_real": "2026-04-18",
+      "avanco": 0.15
+    },
+    {
+      "id": "REB-01",
+      "nome": "Chapisco e reboco",
+      "categoria": "reboco",
+      "inicio": "2026-05-05",
+      "fim": "2026-05-24"
+    },
+    {
+      "id": "ESQ-01",
+      "nome": "Esquadrias",
+      "categoria": "esquadrias",
+      "inicio": "2026-05-25",
+      "fim": "2026-06-08"
+    },
+    {
+      "id": "PIS-01",
+      "nome": "Revestimento de pisos",
+      "categoria": "revestimento",
+      "inicio": "2026-05-25",
+      "fim": "2026-06-13"
+    },
+    {
+      "id": "PIN-01",
+      "nome": "Pintura",
+      "categoria": "pintura",
+      "inicio": "2026-06-09",
+      "fim": "2026-06-23"
+    },
+    {
+      "id": "LOU-01",
+      "nome": "Louças e metais",
+      "categoria": "loucas",
+      "inicio": "2026-06-14",
+      "fim": "2026-06-23"
+    },
+    {
+      "id": "PAI-01",
+      "nome": "Paisagismo",
+      "categoria": "paisagismo",
+      "inicio": "2026-06-15",
+      "fim": "2026-06-27"
+    },
+    {
+      "id": "LIM-01",
+      "nome": "Limpeza final",
+      "categoria": "limpeza",
+      "inicio": "2026-06-24",
+      "fim": "2026-06-28"
+    },
+    {
+      "id": "ENT-01",
+      "nome": "Vistoria e entrega",
+      "categoria": "entrega",
+      "inicio": "2026-06-29",
+      "fim": "2026-07-03"
+    }
+  ]
+}

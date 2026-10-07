@@ -13,7 +13,8 @@
     "preview": "vite preview",
     "test": "TZ=America/Fortaleza vitest run",
     "e2e": "playwright test",
-    "tudo": "npm test && npm run build && npm run e2e"
+    "tudo": "npm test && npm run build && npm run e2e",
+    "modelos": "node tools/gerar-modelos.mjs && npm run build && GERAR_EXEMPLO=1 playwright test e2e/gerar-exemplo.spec.ts"
   },
   "dependencies": {
     "@fontsource/ibm-plex-mono": "5.3.0",
@@ -21,8 +22,10 @@
     "@fontsource/ibm-plex-serif": "5.3.0",
     "fflate": "0.8.3",
     "idb": "8.0.4",
+    "jspdf": "4.2.1",
     "mediabunny": "1.61.3",
     "papaparse": "5.7.0",
+    "pdfjs-dist": "6.4.299",
     "react": "19.3.0",
     "react-dom": "19.3.0",
     "three": "0.186.1",

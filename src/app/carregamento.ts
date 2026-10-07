@@ -112,6 +112,8 @@ export async function abrirDemonstracao(): Promise<void> {
     if (!ifc.ok || !csv.ok) throw new Error(`HTTP ${ifc.status}/${csv.status}`);
     const [bi, bc] = await Promise.all([ifc.arrayBuffer(), csv.arrayBuffer()]);
     useProjeto.getState().definirProjeto({ projetoId: null, nomeProjeto: "Demonstração", salvoEm: null });
+    (await import("./anexos")).limparAnexos();
+    useProjeto.setState({ fotos: [], planta: null, visao: "planejado" });
     if (await carregarIfc("demo.ifc", bi, true)) await carregarCronograma("demo-cronograma.csv", new Uint8Array(bc), true);
   } catch (e) {
     st.mostrarErro({ mensagem: "Não foi possível abrir a demonstração.", orientacao: "Recarregue a página e tente de novo.", detalhes: String(e) });

@@ -3,7 +3,7 @@ import { create } from "zustand";
 import type { AcaoTarefa, Cronograma, ElementoMeta, Excecao, ModoAnimacao, PoliticaSemTarefa, Regra, Vinculo } from "../types";
 import type { PontoRoteiro } from "../rendering/cameras";
 import type { ParametrosCasa } from "../bim/parametrico";
-import type { Tarefa } from "../types";
+import type { FotoObra, PlantaSobreposta, Tarefa, Visao } from "../types";
 import type { Problema } from "../importers/cronograma";
 import { aplicarMapeamento, regrasPadrao } from "../fourd/regras";
 import { duracaoObra } from "../fourd/simulacao";
@@ -36,7 +36,21 @@ export interface TarefaEditada {
   categoria: string;
   inicio: number;
   fim: number;
+  /** Dados reais (ADR-13), em dias civis; undefined = não informado. */
+  inicioReal?: number;
+  fimReal?: number;
+  avanco?: number;
 }
+
+/** Tarefas com datas absolutas (dia civil), inclusive as reais. */
+const absolutas = (c: Cronograma) =>
+  c.tarefas.map((x) => ({
+    ...x,
+    ini: x.ini + c.inicio,
+    fim: x.fim + c.inicio,
+    realIni: x.realIni === undefined ? undefined : x.realIni + c.inicio,
+    realFim: x.realFim === undefined ? undefined : x.realFim + c.inicio,
+  }));
 
 export interface Estado {
   // projeto (ADR-11)
@@ -70,17 +84,22 @@ export interface Estado {
   modoSelecao: boolean;
   ocultosUsuario: Set<string>;
   tarefaIsolada: string | null;
-  painel: "tarefas" | "elemento" | "validacao" | "video";
+  painel: "tarefas" | "elemento" | "validacao" | "obra" | "video";
   erro: ErroVisivel | null;
   // animação e vídeo
   modoAnimacao: ModoAnimacao;
   video: ConfigVideo;
   gerandoVideo: boolean;
+  // acompanhamento (ADR-13, ADR-14)
+  visao: Visao;
+  fotos: FotoObra[];
+  mostrarFotos: boolean;
+  planta: PlantaSobreposta | null;
 
   definirModelo(elementos: ElementoMeta[], arquivo: string, demo: boolean, tipo?: "IFC" | "PARAMETRICO", parametros?: ParametrosCasa | null): void;
   definirProjeto(p: Partial<Pick<Estado, "projetoId" | "nomeProjeto" | "salvoEm" | "persistencia">>): void;
   /** Restaura cronograma, exceções e preferências de um projeto salvo. */
-  restaurar(r: Pick<Estado, "cronograma" | "arquivoCronograma" | "excecoes" | "politica" | "modoAnimacao" | "video" | "demoCronograma">): void;
+  restaurar(r: Pick<Estado, "cronograma" | "arquivoCronograma" | "excecoes" | "politica" | "modoAnimacao" | "video" | "demoCronograma" | "fotos" | "planta">): void;
   /** Inclui ou altera uma tarefa; devolve a mensagem de erro, se houver. */
   salvarTarefa(t: TarefaEditada, idOriginal: string | null): string | null;
   excluirTarefa(id: string): void;
@@ -105,6 +124,13 @@ export interface Estado {
   definirModoAnimacao(m: ModoAnimacao): void;
   definirVideo(v: Partial<ConfigVideo>): void;
   definirGerandoVideo(g: boolean): void;
+  definirVisao(v: Visao): void;
+  adicionarFotos(f: FotoObra[]): void;
+  atualizarFoto(id: string, p: Partial<FotoObra>): void;
+  removerFoto(id: string): void;
+  definirMostrarFotos(m: boolean): void;
+  definirPlanta(p: PlantaSobreposta | null): void;
+  ajustarPlanta(p: Partial<PlantaSobreposta>): void;
 }
 
 /** Estado inicial (sem ações), usado por reiniciar(). */
@@ -116,16 +142,24 @@ function INICIAL_COMPLETO(): Partial<Estado> {
     regras: [], excecoes: [], politica: "fantasma", dia: 0, tocando: false,
     selecionado: null, ocultosUsuario: new Set(), tarefaIsolada: null, painel: "tarefas", erro: null,
     modoAnimacao: "aparecimento", video: { formato: "horizontal", fps: 30, segundos: 30, roteiro: null }, gerandoVideo: false,
+    visao: "planejado", fotos: [], mostrarFotos: true, planta: null,
   };
 }
 
 /** Recria o cronograma a partir de tarefas com datas absolutas, preservando as exceções das tarefas que continuam. */
-function reconstruir(lista: (Tarefa & { ini: number; fim: number })[], s: Estado, renomeada: [string, string] | null): Partial<Estado> {
+function reconstruir(lista: (Omit<Tarefa, "realIni" | "realFim"> & { realIni?: number; realFim?: number })[], s: Estado, renomeada: [string, string] | null): Partial<Estado> {
   if (lista.length === 0) {
     return { cronograma: null, regras: [], excecoes: [], vinculos: aplicarMapeamento(s.elementos, [], []), dia: 0, tarefaIsolada: null };
   }
   const inicio = Math.min(...lista.map((x) => x.ini));
-  const tarefas: Tarefa[] = lista.map((x) => ({ ...x, ini: x.ini - inicio, fim: x.fim - inicio }));
+  const tarefas: Tarefa[] = lista.map((x) => {
+    const t: Tarefa = { id: x.id, nome: x.nome, categoria: x.categoria, ini: x.ini - inicio, fim: x.fim - inicio };
+    if (x.progresso !== undefined) t.progresso = x.progresso;
+    if (x.realIni !== undefined) t.realIni = x.realIni - inicio;
+    if (x.realFim !== undefined) t.realFim = x.realFim - inicio;
+    if (x.avanco !== undefined) t.avanco = x.avanco;
+    return t;
+  });
   const ids = new Set(tarefas.map((x) => x.id));
   const excecoes = s.excecoes
     .map((x) => (renomeada && x.taskId === renomeada[0] ? { ...x, taskId: renomeada[1] } : x))
@@ -182,6 +216,10 @@ export const useProjeto = create<Estado>((set, get) => {
     modoAnimacao: "aparecimento",
     video: { formato: "horizontal", fps: 30, segundos: 30, roteiro: null },
     gerandoVideo: false,
+    visao: "planejado",
+    fotos: [],
+    mostrarFotos: true,
+    planta: null,
 
     definirModelo: (elementos, arquivo, demo, tipo = "IFC", parametros = null) =>
       set(remapear({ elementos, arquivoModelo: arquivo, demoModelo: demo, tipoModelo: tipo, parametros, excecoes: [], selecionado: null, ocultosUsuario: new Set(), tarefaIsolada: null, erro: null })),
@@ -208,9 +246,12 @@ export const useProjeto = create<Estado>((set, get) => {
       if (!nome) return "Informe o nome da tarefa.";
       if (!Number.isFinite(t.inicio) || !Number.isFinite(t.fim)) return "Informe as datas de início e fim.";
       if (t.fim < t.inicio) return "A tarefa termina antes de começar.";
-      const atuais = s.cronograma ? s.cronograma.tarefas.map((x) => ({ ...x, ini: x.ini + s.cronograma!.inicio, fim: x.fim + s.cronograma!.inicio })) : [];
+      if (t.fimReal !== undefined && t.inicioReal === undefined) return "Informe o início real antes do fim real.";
+      if (t.fimReal !== undefined && t.inicioReal !== undefined && t.fimReal < t.inicioReal) return "O fim real é anterior ao início real.";
+      if (t.avanco !== undefined && !(t.avanco >= 0 && t.avanco <= 1)) return "O avanço físico deve ficar entre 0 e 100%.";
+      const atuais = s.cronograma ? absolutas(s.cronograma) : [];
       if (atuais.some((x) => x.id === id && x.id !== idOriginal)) return `Já existe uma tarefa com o ID "${id}".`;
-      const nova = { id, nome, categoria: t.categoria.trim().toLowerCase(), ini: t.inicio, fim: t.fim };
+      const nova = { id, nome, categoria: t.categoria.trim().toLowerCase(), ini: t.inicio, fim: t.fim, realIni: t.inicioReal, realFim: t.fimReal, avanco: t.avanco };
       const lista = idOriginal ? atuais.map((x) => (x.id === idOriginal ? { ...x, ...nova } : x)) : [...atuais, nova];
       set(reconstruir(lista, s, idOriginal && idOriginal !== id ? [idOriginal, id] : null));
       return null;
@@ -219,7 +260,7 @@ export const useProjeto = create<Estado>((set, get) => {
     excluirTarefa: (id) => {
       const s = get();
       if (!s.cronograma) return;
-      const lista = s.cronograma.tarefas.filter((x) => x.id !== id).map((x) => ({ ...x, ini: x.ini + s.cronograma!.inicio, fim: x.fim + s.cronograma!.inicio }));
+      const lista = absolutas(s.cronograma).filter((x) => x.id !== id);
       set(reconstruir(lista, s, null));
     },
 
@@ -275,5 +316,12 @@ export const useProjeto = create<Estado>((set, get) => {
     definirModoAnimacao: (modoAnimacao) => set({ modoAnimacao }),
     definirVideo: (v) => set((s) => ({ video: { ...s.video, ...v } })),
     definirGerandoVideo: (gerandoVideo) => set({ gerandoVideo, ...(gerandoVideo ? { tocando: false } : {}) }),
+    definirVisao: (visao) => set({ visao }),
+    adicionarFotos: (f) => set((s) => ({ fotos: [...s.fotos, ...f].sort((a, b) => a.dia - b.dia || a.arquivo.localeCompare(b.arquivo)) })),
+    atualizarFoto: (id, p) => set((s) => ({ fotos: s.fotos.map((f) => (f.id === id ? { ...f, ...p } : f)).sort((a, b) => a.dia - b.dia || a.arquivo.localeCompare(b.arquivo)) })),
+    removerFoto: (id) => set((s) => ({ fotos: s.fotos.filter((f) => f.id !== id) })),
+    definirMostrarFotos: (mostrarFotos) => set({ mostrarFotos }),
+    definirPlanta: (planta) => set({ planta }),
+    ajustarPlanta: (p) => set((s) => (s.planta ? { planta: { ...s.planta, ...p } } : {})),
   };
 });

@@ -99,5 +99,6 @@ export function avaliar(dia: number, ctx: Contexto): Map<string, EstadoElemento>
 
 /** Duração total da obra em dias (fim inclusivo). */
 export function duracaoObra(tarefas: Tarefa[]): number {
-  return tarefas.length ? Math.max(...tarefas.map((t) => t.fim)) + 1 : 0;
+  // inclui o fim real, quando a obra termina depois do previsto (ADR-13)
+  return tarefas.length ? Math.max(...tarefas.map((t) => Math.max(t.fim, t.realFim ?? -Infinity, t.realIni ?? -Infinity))) + 1 : 0;
 }

@@ -4,6 +4,11 @@ import { camadasPara, definirCena } from "../app/estadoCena";
 import { Cena } from "../rendering/Cena";
 import { PRESETS } from "../rendering/cameras";
 import { useProjeto } from "../state/projectStore";
+import { aoMudarImagemPlanta, urlDaFoto, urlDaPlantaAtual } from "../app/anexos";
+import { fotoAte, temDadosReais } from "../fourd/real";
+import { formatarBR } from "../fourd/tempo";
+import { useUi } from "../state/uiStore";
+import type { Visao } from "../types";
 
 export function Viewport() {
   const host = useRef<HTMLDivElement>(null);
@@ -47,9 +52,13 @@ export function Viewport() {
         s.ocultosUsuario !== a.ocultosUsuario ||
         s.tarefaIsolada !== a.tarefaIsolada ||
         s.modoAnimacao !== a.modoAnimacao ||
+        s.visao !== a.visao ||
         (a.gerandoVideo && !s.gerandoVideo)
       ) aplicar();
+      if (s.planta !== a.planta) c.definirPlanta(s.planta, urlDaPlantaAtual());
     });
+    c.definirPlanta(st().planta, urlDaPlantaAtual());
+    const sairPlanta = aoMudarImagemPlanta(() => c.definirPlanta(st().planta, urlDaPlantaAtual()));
     const tema = new MutationObserver(() => c.atualizarTema());
     tema.observe(document.documentElement, { attributes: true, attributeFilter: ["data-tema"] });
     const preferencia = window.matchMedia("(prefers-color-scheme: dark)");
@@ -59,6 +68,7 @@ export function Viewport() {
     return () => {
       sairMalhas();
       sairEstado();
+      sairPlanta();
       tema.disconnect();
       preferencia.removeEventListener("change", aoMudarPreferencia);
       definirCena(null);
@@ -118,6 +128,7 @@ export function Viewport() {
             {x.rotulo}
           </button>
         ))}
+        {temCronograma && <SeletorVisao />}
       </div>
       <div
         ref={host}
@@ -133,12 +144,81 @@ export function Viewport() {
         onPointerUp={aoSoltar}
       />
       {temCronograma && <Legenda />}
+      <FotoFlutuante />
       {gerandoVideo && <div className="aviso-video">Gerando vídeo: a pré-visualização está no painel Vídeo.</div>}
     </div>
   );
 }
 
+const VISOES: { id: Visao; rotulo: string; dica: string }[] = [
+  { id: "planejado", rotulo: "Planejado", dica: "A obra segundo as datas planejadas do cronograma." },
+  { id: "real", rotulo: "Real", dica: "A obra segundo as datas reais (início e fim real de cada tarefa). Tarefa sem início real ainda não começou." },
+  { id: "comparar", rotulo: "Comparar", dica: "Mostra o real e marca os desvios: em carmim o que devia existir e ainda não existe; em ardósia o que está adiantado." },
+];
+
+function SeletorVisao() {
+  const visao = useProjeto((s) => s.visao);
+  const comReal = useProjeto((s) => (s.cronograma ? temDadosReais(s.cronograma.tarefas) : false));
+  return (
+    <div className="segmentos visao3d" role="tablist" aria-label="Visão">
+      {VISOES.map((v) => (
+        <button
+          key={v.id}
+          type="button"
+          role="tab"
+          className="seg"
+          aria-selected={visao === v.id}
+          data-testid={`visao-${v.id}`}
+          data-tip={v.id !== "planejado" && !comReal ? `${v.dica}\nEste cronograma ainda não tem datas reais: informe-as ao editar as tarefas ou importe um cronograma com inicio_real e fim_real.` : v.dica}
+          onClick={() => useProjeto.getState().definirVisao(v.id)}
+        >
+          {v.rotulo}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/** Foto real mais recente até a data da simulação (§30, §31). */
+function FotoFlutuante() {
+  const mostrar = useProjeto((s) => s.mostrarFotos);
+  const fotos = useProjeto((s) => s.fotos);
+  const diaCivil = useProjeto((s) => (s.cronograma ? s.cronograma.inicio + Math.floor(s.dia) : null));
+  if (!mostrar || diaCivil === null || !fotos.length) return null;
+  const f = fotoAte(fotos, diaCivil);
+  const url = f && urlDaFoto(f.id);
+  if (!f || !url) return null;
+  return (
+    <button type="button" className="foto3d" data-testid="foto-flutuante" onClick={() => useUi.getState().abrir({ foto: f.id })} aria-label={`Foto real de ${formatarBR(f.dia)}`}>
+      <img src={url} alt={f.descricao || f.arquivo} />
+      <span>
+        Foto real · {formatarBR(f.dia)}
+        {f.local ? ` · ${f.local}` : ""}
+      </span>
+    </button>
+  );
+}
+
 function Legenda() {
+  const visao = useProjeto((s) => s.visao);
+  if (visao === "comparar") {
+    return (
+      <div className="legenda3d" aria-label="Legenda">
+        <span>
+          <i style={{ background: "#b54a4a" }} />
+          Atrasado
+        </span>
+        <span>
+          <i style={{ background: "#4f7aa8" }} />
+          Adiantado
+        </span>
+        <span>
+          <i style={{ background: "linear-gradient(90deg, #b5653a 50%, #9e9e99 50%)" }} />
+          Em dia
+        </span>
+      </div>
+    );
+  }
   return (
     <div className="legenda3d" aria-label="Legenda">
       <span>

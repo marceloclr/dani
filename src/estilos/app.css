@@ -206,3 +206,48 @@ table.meta td, table.meta th { padding: 5px 6px; font-size: 12.5px; }
 }
 .passos .botoes { align-items: center; }
 .timeline.vazia { flex-wrap: wrap; }
+
+/* planejado × real, fotos */
+.barra-real { position: absolute; top: 18px; height: 4px; border-radius: 2px; background: var(--musgo); }
+.barra-real.atrasada { background: var(--risco); }
+.barra-real.aberta { background: repeating-linear-gradient(90deg, var(--musgo) 0 6px, transparent 6px 9px); }
+.barra-real.aberta.atrasada { background: repeating-linear-gradient(90deg, var(--risco) 0 6px, transparent 6px 9px); }
+.status { position: absolute; top: 0; bottom: 0; width: 0; border-left: 2px dashed var(--ardosia); z-index: 1; }
+.marca-foto { position: absolute; bottom: 2px; width: 10px; height: 10px; margin-left: -5px; border-radius: 3px; border: 1.5px solid var(--carta); background: var(--petroleo); padding: 0; cursor: pointer; z-index: 2; }
+.marca-foto:hover, .marca-foto:focus-visible { transform: scale(1.3); }
+.visao3d { margin-left: auto; padding: 2px; box-shadow: none; }
+.visao3d .seg { padding: 4px 10px; font-size: 12px; }
+.foto3d {
+  position: absolute; right: 12px; bottom: 12px; width: min(240px, 38%); padding: 0; border: 1px solid var(--linha); border-radius: var(--raio-p);
+  background: var(--carta); box-shadow: var(--sombra-alta); overflow: hidden; cursor: zoom-in; display: flex; flex-direction: column; text-align: left;
+}
+.foto3d img { display: block; width: 100%; aspect-ratio: 4 / 3; object-fit: cover; }
+.foto3d span { font-size: 11px; color: var(--tinta-2); padding: 5px 8px; }
+@media (max-width: 560px) { .visao3d { margin-left: 0; } .foto3d { width: 34%; bottom: 64px; } }
+
+.form fieldset.real { border: 1px solid var(--linha); border-radius: var(--raio-p); padding: 8px 10px 10px; margin: 0; }
+.form fieldset.real legend { font-size: 12px; color: var(--tinta-2); padding: 0 4px; }
+.linha-campos.tres { grid-template-columns: 1fr 1fr 0.7fr; }
+
+/* aba Obra */
+.painel-obra { display: flex; flex-direction: column; gap: 10px; }
+.painel-obra h4 { margin: 8px 0 0; }
+.cartoes.duas { grid-template-columns: 1fr 1fr; gap: 8px; }
+.cartoes.duas .cartao { padding: 10px 12px; }
+.cartoes.duas .valor { font-size: 21px; }
+.marcar { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--tinta-2); cursor: pointer; }
+.lista-fotos { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.lista-fotos li { display: grid; grid-template-columns: 64px 1fr auto; gap: 8px; align-items: start; padding: 6px; border: 1px solid var(--linha); border-radius: var(--raio-p); background: var(--carta-2); }
+.miniatura { padding: 0; border: 0; background: none; cursor: zoom-in; }
+.miniatura img { display: block; width: 64px; height: 64px; object-fit: cover; border-radius: 5px; }
+.dados-foto { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; min-width: 0; }
+.dados-foto input, .dados-foto select, .ajuste-planta input:not([type="range"]):not([type="checkbox"]) { font: 400 12px var(--fonte-corpo); color: var(--tinta); background: var(--carta); border: 1px solid var(--linha); border-radius: 5px; padding: 4px 6px; min-width: 0; }
+.ajuste-planta { display: flex; flex-direction: column; gap: 8px; padding: 8px; border: 1px solid var(--linha); border-radius: var(--raio-p); }
+.foto-grande { display: block; width: 100%; max-height: 65vh; object-fit: contain; border-radius: var(--raio-p); background: var(--papel-2); }
+.modelos-lista { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.modelos-lista li { padding: 10px 12px; border: 1px solid var(--linha); border-radius: var(--raio-p); background: var(--carta-2); display: flex; flex-direction: column; gap: 6px; }
+.modelos-lista .topo-modelo { display: flex; justify-content: space-between; gap: 10px; align-items: center; flex-wrap: wrap; }
+.modelos-lista table { font-size: 12px; }
+.modelos-lista td, .modelos-lista th { padding: 4px 8px; }
+
+button.link { appearance: none; border: 0; background: none; padding: 0; font: inherit; color: var(--link); text-decoration: underline; cursor: pointer; }

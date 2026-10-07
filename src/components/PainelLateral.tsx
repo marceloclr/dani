@@ -5,6 +5,7 @@ import { validarMapeamento } from "../fourd/validacao";
 import { useProjeto } from "../state/projectStore";
 import type { AcaoTarefa, PoliticaSemTarefa } from "../types";
 import { PainelVideo } from "./PainelVideo";
+import { PainelObra } from "./PainelObra";
 import { useUi } from "../state/uiStore";
 
 const NOME_ACAO: Record<AcaoTarefa, string> = {
@@ -23,7 +24,8 @@ export function PainelLateral() {
   const abas: { id: typeof painel; rotulo: string }[] = [
     { id: "tarefas", rotulo: "Tarefas" },
     { id: "elemento", rotulo: "Elemento" },
-    { id: "validacao", rotulo: nProblemas ? `Validação (${nProblemas})` : "Validação" },
+    { id: "validacao", rotulo: nProblemas ? `Avisos (${nProblemas})` : "Avisos" },
+    { id: "obra", rotulo: "Obra" },
     { id: "video", rotulo: "Vídeo" },
   ];
   return (
@@ -39,6 +41,7 @@ export function PainelLateral() {
         {painel === "tarefas" && <PainelTarefas />}
         {painel === "elemento" && <PainelElemento />}
         {painel === "validacao" && <PainelValidacao />}
+        {painel === "obra" && <PainelObra />}
         {/* o painel de vídeo fica montado para não perder a geração em andamento nem o arquivo pronto */}
         <div hidden={painel !== "video"}>
           <PainelVideo />

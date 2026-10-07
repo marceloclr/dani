@@ -24,6 +24,9 @@ interface LinhaBruta {
   fim?: string;
   categoria?: string;
   progresso?: string;
+  inicioReal?: string;
+  fimReal?: string;
+  avanco?: string;
 }
 
 const ALIASES: Record<keyof LinhaBruta, string[]> = {
@@ -32,13 +35,26 @@ const ALIASES: Record<keyof LinhaBruta, string[]> = {
   inicio: ["inicio", "início", "start", "startdate", "data_inicio", "datainicio"],
   fim: ["fim", "termino", "término", "end", "enddate", "data_fim", "datafim"],
   categoria: ["categoria", "category", "etapa", "fase"],
-  progresso: ["progresso", "progress", "avanco", "avanço"],
+  progresso: ["progresso", "progress"],
+  inicioReal: ["inicio_real", "início_real", "inicioreal", "inícioreal", "realstart", "actualstart", "actual_start"],
+  fimReal: ["fim_real", "fimreal", "termino_real", "término_real", "realend", "actualend", "actual_end"],
+  avanco: ["avanco", "avanço", "avanco_fisico", "avanço_físico", "avanco_real", "percentcomplete"],
 };
+
+/** "45%", "0,45", "0.45" ou "45" → 0,45. Vazio → undefined; inválido → NaN. */
+export function lerAvanco(texto: string | undefined): number | undefined {
+  if (texto === undefined || texto.trim() === "") return undefined;
+  const t = texto.trim().replace("%", "").replace(",", ".");
+  const n = Number(t);
+  if (!Number.isFinite(n)) return NaN;
+  const f = texto.includes("%") || n > 1 ? n / 100 : n;
+  return f >= 0 && f <= 1 ? f : NaN;
+}
 
 const chave = (s: string) => s.trim().toLowerCase().replace(/\s+/g, "");
 
 /** A coluna guarda datas (início ou fim)? Usado pelo importador de XLSX. */
-export const ehColunaData = (nome: string) => [...ALIASES.inicio, ...ALIASES.fim].includes(chave(nome));
+export const ehColunaData = (nome: string) => [...ALIASES.inicio, ...ALIASES.fim, ...ALIASES.inicioReal, ...ALIASES.fimReal].includes(chave(nome));
 
 function normalizarLinha(obj: Record<string, unknown>): LinhaBruta {
   const out: LinhaBruta = {};
@@ -54,7 +70,7 @@ function normalizarLinha(obj: Record<string, unknown>): LinhaBruta {
 /** Converte linhas brutas em cronograma, acumulando os problemas encontrados (§41). */
 export function montarCronograma(linhas: LinhaBruta[], primeiraLinha = 2): { cronograma: Cronograma | null; problemas: Problema[] } {
   const problemas: Problema[] = [];
-  const brutas: { id: string; nome: string; categoria: string; ini: number; fim: number; progresso?: number; linha: number }[] = [];
+  const brutas: { id: string; nome: string; categoria: string; ini: number; fim: number; progresso?: number; realIni?: number; realFim?: number; avanco?: number; linha: number }[] = [];
   const vistos = new Set<string>();
 
   linhas.forEach((l, i) => {
@@ -74,7 +90,20 @@ export function montarCronograma(linhas: LinhaBruta[], primeiraLinha = 2): { cro
     }
     vistos.add(id);
     const progresso = l.progresso ? Number(l.progresso.replace(",", ".")) : undefined;
-    brutas.push({ id, nome: l.nome || id, categoria: (l.categoria ?? "").toLowerCase(), ini, fim, progresso: Number.isFinite(progresso) ? progresso : undefined, linha });
+    // dados reais (ADR-13): opcionais, mas se vierem precisam ser válidos
+    const realIni = l.inicioReal ? lerData(l.inicioReal) : undefined;
+    const realFim = l.fimReal ? lerData(l.fimReal) : undefined;
+    const avanco = lerAvanco(l.avanco);
+    if (realIni === null) problemas.push({ nivel: "erro", linha, mensagem: `Linha ${linha}: início real inválido ("${l.inicioReal}").` });
+    if (realFim === null) problemas.push({ nivel: "erro", linha, mensagem: `Linha ${linha}: fim real inválido ("${l.fimReal}").` });
+    if (realFim != null && realIni == null) problemas.push({ nivel: "erro", linha, mensagem: `Linha ${linha}: há fim real sem início real.` });
+    if (realIni != null && realFim != null && realFim < realIni) problemas.push({ nivel: "erro", linha, mensagem: `Linha ${linha}: o fim real é anterior ao início real.` });
+    if (Number.isNaN(avanco)) problemas.push({ nivel: "erro", linha, mensagem: `Linha ${linha}: avanço inválido ("${l.avanco}"). Use 0 a 100%.` });
+    brutas.push({
+      id, nome: l.nome || id, categoria: (l.categoria ?? "").toLowerCase(), ini, fim,
+      progresso: Number.isFinite(progresso) ? progresso : undefined,
+      realIni: realIni ?? undefined, realFim: realFim ?? undefined, avanco: Number.isNaN(avanco) ? undefined : avanco, linha,
+    });
   });
 
   if (brutas.length === 0) {
@@ -84,7 +113,14 @@ export function montarCronograma(linhas: LinhaBruta[], primeiraLinha = 2): { cro
   if (problemas.some((p) => p.nivel === "erro")) return { cronograma: null, problemas };
 
   const inicio = Math.min(...brutas.map((b) => b.ini));
-  const tarefas: Tarefa[] = brutas.map((b) => ({ id: b.id, nome: b.nome, categoria: b.categoria, ini: b.ini - inicio, fim: b.fim - inicio, progresso: b.progresso }));
+  const tarefas: Tarefa[] = brutas.map((b) => {
+    const t: Tarefa = { id: b.id, nome: b.nome, categoria: b.categoria, ini: b.ini - inicio, fim: b.fim - inicio };
+    if (b.progresso !== undefined) t.progresso = b.progresso;
+    if (b.realIni !== undefined) t.realIni = b.realIni - inicio;
+    if (b.realFim !== undefined) t.realFim = b.realFim - inicio;
+    if (b.avanco !== undefined) t.avanco = b.avanco;
+    return t;
+  });
   return { cronograma: { inicio, tarefas }, problemas };
 }
 

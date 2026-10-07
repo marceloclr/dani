@@ -6,12 +6,17 @@ interface Ui {
   parametrico: boolean;
   /** null: fechado; "": nova tarefa; id: editar essa tarefa. */
   tarefa: string | null;
-  abrir(p: Partial<Pick<Ui, "projetos" | "parametrico" | "tarefa">>): void;
+  /** id da foto aberta no visualizador */
+  foto: string | null;
+  modelos: boolean;
+  abrir(p: Partial<Pick<Ui, "projetos" | "parametrico" | "tarefa" | "foto" | "modelos">>): void;
 }
 
 export const useUi = create<Ui>((set) => ({
   projetos: false,
   parametrico: false,
   tarefa: null,
+  foto: null,
+  modelos: false,
   abrir: (p) => set(p),
 }));

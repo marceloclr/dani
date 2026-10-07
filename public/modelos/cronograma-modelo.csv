@@ -1,0 +1,16 @@
+﻿id;nome;inicio;fim;categoria;inicio_real;fim_real;avanco
+PRE-01;Serviços preliminares e locação;05/01/2026;14/01/2026;terreno;05/01/2026;15/01/2026;100%
+FUN-01;Fundação (sapatas e baldrames);15/01/2026;03/02/2026;fundacao;16/01/2026;08/02/2026;100%
+EST-01;Estrutura (pilares e vigas);04/02/2026;28/02/2026;estrutura;09/02/2026;06/03/2026;100%
+ALV-01;Alvenaria;01/03/2026;30/03/2026;alvenaria;07/03/2026;10/04/2026;100%
+LAJ-01;Laje de forro;31/03/2026;14/04/2026;laje;11/04/2026;;60%
+COB-01;Cobertura;15/04/2026;04/05/2026;cobertura;;;
+INS-01;Instalações hidráulicas e elétricas;20/04/2026;14/05/2026;instalacoes;18/04/2026;;15%
+REB-01;Chapisco e reboco;05/05/2026;24/05/2026;reboco;;;
+ESQ-01;Esquadrias;25/05/2026;08/06/2026;esquadrias;;;
+PIS-01;Revestimento de pisos;25/05/2026;13/06/2026;revestimento;;;
+PIN-01;Pintura;09/06/2026;23/06/2026;pintura;;;
+LOU-01;Louças e metais;14/06/2026;23/06/2026;loucas;;;
+PAI-01;Paisagismo;15/06/2026;27/06/2026;paisagismo;;;
+LIM-01;Limpeza final;24/06/2026;28/06/2026;limpeza;;;
+ENT-01;Vistoria e entrega;29/06/2026;03/07/2026;entrega;;;

@@ -48,7 +48,12 @@ export function TelaInicial() {
               <h2>2. Cronograma</h2>
               <span className="legenda">{cronograma ? `${cronograma.tarefas.length} tarefas · ${arquivoCronograma}` : "pode vir antes ou depois do modelo"}</span>
             </header>
-            <p>Etapas da obra com datas de início e fim, em CSV, XLSX ou JSON, ou criadas aqui.</p>
+            <p>
+              Etapas da obra com datas de início e fim, em CSV, XLSX ou JSON, ou criadas aqui.{" "}
+              <button type="button" className="link" data-testid="abrir-modelos" onClick={() => abrir({ modelos: true })}>
+                Baixar modelos preenchidos
+              </button>
+            </p>
             <div className="botoes">
               <SeletorArquivo aceitar={ACEITA_CRONO} rotulo="Carregar cronograma" dica={DICA_CRONO} testId="entrada-cronograma" aoEscolher={abrirCronograma} />
               <button type="button" className="btn" data-testid="criar-cronograma-inicial" onClick={() => abrir({ tarefa: "" })}>

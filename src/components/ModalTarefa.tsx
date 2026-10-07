@@ -37,6 +37,9 @@ export function ModalTarefa({ tarefaId, aoFechar }: Props) {
   const [categoria, setCategoria] = useState("alvenaria");
   const [inicio, setInicio] = useState("");
   const [fim, setFim] = useState("");
+  const [inicioReal, setInicioReal] = useState("");
+  const [fimReal, setFimReal] = useState("");
+  const [avanco, setAvanco] = useState("");
   const [erro, setErro] = useState<string | null>(null);
 
   useEffect(() => {
@@ -48,6 +51,9 @@ export function ModalTarefa({ tarefaId, aoFechar }: Props) {
       setCategoria(editando.categoria);
       setInicio(formatarISO(cronograma.inicio + editando.ini));
       setFim(formatarISO(cronograma.inicio + editando.fim));
+      setInicioReal(editando.realIni !== undefined ? formatarISO(cronograma.inicio + editando.realIni) : "");
+      setFimReal(editando.realFim !== undefined ? formatarISO(cronograma.inicio + editando.realFim) : "");
+      setAvanco(editando.avanco !== undefined ? String(Math.round(editando.avanco * 100)) : "");
     } else {
       // nova: começa no dia seguinte ao fim da última tarefa (ou hoje)
       const ultimo = cronograma ? cronograma.inicio + Math.max(...cronograma.tarefas.map((t) => t.fim)) + 1 : lerData(new Date().toLocaleDateString("sv-SE"))!;
@@ -56,13 +62,22 @@ export function ModalTarefa({ tarefaId, aoFechar }: Props) {
       setCategoria("alvenaria");
       setInicio(formatarISO(ultimo));
       setFim(formatarISO(ultimo + 9));
+      setInicioReal("");
+      setFimReal("");
+      setAvanco("");
     }
   }, [tarefaId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const salvar = (e: React.FormEvent) => {
     e.preventDefault();
     const i = lerData(inicio), f = lerData(fim);
-    const msg = st().salvarTarefa({ id, nome, categoria, inicio: i ?? NaN, fim: f ?? NaN }, editando ? editando.id : null);
+    const ri = inicioReal ? lerData(inicioReal) : undefined;
+    const rf = fimReal ? lerData(fimReal) : undefined;
+    const av = avanco.trim() === "" ? undefined : Number(avanco.replace(",", ".")) / 100;
+    const msg = st().salvarTarefa(
+      { id, nome, categoria, inicio: i ?? NaN, fim: f ?? NaN, inicioReal: ri ?? undefined, fimReal: rf ?? undefined, avanco: av },
+      editando ? editando.id : null,
+    );
     if (msg) setErro(msg);
     else aoFechar();
   };
@@ -101,6 +116,23 @@ export function ModalTarefa({ tarefaId, aoFechar }: Props) {
             <input type="date" value={fim} onChange={(e) => setFim(e.target.value)} required data-testid="tarefa-fim" />
           </label>
         </div>
+        <fieldset className="real">
+          <legend data-tip={"Opcional. Usado nas visões Real e Comparar, nos indicadores e no relatório.\nSem início real, a tarefa conta como não iniciada."}>Execução real (opcional)</legend>
+          <div className="linha-campos tres">
+            <label className="campo">
+              <span>Início real</span>
+              <input type="date" value={inicioReal} onChange={(e) => setInicioReal(e.target.value)} data-testid="tarefa-inicio-real" />
+            </label>
+            <label className="campo">
+              <span>Fim real</span>
+              <input type="date" value={fimReal} onChange={(e) => setFimReal(e.target.value)} data-testid="tarefa-fim-real" />
+            </label>
+            <label className="campo" data-tip="Avanço físico medido na obra, de 0 a 100%. Vazio: deduzido das datas reais.">
+              <span>Avanço (%)</span>
+              <input type="number" min={0} max={100} step={1} value={avanco} onChange={(e) => setAvanco(e.target.value)} data-testid="tarefa-avanco" />
+            </label>
+          </div>
+        </fieldset>
         {erro && (
           <p className="aviso-honesto erro-form" role="alert">
             {erro}

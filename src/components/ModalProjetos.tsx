@@ -15,6 +15,7 @@ import {
 import type { RegistroProjeto } from "../storage/projeto";
 import { useProjeto } from "../state/projectStore";
 import { Modal } from "./Modal";
+import { useUi } from "../state/uiStore";
 
 const quando = (iso: string) => new Date(iso).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" });
 
@@ -89,6 +90,9 @@ export function ModalProjetos({ aberto, aoFechar }: { aberto: boolean; aoFechar(
         </button>
         <button type="button" className="btn" data-testid="importar-projeto" onClick={() => entrada.current?.click()}>
           Importar .4dstudio
+        </button>
+        <button type="button" className="btn" data-testid="modelos-projetos" data-tip="Modelos de cronograma (CSV, XLSX, JSON), de fotos e um projeto de exemplo, preenchidos." onClick={() => (aoFechar(), useUi.getState().abrir({ modelos: true }))}>
+          Modelos de arquivo
         </button>
         <input
           ref={entrada}

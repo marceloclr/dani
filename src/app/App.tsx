@@ -3,6 +3,8 @@ import { ErroAmigavel } from "../components/ErroAmigavel";
 import { ModalParametrico } from "../components/ModalParametrico";
 import { ModalProjetos } from "../components/ModalProjetos";
 import { ModalTarefa } from "../components/ModalTarefa";
+import { ModalFoto } from "../components/ModalFoto";
+import { ModalModelos } from "../components/ModalModelos";
 import { PainelLateral } from "../components/PainelLateral";
 import { SeletorArquivo } from "../components/SeletorArquivo";
 import { TelaInicial } from "../components/TelaInicial";
@@ -106,6 +108,8 @@ export function App() {
       <ModalProjetos aberto={ui.projetos} aoFechar={() => ui.abrir({ projetos: false })} />
       <ModalParametrico aberto={ui.parametrico} aoFechar={() => ui.abrir({ parametrico: false })} />
       <ModalTarefa tarefaId={ui.tarefa} aoFechar={() => ui.abrir({ tarefa: null })} />
+      <ModalFoto />
+      <ModalModelos aberto={ui.modelos} aoFechar={() => ui.abrir({ modelos: false })} />
 
       {carga && (
         <div className="carga" role="status" aria-live="polite" data-testid="carga">

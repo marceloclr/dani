@@ -2,6 +2,7 @@
 // para que o vídeo mostre exatamente o que a simulação mostra.
 import { filaPorFases, type PosicaoFila } from "../fourd/animacao";
 import { avaliar } from "../fourd/simulacao";
+import { avaliarReal, compararEstados } from "../fourd/real";
 import type { Camadas, Cena } from "../rendering/Cena";
 import type { Estado } from "../state/projectStore";
 
@@ -43,8 +44,19 @@ function isolados(s: Estado): Set<string> | null {
 
 /** Camadas para o instante `dia` (fracionário). `paraVideo` ignora seleção, ocultos e isolamento. */
 export function camadasPara(s: Estado, cena: Cena, dia: number, paraVideo = false): Camadas {
+  let estados = null;
+  let desvios = null;
+  if (s.cronograma) {
+    const ctx = { vinculos: s.vinculos, tarefas: s.cronograma.tarefas, politica: s.politica };
+    if (s.visao === "planejado") estados = avaliar(dia, ctx);
+    else {
+      estados = avaliarReal(dia, ctx);
+      if (s.visao === "comparar") desvios = compararEstados(avaliar(dia, ctx), estados);
+    }
+  }
   return {
-    estados: s.cronograma ? avaliar(dia, { vinculos: s.vinculos, tarefas: s.cronograma.tarefas, politica: s.politica }) : null,
+    estados,
+    desvios,
     ocultos: paraVideo ? new Set() : s.ocultosUsuario,
     isolados: paraVideo ? null : isolados(s),
     selecionado: paraVideo ? null : s.selecionado,

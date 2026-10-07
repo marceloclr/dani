@@ -3,8 +3,9 @@ import { carregarIfc, carregarParametrico, ifcDoModeloAtual, limparModelo } from
 import { descreverParametros } from "../bim/parametrico";
 import { aplicarMapeamento, contarPorTarefa, descreverRegras, semTarefa } from "../fourd/regras";
 import { formatarISO } from "../fourd/tempo";
-import { excluirProjeto, gravarProjeto, lerProjeto, listarProjetos, pedirPersistencia } from "../storage/IndexedDb";
-import { ErroProjeto, exportar4dstudio, importar4dstudio, type RegistroProjeto } from "../storage/projeto";
+import { chaveFoto, chavePlanta, excluirProjeto, gravarAnexo, gravarProjeto, lerProjeto, listarProjetos, pedirPersistencia } from "../storage/IndexedDb";
+import { blobDaFoto, blobDaPlanta, gravarTodosAnexos, limparAnexos, restaurarAnexos } from "./anexos";
+import { ErroProjeto, exportar4dstudio, importar4dstudio, type ArquivosAnexos, type RegistroProjeto } from "../storage/projeto";
 import { useProjeto, type Estado } from "../state/projectStore";
 import { baixar } from "../utils/baixar";
 
@@ -15,7 +16,7 @@ const criadoEm = new Map<string, string>();
 const agora = () => new Date().toISOString();
 const novoId = () => (crypto.randomUUID ? crypto.randomUUID() : `p-${Date.now()}-${Math.random().toString(36).slice(2)}`);
 const semExtensao = (n: string) => n.replace(/\.[^.]+$/, "");
-const nomeSeguro = (n: string) => n.normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^\w.-]+/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "").toLowerCase() || "projeto";
+export const nomeSeguro = (n: string) => n.normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^\w.-]+/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "").toLowerCase() || "projeto";
 
 /** Registro do projeto aberto, a partir do estado atual. */
 export function registroAtual(s: Estado = useProjeto.getState()): RegistroProjeto | null {
@@ -34,6 +35,8 @@ export function registroAtual(s: Estado = useProjeto.getState()): RegistroProjet
     modoAnimacao: s.modoAnimacao,
     video: s.video,
     demo: s.demoModelo || s.demoCronograma,
+    fotos: s.fotos,
+    planta: s.planta,
   };
 }
 
@@ -55,6 +58,7 @@ export async function criarProjeto(nome: string): Promise<void> {
   criadoEm.set(id, agora());
   useProjeto.getState().definirProjeto({ projetoId: id, nomeProjeto: nome, salvoEm: null });
   await gravarAgora(true);
+  await gravarTodosAnexos(id);
   if (useProjeto.getState().persistencia === null) useProjeto.getState().definirProjeto({ persistencia: await pedirPersistencia() });
 }
 
@@ -70,7 +74,9 @@ export function iniciarGravacaoAutomatica(): () => void {
       s.modoAnimacao !== a.modoAnimacao ||
       s.video !== a.video ||
       s.nomeProjeto !== a.nomeProjeto ||
-      s.demoCronograma !== a.demoCronograma;
+      s.demoCronograma !== a.demoCronograma ||
+      s.fotos !== a.fotos ||
+      s.planta !== a.planta;
     if (!mudou) return;
     if (temporizador) clearTimeout(temporizador);
     temporizador = setTimeout(() => {
@@ -93,7 +99,12 @@ export async function abrirIfcComoProjeto(nome: string, bytes: ArrayBuffer): Pro
   const st = useProjeto.getState();
   const anterior = { projetoId: st.projetoId, nomeProjeto: st.nomeProjeto, salvoEm: st.salvoEm };
   st.definirProjeto({ projetoId: null }); // não gravar o modelo novo sobre o projeto anterior
-  if (await carregarIfc(nome, bytes)) await criarProjeto(semExtensao(nome));
+  if (await carregarIfc(nome, bytes)) {
+    // modelo novo, projeto novo: fotos e planta do anterior não vêm junto
+    limparAnexos();
+    useProjeto.setState({ fotos: [], planta: null });
+    await criarProjeto(semExtensao(nome));
+  }
   else st.definirProjeto(anterior);
 }
 
@@ -106,6 +117,9 @@ export async function criarParametricoComoProjeto(p: Parameters<typeof carregarP
     st.definirProjeto(anterior);
     return false;
   }
+  limparAnexos();
+  useProjeto.getState().definirPlanta(null);
+  useProjeto.setState({ fotos: [] });
   await criarProjeto(`Casa paramétrica (${descreverParametros(p)})`);
   return true;
 }
@@ -126,6 +140,12 @@ export async function abrirProjeto(id: string): Promise<boolean> {
   }
   const r = lido.registro;
   st.definirProjeto({ projetoId: null });
+  const fotosDoProjeto = new Map<string, Blob>();
+  for (const f of r.fotos ?? []) {
+    const b = lido.anexos.get(chaveFoto(r.id, f.id));
+    if (b) fotosDoProjeto.set(f.id, b);
+  }
+  restaurarAnexos(fotosDoProjeto, r.planta ? lido.anexos.get(chavePlanta(r.id)) ?? null : null);
   let ok: boolean;
   if (r.modelo.tipo === "PARAMETRICO") ok = carregarParametrico(r.modelo.parametros);
   else if (lido.ifc) ok = await carregarIfc(r.modelo.arquivo, await lido.ifc.arrayBuffer(), r.demo);
@@ -142,6 +162,8 @@ export async function abrirProjeto(id: string): Promise<boolean> {
     modoAnimacao: r.modoAnimacao,
     video: r.video,
     demoCronograma: r.demo,
+    fotos: (r.fotos ?? []).filter((f) => fotosDoProjeto.has(f.id)),
+    planta: r.planta && lido.anexos.has(chavePlanta(r.id)) ? r.planta : null,
   });
   criadoEm.set(r.id, r.criadoEm);
   st.definirProjeto({ projetoId: r.id, nomeProjeto: r.nome, salvoEm: r.atualizadoEm });
@@ -153,6 +175,7 @@ export async function duplicarProjeto(id: string): Promise<void> {
   if (!lido) return;
   const novo: RegistroProjeto = { ...lido.registro, id: novoId(), nome: `${lido.registro.nome} (cópia)`, criadoEm: agora(), atualizadoEm: agora() };
   await gravarProjeto(novo, lido.ifc);
+  for (const [chave, blob] of lido.anexos) await gravarAnexo(novo.id, chave.replace(`${id}/`, `${novo.id}/`), blob);
 }
 
 export async function excluir(id: string): Promise<void> {
@@ -165,18 +188,34 @@ export async function exportarProjeto(id: string | null): Promise<void> {
   const st = useProjeto.getState();
   let registro: RegistroProjeto | null;
   let ifc: Blob | null;
+  const anexos: ArquivosAnexos = { fotos: new Map(), planta: null };
+  const bytes = async (b: Blob) => new Uint8Array(await b.arrayBuffer());
   if (id && id !== st.projetoId) {
     const lido = await lerProjeto(id);
     registro = lido?.registro ?? null;
     ifc = lido?.ifc ?? null;
+    if (lido && registro) {
+      for (const f of registro.fotos ?? []) {
+        const b = lido.anexos.get(chaveFoto(registro.id, f.id));
+        if (b) anexos.fotos.set(f.id, await bytes(b));
+      }
+      const p = lido.anexos.get(chavePlanta(registro.id));
+      if (p) anexos.planta = await bytes(p);
+    }
   } else {
     // projeto aberto (ou a demonstração ainda não salva)
     registro = registroAtual() ?? registroAtual({ ...st, projetoId: "nao-salvo", nomeProjeto: st.nomeProjeto ?? "Demonstração" });
     ifc = ifcDoModeloAtual();
+    for (const f of st.fotos) {
+      const b = blobDaFoto(f.id);
+      if (b) anexos.fotos.set(f.id, await bytes(b));
+    }
+    const p = blobDaPlanta();
+    if (p) anexos.planta = await bytes(p);
   }
   if (!registro) return;
   try {
-    const zip = exportar4dstudio(registro, ifc ? new Uint8Array(await ifc.arrayBuffer()) : null);
+    const zip = exportar4dstudio(registro, ifc ? await bytes(ifc) : null, anexos);
     baixar(new Blob([zip as BlobPart], { type: "application/zip" }), `${nomeSeguro(registro.nome)}.4dstudio`);
   } catch (e) {
     st.mostrarErro({ mensagem: e instanceof ErroProjeto ? e.message : "Não foi possível exportar o projeto.", detalhes: String(e) });
@@ -186,10 +225,15 @@ export async function exportarProjeto(id: string | null): Promise<void> {
 export async function importarProjeto(arquivo: File): Promise<boolean> {
   const st = useProjeto.getState();
   try {
-    const { registro, ifc } = importar4dstudio(new Uint8Array(await arquivo.arrayBuffer()));
+    const { registro, ifc, anexos } = importar4dstudio(new Uint8Array(await arquivo.arrayBuffer()));
     const id = novoId();
     const r: RegistroProjeto = { ...registro, id, atualizadoEm: agora() };
     await gravarProjeto(r, ifc ? new Blob([ifc as BlobPart], { type: "application/x-step" }) : null);
+    for (const f of r.fotos ?? []) {
+      const d = anexos.fotos.get(f.id);
+      if (d) await gravarAnexo(id, chaveFoto(id, f.id), new Blob([d as BlobPart], { type: f.tipo }));
+    }
+    if (r.planta && anexos.planta) await gravarAnexo(id, chavePlanta(id), new Blob([anexos.planta as BlobPart], { type: r.planta.tipo }));
     return await abrirProjeto(id);
   } catch (e) {
     st.mostrarErro(
@@ -204,6 +248,7 @@ export async function importarProjeto(arquivo: File): Promise<boolean> {
 export async function novoProjeto(): Promise<void> {
   await descarregar();
   limparModelo();
+  limparAnexos();
   useProjeto.getState().reiniciar();
 }
 
