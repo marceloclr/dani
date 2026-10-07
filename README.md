@@ -50,8 +50,8 @@ e publique a pasta `dist/` (GitHub Pages, Cloudflare Pages, Netlify ou Vercel). 
 3. Use a timeline: ▶ reproduz, o cursor pode ser arrastado e a data pode ser digitada.
 4. Para corrigir o mapeamento, clique num elemento (modo **Selecionar**) e use **Excluir** ou **Incluir** na aba Elemento.
 5. Escolha a **Animação** na timeline: Aparecimento, Fade-in, Crescimento (paredes, pilares e esquadrias sobem da base) ou Por fases (um a um, de baixo para cima e da frente para o fundo).
-7. **Projetos**, no alto: o projeto é salvo sozinho neste navegador (a demonstração só com "Salvar cópia"). Dali se abre, duplica, exporta e importa `.4dstudio`, e se exportam o cronograma (JSON ou CSV para o Excel) e o mapeamento (JSON).
 6. Na aba **Vídeo**, escolha formato (16:9, 9:16 ou 1:1), fps e duração, ajuste o roteiro de câmera (presets ou a câmera atual, capturada pela prévia) e gere o arquivo. O painel mostra o progresso, permite cancelar e, ao fim, pré-visualizar e baixar.
+7. **Projetos**, no alto: o projeto é salvo sozinho neste navegador (a demonstração só com "Salvar cópia"). Dali se abre, duplica, exporta e importa `.4dstudio`, e se exportam o cronograma (JSON ou CSV para o Excel) e o mapeamento (JSON).
 
 Na cena, os elementos em execução aparecem em latão; os concluídos, com a cor do material; os que nenhuma tarefa faz surgir ficam translúcidos ("fantasma"). Paredes mudam de cor quando o reboco e a pintura terminam.
 
