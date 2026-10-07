@@ -37,6 +37,9 @@ const ALIASES: Record<keyof LinhaBruta, string[]> = {
 
 const chave = (s: string) => s.trim().toLowerCase().replace(/\s+/g, "");
 
+/** A coluna guarda datas (início ou fim)? Usado pelo importador de XLSX. */
+export const ehColunaData = (nome: string) => [...ALIASES.inicio, ...ALIASES.fim].includes(chave(nome));
+
 function normalizarLinha(obj: Record<string, unknown>): LinhaBruta {
   const out: LinhaBruta = {};
   for (const [k, v] of Object.entries(obj)) {
@@ -118,6 +121,17 @@ export function importarJson(bytes: Uint8Array): ResultadoImportacao {
     return { cronograma: null, formato: "JSON", problemas: [{ nivel: "erro", mensagem: 'O JSON precisa ser uma lista de tarefas ou ter o campo "tarefas".' }] };
   }
   return { ...montarCronograma(lista.map((o) => normalizarLinha(o as Record<string, unknown>)), 1), formato: "JSON" };
+}
+
+/** Linhas já lidas de uma planilha (XLSX), com datas convertidas para texto. */
+export function importarLinhas(linhas: Record<string, unknown>[], formato: string): ResultadoImportacao {
+  const colunas = new Set(linhas.flatMap((l) => Object.keys(l)).map(chave));
+  const problemas: Problema[] = [];
+  for (const campo of ["id", "inicio", "fim"] as const) {
+    if (!ALIASES[campo].some((a) => colunas.has(a))) problemas.push({ nivel: "erro", mensagem: `Falta a coluna "${campo}". A planilha precisa de: id, nome, inicio, fim, categoria.` });
+  }
+  if (problemas.length) return { cronograma: null, problemas, formato };
+  return { ...montarCronograma(linhas.map(normalizarLinha)), formato };
 }
 
 export function importarCronograma(nomeArquivo: string, bytes: Uint8Array): ResultadoImportacao {

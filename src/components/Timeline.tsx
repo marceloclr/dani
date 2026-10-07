@@ -5,7 +5,9 @@ import { contarPorTarefa } from "../fourd/regras";
 import { useProjeto } from "../state/projectStore";
 import type { ModoAnimacao } from "../types";
 import { SeletorArquivo } from "./SeletorArquivo";
-import { DICA_CRONO, abrirCronograma } from "./acoesArquivo";
+import { ACEITA_CRONO, DICA_CRONO, abrirCronograma } from "./acoesArquivo";
+import { useUi } from "../state/uiStore";
+import { usarCronogramaDemo } from "../app/carregamento";
 
 /** 1× = 6 dias por segundo: 180 dias em 30 s, a duração-padrão do vídeo (§23). */
 export const DIAS_POR_SEGUNDO = 6;
@@ -71,8 +73,20 @@ export function Timeline() {
   if (!cronograma) {
     return (
       <section className="timeline vazia" aria-label="Linha do tempo">
-        <p>Carregue um cronograma para simular a obra no tempo.</p>
-        <SeletorArquivo aceitar=".csv,.json,.txt" rotulo="Carregar cronograma" dica={DICA_CRONO} classe="btn primario" testId="entrada-cronograma-2" aoEscolher={abrirCronograma} />
+        <p>Carregue ou crie um cronograma para simular a obra no tempo.</p>
+        <SeletorArquivo aceitar={ACEITA_CRONO} rotulo="Carregar cronograma" dica={DICA_CRONO} classe="btn primario" testId="entrada-cronograma-2" aoEscolher={abrirCronograma} />
+        <button type="button" className="btn" data-testid="criar-cronograma" onClick={() => useUi.getState().abrir({ tarefa: "" })}>
+          Criar cronograma
+        </button>
+        <button
+          type="button"
+          className="btn"
+          data-testid="usar-cronograma-demo"
+          data-tip={"Usa o cronograma de demonstração: 15 etapas, 180 dias.\nDados fictícios, marcados com o selo DEMONSTRAÇÃO."}
+          onClick={usarCronogramaDemo}
+        >
+          Usar cronograma de exemplo
+        </button>
       </section>
     );
   }

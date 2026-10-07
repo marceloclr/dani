@@ -5,6 +5,7 @@ import { validarMapeamento } from "../fourd/validacao";
 import { useProjeto } from "../state/projectStore";
 import type { AcaoTarefa, PoliticaSemTarefa } from "../types";
 import { PainelVideo } from "./PainelVideo";
+import { useUi } from "../state/uiStore";
 
 const NOME_ACAO: Record<AcaoTarefa, string> = {
   construct: "construção",
@@ -63,7 +64,7 @@ function PainelTarefas() {
   const politica = useProjeto((s) => s.politica);
   const tarefaIsolada = useProjeto((s) => s.tarefaIsolada);
   const st = useProjeto.getState;
-  if (!cronograma) return <p className="tenue">Carregue um cronograma para ver as tarefas e os elementos ligados a cada uma.</p>;
+  if (!cronograma) return <p className="tenue">Carregue ou crie um cronograma (na linha do tempo, abaixo) para ver as tarefas e os elementos ligados a cada uma.</p>;
   const contagem = contarPorTarefa(vinculos);
 
   return (
@@ -76,6 +77,9 @@ function PainelTarefas() {
           <option value="visivel">Sempre visíveis</option>
         </select>
       </label>
+      <button type="button" className="btn largo-topo" data-testid="nova-tarefa" onClick={() => useUi.getState().abrir({ tarefa: "" })}>
+        + Nova tarefa
+      </button>
       <ul className="lista-tarefas" data-testid="lista-tarefas">
         {cronograma.tarefas.map((t) => {
           const n = contagem.get(t.id) ?? 0;
@@ -99,11 +103,16 @@ function PainelTarefas() {
                 {n} {n === 1 ? "elemento" : "elementos"}
               </div>
               <div className="nota">{regras.length ? `Regras: ${regras.join("; ")}` : "Nenhuma regra para esta categoria. Inclua elementos pela aba Elemento."}</div>
-              {n > 0 && (
-                <button type="button" className="btn mini" aria-pressed={tarefaIsolada === t.id} onClick={() => st().isolarTarefa(tarefaIsolada === t.id ? null : t.id)}>
-                  {tarefaIsolada === t.id ? "Mostrar todos" : "Ver só estes"}
+              <div className="botoes">
+                <button type="button" className="btn mini" data-testid={`editar-${t.id}`} onClick={() => useUi.getState().abrir({ tarefa: t.id })}>
+                  Editar
                 </button>
-              )}
+                {n > 0 && (
+                  <button type="button" className="btn mini" aria-pressed={tarefaIsolada === t.id} onClick={() => st().isolarTarefa(tarefaIsolada === t.id ? null : t.id)}>
+                    {tarefaIsolada === t.id ? "Mostrar todos" : "Ver só estes"}
+                  </button>
+                )}
+              </div>
             </li>
           );
         })}

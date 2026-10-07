@@ -34,7 +34,7 @@ test("incremento 1 de ponta a ponta com a demonstração", async ({ page }) => {
   await page.getByTestId("abrir-demo").click();
   await expect(page.getByTestId("selo-demo")).toBeVisible({ timeout: 60_000 });
   await expect(page.locator(".tela3d canvas")).toBeVisible();
-  await expect(page.getByText("demo.ifc · 146 elementos")).toBeVisible();
+  await expect(page.getByTestId("situacao")).toContainText("146 elementos");
 
   // 3. cronograma na timeline; regras já vincularam os elementos
   await expect(page.locator(".gantt .linha")).toHaveCount(15);
@@ -112,7 +112,7 @@ test("incremento 1 de ponta a ponta com a demonstração", async ({ page }) => {
   await expect(page.getByTestId("erro")).toContainText("O arquivo não parece ser um modelo IFC.");
   await expect(page.getByTestId("erro")).toContainText("Detalhes técnicos");
   await expect(page.locator(".tela3d canvas")).toBeVisible();
-  await expect(page.getByText("demo.ifc · 146 elementos")).toBeVisible();
+  await expect(page.getByTestId("situacao")).toContainText("146 elementos");
 
   expect(errosConsole).toEqual([]);
 });

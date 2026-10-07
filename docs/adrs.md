@@ -15,6 +15,8 @@ Versões e licenças conferidas no registro npm em 2026-10-07.
 | 08 | IFC de demonstração próprio, gerado por script | Aceita |
 | 09 | Versões fixas e licenças | Aceita |
 | 10 | Reprodução: 1× = 6 dias por segundo | Aceita |
+| 11 | Ciclo de vida do projeto e gravação automática | Aceita |
+| 12 | Modo paramétrico com as mesmas classes IFC | Aceita |
 
 ---
 
@@ -168,6 +170,7 @@ Versões fixas no `package.json`, em vez de pedir à IA que "confirme a API atua
 | @thatopen/components | 3.4.9 | MIT (fora do MVP, ver ADR-01) |
 | @fontsource/ibm-plex-sans, -serif, -mono | 5.3.0 | OFL-1.1 (fontes do design system servidas localmente, para funcionar offline) |
 | @vitejs/plugin-react | 6.1.2 | MIT |
+| xlsx (SheetJS) | 0.20.3, do tarball https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz | Apache-2.0 |
 
 MPL-2.0 é copyleft por arquivo: pode ser usada sem problema, desde que alterações nos próprios arquivos da biblioteca sejam publicadas. O §44 passa a citá-la explicitamente.
 
@@ -176,3 +179,25 @@ Testes: lógica, parsing de CSV e de IFC no Vitest (Node). Exportação de víde
 ## ADR-10 — Velocidade de reprodução
 
 **Decisão.** 1× = 6 dias de obra por segundo, para que a obra-padrão de 180 dias dure 30 s, a duração-padrão do vídeo (§22, §23). As velocidades do §17 multiplicam esse valor (0,25× = 1,5 dia/s; 8× = 48 dias/s). A fórmula aparece na dica do seletor de velocidade.
+
+## ADR-11 — Ciclo de vida do projeto
+
+**Decisão.**
+- Projeto = modelo (IFC ou parâmetros) + cronograma + exceções + política + modo de animação + configuração do vídeo.
+- Carregar um IFC ou criar um modelo paramétrico cria um projeto com o nome do arquivo, gravado automaticamente no IndexedDB (banco `c4d`, depósitos `projetos` e `modelos`) 600 ms depois de cada mudança.
+- A demonstração não é gravada sozinha; "Salvar cópia" a transforma em projeto comum, mantendo o selo DEMONSTRAÇÃO, porque os dados continuam fictícios.
+- Na primeira gravação, o app pede `navigator.storage.persist()` e mostra o resultado.
+- O arquivo `.4dstudio` é um ZIP com `project.json`, `schedule.json`, `mappings.json`, `settings.json` e `assets/modelo.ifc`. As regras não são gravadas: derivam das categorias (ADR-02) e só as exceções vão no arquivo.
+
+## ADR-12 — Modo paramétrico
+
+**Decisão.**
+- O gerador (`src/bim/parametrico.ts`) produz diretamente metadados e malhas com as mesmas classes IFC do modo BIM, para as regras do ADR-02 valerem sem mudança.
+- É determinístico; o projeto guarda só os parâmetros e regenera ao abrir.
+- Planta-tipo, a mesma em todos os pavimentos:
+  - frente com dois cômodos separados por uma parede no eixo;
+  - parede transversal a 45% da profundidade;
+  - fundo livre (sala e cozinha), com a escada encostada na lateral quando há dois pavimentos;
+  - recuos de 5 m na frente, 3 m no fundo e 1,5 m nas laterais.
+- Coberturas: laje plana com platibanda, telhado de uma água (15%) ou de duas águas (30%), sempre sobre laje de forro.
+- Na interface o modelo é marcado como PARAMÉTRICO: representação simplificada para animação, não é projeto executivo.

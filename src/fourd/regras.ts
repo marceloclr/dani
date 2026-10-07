@@ -14,7 +14,7 @@ export const REGRAS_PADRAO: Record<string, ModeloRegra[]> = {
     { acao: "construct", onde: { ifcType: ["IfcFooting", "IfcPile"] }, descricao: "Sapatas, baldrames e estacas (IfcFooting, IfcPile)" },
     { acao: "construct", onde: { ifcType: ["IfcSlab"], predefinedType: ["BASESLAB"] }, descricao: "Contrapiso (IfcSlab BASESLAB)" },
   ],
-  estrutura: [{ acao: "construct", onde: { ifcType: ["IfcColumn", "IfcBeam", "IfcMember"] }, descricao: "Pilares e vigas (IfcColumn, IfcBeam, IfcMember)" }],
+  estrutura: [{ acao: "construct", onde: { ifcType: ["IfcColumn", "IfcBeam", "IfcMember", "IfcStair", "IfcStairFlight"] }, descricao: "Pilares, vigas e escadas (IfcColumn, IfcBeam, IfcMember, IfcStair)" }],
   alvenaria: [{ acao: "construct", onde: { ifcType: ["IfcWall", "IfcWallStandardCase"] }, descricao: "Paredes (IfcWall)" }],
   laje: [{ acao: "construct", onde: { ifcType: ["IfcSlab"], predefinedType: ["FLOOR"] }, descricao: "Lajes (IfcSlab FLOOR)" }],
   cobertura: [

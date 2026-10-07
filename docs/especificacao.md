@@ -117,4 +117,4 @@ interface Tarefa {
 
 O teste de ponta a ponta do §67 vale ao final do INC-2.
 
-**Situação em 2026-10-07:** INC-1 e INC-2 implementados e aceitos pelos testes (`npm run tudo`: 30 testes Vitest e 6 Playwright, incluindo o §67 com vídeo WebM real conferido pelo ffprobe).
+**Situação em 2026-10-07:** INC-1, INC-2 e INC-3 implementados e aceitos pelos testes (`npm run tudo`: 47 testes Vitest e 10 Playwright, incluindo o §67 com vídeo WebM real conferido pelo ffprobe, persistência ao recarregar, `.4dstudio` de ida e volta, sobrado paramétrico com vídeo e XLSX). Publicado em https://marceloclr.github.io/dani/.

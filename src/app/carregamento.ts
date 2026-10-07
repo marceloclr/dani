@@ -1,6 +1,8 @@
 // Ações de carga (IFC, cronograma, demonstração) com erros em linguagem simples (§40).
 import { ErroCarga, WebIfcWorkerAdapter } from "../bim/ModelAdapter";
 import type { MalhaElemento } from "../bim/parseIfc";
+import { ErroParametro, gerarCasa, type ParametrosCasa } from "../bim/parametrico";
+import { importarXlsx } from "../importers/xlsx";
 import { importarCronograma } from "../importers/cronograma";
 import { useProjeto } from "../state/projectStore";
 
@@ -16,6 +18,15 @@ export function aoCarregarMalhas(f: (m: MalhaElemento[]) => void): () => void {
 let ultimasMalhas: MalhaElemento[] | null = null;
 export const malhasAtuais = () => ultimasMalhas;
 
+/** Cópia do IFC atual, para gravar no projeto (o ArrayBuffer original vai para o worker). */
+let ifcAtual: Blob | null = null;
+export const ifcDoModeloAtual = () => ifcAtual;
+
+export function limparModelo(): void {
+  ultimasMalhas = null;
+  ifcAtual = null;
+}
+
 export async function carregarIfc(nome: string, bytes: ArrayBuffer, demo = false): Promise<boolean> {
   const st = useProjeto.getState();
   if (!/\.ifc$/i.test(nome)) {
@@ -24,10 +35,12 @@ export async function carregarIfc(nome: string, bytes: ArrayBuffer, demo = false
   }
   st.mostrarErro(null);
   st.definirCarga({ fracao: 0, etapa: "Lendo o arquivo" });
+  const copia = new Blob([bytes], { type: "application/x-step" });
   try {
     const modelo = await adaptador.load(bytes, (fracao, etapa) => useProjeto.getState().definirCarga({ fracao, etapa }));
     ultimasMalhas = modelo.malhas;
-    useProjeto.getState().definirModelo(modelo.elementos, nome, demo);
+    ifcAtual = copia;
+    useProjeto.getState().definirModelo(modelo.elementos, nome, demo, "IFC");
     ouvintes.forEach((f) => f(modelo.malhas));
     return true;
   } catch (e) {
@@ -39,13 +52,33 @@ export async function carregarIfc(nome: string, bytes: ArrayBuffer, demo = false
   }
 }
 
-export function carregarCronograma(nome: string, bytes: Uint8Array, demo = false): boolean {
+/** Modelo paramétrico (ADR-12): gerado no próprio fluxo principal, é leve. */
+export function carregarParametrico(p: ParametrosCasa): boolean {
   const st = useProjeto.getState();
-  if (!/\.(csv|json|txt)$/i.test(nome)) {
-    st.mostrarErro({ mensagem: "Formato de cronograma não aceito.", orientacao: "Use um arquivo .csv ou .json. XLSX chega numa próxima versão." });
+  try {
+    const modelo = gerarCasa(p);
+    ultimasMalhas = modelo.malhas;
+    ifcAtual = null;
+    st.definirModelo(modelo.elementos, "modelo paramétrico", false, "PARAMETRICO", p);
+    ouvintes.forEach((f) => f(modelo.malhas));
+    return true;
+  } catch (e) {
+    st.mostrarErro(
+      e instanceof ErroParametro
+        ? { mensagem: e.message }
+        : { mensagem: "Não foi possível gerar o modelo paramétrico.", orientacao: "Revise os parâmetros e tente de novo.", detalhes: String((e as Error)?.stack ?? e) },
+    );
     return false;
   }
-  const r = importarCronograma(nome, bytes);
+}
+
+export async function carregarCronograma(nome: string, bytes: Uint8Array, demo = false): Promise<boolean> {
+  const st = useProjeto.getState();
+  if (!/\.(csv|json|txt|xlsx)$/i.test(nome)) {
+    st.mostrarErro({ mensagem: "Formato de cronograma não aceito.", orientacao: "Use um arquivo .csv, .xlsx ou .json." });
+    return false;
+  }
+  const r = /\.xlsx$/i.test(nome) ? await importarXlsx(bytes) : importarCronograma(nome, bytes);
   if (!r.cronograma) {
     st.definirProblemasImportacao(r.problemas);
     st.mostrarErro({
@@ -78,12 +111,20 @@ export async function abrirDemonstracao(): Promise<void> {
     const [ifc, csv] = await Promise.all([fetch(new URL("demo.ifc", base())), fetch(new URL("demo-cronograma.csv", base()))]);
     if (!ifc.ok || !csv.ok) throw new Error(`HTTP ${ifc.status}/${csv.status}`);
     const [bi, bc] = await Promise.all([ifc.arrayBuffer(), csv.arrayBuffer()]);
-    if (await carregarIfc("demo.ifc", bi, true)) carregarCronograma("demo-cronograma.csv", new Uint8Array(bc), true);
+    useProjeto.getState().definirProjeto({ projetoId: null, nomeProjeto: "Demonstração", salvoEm: null });
+    if (await carregarIfc("demo.ifc", bi, true)) await carregarCronograma("demo-cronograma.csv", new Uint8Array(bc), true);
   } catch (e) {
     st.mostrarErro({ mensagem: "Não foi possível abrir a demonstração.", orientacao: "Recarregue a página e tente de novo.", detalhes: String(e) });
   }
 }
 
-export function dispose(): void {
-  adaptador.dispose();
+/** Cronograma de demonstração (fictício), oferecido a modelos sem cronograma. */
+export async function usarCronogramaDemo(): Promise<void> {
+  try {
+    const r = await fetch(new URL("demo-cronograma.csv", base()));
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    await carregarCronograma("demo-cronograma.csv", new Uint8Array(await r.arrayBuffer()), true);
+  } catch (e) {
+    useProjeto.getState().mostrarErro({ mensagem: "Não foi possível abrir o cronograma de demonstração.", detalhes: String(e) });
+  }
 }
