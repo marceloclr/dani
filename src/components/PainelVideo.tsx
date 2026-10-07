@@ -71,7 +71,7 @@ export function PainelVideo() {
     if (voo) {
       cena.posicionarLivre(cena.camera, voo.quadro(t / video.segundos));
       st().definirDia(diaDoVoo(t / video.segundos, dias));
-      cena.pedirQuadro();
+      cena.atualizarPortas(cena.camera.position);
       return;
     }
     cena.mostrarPose(poseNoTempo(roteiro, cena.enquadramento(), t, video.segundos));

@@ -13,6 +13,7 @@ import {
   indice,
   livreEm,
   maisDistante,
+  visada,
   pontoEm,
   portas,
   suavizar,
@@ -55,6 +56,8 @@ export interface Voo {
   resumo: string;
   /** Onde ficam as pessoas da obra humanizada (posição no piso e direção do olhar). */
   pessoas: { pos: P3; olhar: P2 }[];
+  /** Portas que abrem quando o drone chega perto. */
+  folhas: Folha[];
 }
 
 /** Ponto livre perto de `perto`, visível do passeio (entre 1,2 e 3,5 m dele) sem ficar no caminho. */
@@ -142,6 +145,70 @@ function encadear(trechos: Trecho[]): (u: number) => QuadroCamera {
   };
 }
 
+// ------------------------------------------------------------------ portas que abrem
+
+/** Folha de porta que gira na dobradiça quando o drone chega perto. */
+export interface Folha {
+  guid: string;
+  centro: P3; // centro da folha, no piso
+  dobradica: P2; // x, z do eixo vertical
+  eixo: "x" | "z"; // direção da folha fechada
+  lado: 1 | -1; // para que lado (na direção da normal) ela abre
+  largura: number;
+  /** O drone passa por ela? Só essas abrem; as outras ficam fechadas. */
+  atravessada: boolean;
+}
+
+/**
+ * Quanto a porta está aberta (0 a 1) com a câmera em `cam`. Só abre a porta por onde o drone passa,
+ * e só com ele no corredor de passagem (de frente para o vão): começa a 3,2 m e abre toda a 1,4 m.
+ */
+export function aberturaDaPorta(f: Folha, cam: P3 | null): number {
+  if (!cam || !f.atravessada || Math.abs(cam[1] - (f.centro[1] + ALTURA_OLHOS)) > 1.6) return 0;
+  const ao = f.eixo === "x" ? 0 : 2, n = f.eixo === "x" ? 2 : 0;
+  if (Math.abs(cam[ao] - f.centro[ao]) > f.largura / 2 + 0.3) return 0; // ao lado da porta, não na frente
+  const d = Math.abs(cam[n] - f.centro[n]);
+  const u = Math.min(Math.max((3.2 - d) / (3.2 - 1.4), 0), 1);
+  return suave(u);
+}
+
+/** Giro da folha em torno de Y (radianos) para a abertura dada; 90° com a porta toda aberta. */
+export function anguloDaPorta(f: Folha, abertura: number): number {
+  return (f.eixo === "x" ? -f.lado : f.lado) * (Math.PI / 2) * abertura;
+}
+
+/** Ponto da folha depois do giro (mesma convenção do Three.js para rotation.y). */
+export function girarNaDobradica(f: Folha, abertura: number, p: P3): P3 {
+  const t = anguloDaPorta(f, abertura), c = Math.cos(t), s = Math.sin(t);
+  const x = p[0] - f.dobradica[0], z = p[2] - f.dobradica[1];
+  return [f.dobradica[0] + x * c + z * s, p[1], f.dobradica[1] - x * s + z * c];
+}
+
+/** Folhas de todas as portas; cada uma abre para o lado em que o drone a atravessa primeiro (para dentro, se nunca). */
+function folhas(lista: Porta[], caminhos: P3[][]): Folha[] {
+  return lista.map((p) => {
+    const eixo: "x" | "z" = p.max[0] - p.min[0] >= p.max[2] - p.min[2] ? "x" : "z";
+    const dobradica: P2 = eixo === "x" ? [p.min[0], p.centro[2]] : [p.centro[0], p.min[2]];
+    const n = eixo === "x" ? 2 : 0; // coordenada perpendicular à folha
+    const ao = eixo === "x" ? 0 : 2; // coordenada ao longo da folha
+    let lado: 1 | -1 = p.externa ? (Math.sign(-(eixo === "x" ? p.normal[1] : p.normal[0])) >= 0 ? 1 : -1) : 1;
+    let atravessada = false;
+    procura: for (const pts of caminhos)
+      for (let i = 1; i < pts.length; i++) {
+        const a = pts[i - 1], b = pts[i];
+        const da = a[n] - p.centro[n], db = b[n] - p.centro[n];
+        if (da * db > 0 || da === db) continue;
+        const t = da / (da - db);
+        const ao2 = a[ao] + (b[ao] - a[ao]) * t, y = a[1] + (b[1] - a[1]) * t;
+        if (Math.abs(ao2 - p.centro[ao]) > p.largura / 2 + 0.1 || Math.abs(y - (p.centro[1] + ALTURA_OLHOS)) > 1) continue;
+        lado = db - da > 0 ? 1 : -1; // empurra: abre para o lado em que o drone segue
+        atravessada = true;
+        break procura;
+      }
+    return { guid: p.guid, centro: p.centro, dobradica, eixo, lado, largura: p.largura, atravessada };
+  });
+}
+
 /** Une as partes num voo só, cada parte ocupando a fração de tempo dada. */
 function porFracoes(partes: { fracao: number; quadro: (u: number) => QuadroCamera }[]): (u: number) => QuadroCamera {
   return (u) => {
@@ -164,9 +231,51 @@ function bloquear(g: Grade, x0: number, z0: number, x1: number, z1: number) {
 }
 
 /** Ligação de dois pontos por um caminho livre, na altura dos olhos; se não houver, linha reta. */
-function ligar(g: Grade, a: P2, b: P2, y: number): P3[] {
+/** Caminho livre na altura y, ou null se não houver (nunca uma reta através das paredes). */
+function ligar(g: Grade, a: P2, b: P2, y: number, vaos: Porta[] = []): P3[] | null {
   const c = caminho(g, a, b);
-  return (c ?? [a, b]).map((p) => no(p, y));
+  return c ? pelosCentros(suavizarSeguro(g, c.map((p) => no(p, y))), vaos) : null;
+}
+
+/** Passa pelo meio de cada vão de porta atravessado, longe dos batentes e da folha aberta. */
+function pelosCentros(pts: P3[], vaos: Porta[]): P3[] {
+  const out: P3[] = [pts[0]];
+  for (let i = 1; i < pts.length; i++) {
+    const a = pts[i - 1], b = pts[i];
+    for (const p of vaos) {
+      const fx = p.max[0] - p.min[0] >= p.max[2] - p.min[2];
+      const n = fx ? 2 : 0, ao = fx ? 0 : 2;
+      const da = a[n] - p.centro[n], db = b[n] - p.centro[n];
+      if (da * db >= 0) continue;
+      const t = da / (da - db);
+      if (Math.abs(a[ao] + (b[ao] - a[ao]) * t - p.centro[ao]) > p.largura / 2 + 0.2) continue;
+      const s = Math.sign(db - da), y = a[1];
+      const antes: P3 = [p.centro[0], y, p.centro[2]], depois: P3 = [p.centro[0], y, p.centro[2]];
+      antes[n] -= s * 1.0;
+      depois[n] += s * 1.0;
+      out.push(antes, depois);
+    }
+    out.push(b);
+  }
+  return out;
+}
+
+/** Cópia da grade só com o interior livre: o caminho passa por dentro da casa, nunca a contorna. */
+function soInterior(g: Grade, c: Caixa2D): Grade {
+  const livre = g.livre.slice();
+  for (let j = 0; j < g.nz; j++)
+    for (let i = 0; i < g.nx; i++) {
+      const x = g.x0 + (i + 0.5) * g.passo, z = g.z0 + (j + 0.5) * g.passo;
+      if (x < c.x0 || x > c.x1 || z < c.z0 || z > c.z1) livre[indice(g, i, j)] = 0;
+    }
+  return { ...g, livre };
+}
+
+/** Suaviza as curvas só onde a curva suavizada também fica livre (a suavização corta quinas). */
+function suavizarSeguro(g: Grade, pts: P3[]): P3[] {
+  const s = suavizar(pts, 2);
+  for (let i = 1; i < s.length; i++) if (!visada(g, [s[i - 1][0], s[i - 1][2]], [s[i][0], s[i][2]])) return pts;
+  return s;
 }
 
 /**
@@ -190,34 +299,49 @@ export function montarVoo(solidos: Solido[], caixa: { min: P3; max: P3 }, centro
   const olho = piso + ALTURA_OLHOS;
   const R = Math.max(raio, 3);
 
-  const listaPortas = portas(solidos, casa).filter((p) => Math.abs(p.centro[1] - piso) < 0.6);
+  const todasPortas = portas(solidos, casa);
+  const listaPortas = todasPortas.filter((p) => Math.abs(p.centro[1] - piso) < 0.6);
   const externas = listaPortas.filter((p) => p.externa);
   // a porta da frente: a que mais olha para +z (frente da casa)
   const entrada = [...externas].sort((a, b) => b.normal[1] - a.normal[1] || b.centro[2] - a.centro[2])[0] ?? null;
   const saida = entrada ? externas.filter((p) => p !== entrada).sort((a, b) => a.normal[1] - b.normal[1])[0] ?? null : null;
   const escada: Escada | null = escadas(solidos).filter((e) => Math.abs(e.pisoBaixo - piso) < 0.6).sort((a, b) => b.pisoAlto - a.pisoAlto)[0] ?? null;
 
-  const gTerreo = gradeDoPavimento(solidos, piso, area);
+  const gTerreo = soInterior(gradeDoPavimento(solidos, piso, area), interior);
+  const centrosT: P2[] = listaPortas.map((p) => [p.centro[0], p.centro[2]]);
   const fora = (p: Porta, d: number): P2 => [p.centro[0] + p.normal[0] * d, p.centro[2] + p.normal[1] * d];
   const dentroDa = (p: Porta, d: number): P2 => [p.centro[0] - p.normal[0] * d, p.centro[2] - p.normal[1] * d];
+  /** Azimute (a partir do centro) de quem está diante da porta: as transições ficam do mesmo lado da fachada. */
+  const azDe = (p: Porta | null, reserva: number) => {
+    if (!p) return reserva;
+    const f = fora(p, 4);
+    return Math.atan2(f[0] - centro[0], f[1] - centro[2]);
+  };
+  const azEntrada = azDe(entrada, grau(40));
+  let azSaida = azDe(saida ?? entrada, grau(20));
 
   // ---------------------------------------------------------------- 1) obra sendo montada
   const construcao: Trecho[] = [];
-  const voo1 = (u: number) => orbital(centro, lerp(grau(-70), grau(40), u), lerp(grau(48), grau(14), suave(u)), R * lerp(2.3, 1.35, suave(u)));
+  // espiral descendo e terminando de frente para a porta de entrada
+  const voo1 = (u: number) => orbital(centro, lerp(azEntrada - grau(110), azEntrada, u), lerp(grau(48), grau(14), suave(u)), R * lerp(2.3, 1.35, suave(u)));
   construcao.push({ peso: 3, quadro: voo1 });
   let passagem: P3[] = [];
   if (entrada) {
-    const de = fora(entrada, 4);
-    const ate = saida ? fora(saida, 3) : (maisDistante(gTerreo, dentroDa(entrada, 1), interior) ?? dentroDa(entrada, 2));
-    const ida = ligar(gTerreo, de, ate, olho);
-    passagem = suavizar(saida ? ida : [...ida, ...[...ida].reverse().slice(1)], 2);
+    // entra pela porta da frente, atravessa por dentro e sai pela dos fundos (ou volta)
+    const fundo = maisDistante(gTerreo, dentroDa(entrada, 0.8), interior, centrosT) ?? dentroDa(entrada, 2);
+    const atravessa = saida ? ligar(gTerreo, dentroDa(entrada, 0.8), dentroDa(saida, 0.8), olho, listaPortas) : null;
+    const dentroIda = atravessa ?? ligar(gTerreo, dentroDa(entrada, 0.8), fundo, olho, listaPortas) ?? [no(dentroDa(entrada, 0.8), olho)];
+    const ida = [no(fora(entrada, 4), olho), no(fora(entrada, 0.4), olho), ...dentroIda, ...(atravessa ? [no(fora(saida!, 0.4), olho), no(fora(saida!, 3), olho)] : [])];
+    passagem = atravessa ? ida : [...ida, ...[...ida].reverse().slice(1)];
     const p0 = passagem[0];
     construcao.push(transicao(voo1(1), { pos: p0, alvo: no(fora(entrada, 0), olho), fov: 60 }, 1.2));
     construcao.push({ ...seguir(passagem, 62, 2.5, 0.3), peso: 2.6 });
+    if (!atravessa) azSaida = azEntrada; // voltou e saiu pela porta da frente
     const ultimo = seguir(passagem, 62, 2.5, 0.3).quadro(1);
-    const subir = orbital(centro, grau(saida ? 200 : 20), grau(38), R * 1.6, centro[1]);
+    // sobe do lado da porta por onde saiu e continua girando alto
+    const subir = orbital(centro, azSaida, grau(38), R * 1.6, centro[1]);
     construcao.push(transicao(ultimo, subir, 1.4));
-    construcao.push({ peso: 2.2, quadro: (u) => orbital(centro, grau(saida ? 200 : 20) + grau(160) * u, grau(lerp(38, 30, u)), R * lerp(1.6, 1.5, u)) });
+    construcao.push({ peso: 2.2, quadro: (u) => orbital(centro, azSaida + grau(160) * u, grau(lerp(38, 30, u)), R * lerp(1.6, 1.5, u)) });
   } else {
     construcao.push({ peso: 5, quadro: (u) => orbital(centro, grau(40) + grau(280) * u, grau(lerp(14, 35, suave(u))), R * lerp(1.35, 1.6, u)) });
   }
@@ -228,8 +352,8 @@ export function montarVoo(solidos: Solido[], caixa: { min: P3; max: P3 }, centro
   const distFachada = R * 1.25;
   const yFachada = Math.max(olho + 0.8, centro[1] - R * 0.15);
   const volta = (u: number): QuadroCamera => {
-    // uma volta inteira, terminando de frente para a casa
-    const giro = 2 * Math.PI - (((azFim % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI));
+    // uma volta inteira (ou um pouco mais), terminando de frente para a porta de entrada
+    const giro = 2 * Math.PI + ((((azEntrada - azFim) % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI));
     const az = azFim + giro * u;
     const q = orbital(centro, az, 0, distFachada, lerp(centro[1], centro[1] - R * 0.1, u));
     q.pos[1] = lerp(fimConstrucao.pos[1], yFachada, suave(Math.min(u * 4, 1)));
@@ -248,7 +372,7 @@ export function montarVoo(solidos: Solido[], caixa: { min: P3; max: P3 }, centro
     if (escada) {
       const baixo: P2 = [escada.baixo[0], escada.baixo[2]];
       const alto: P2 = [escada.alto[0], escada.alto[2]];
-      pontos.push(ligar(gTerreo, interno, baixo, olho));
+      pontos.push(ligar(gTerreo, interno, baixo, olho, listaPortas) ?? []);
       // subir: a câmera acompanha a escada até o pavimento de cima
       const olhoAlto = escada.pisoAlto + ALTURA_OLHOS;
       const subida: P3[] = [];
@@ -257,28 +381,26 @@ export function montarVoo(solidos: Solido[], caixa: { min: P3; max: P3 }, centro
         subida.push([lerp(escada.baixo[0], escada.alto[0], u), lerp(olho, olhoAlto, suave(u)), lerp(escada.baixo[2], escada.alto[2], u)]);
       }
       pontos.push(subida);
-      const gCima = gradeDoPavimento(solidos, escada.pisoAlto, area);
+      const portasCima = todasPortas.filter((p) => Math.abs(p.centro[1] - escada.pisoAlto) < 0.6);
+      const gCima = soInterior(gradeDoPavimento(solidos, escada.pisoAlto, area), interior);
       const fx = [escada.baixo[0], escada.alto[0]], fz = [escada.baixo[2], escada.alto[2]];
       bloquear(gCima, Math.min(...fx) - 0.2, Math.min(...fz) - 0.2, Math.max(...fx) + 0.2, Math.max(...fz) + 0.2);
       const desembarque = alto;
-      const quarto = maisDistante(gCima, desembarque, interior) ?? desembarque;
+      const quarto = maisDistante(gCima, desembarque, interior, portasCima.map((p) => [p.centro[0], p.centro[2]] as P2)) ?? desembarque;
       ancoras.push({ g: gCima, perto: quarto, y: escada.pisoAlto });
-      const ida = ligar(gCima, desembarque, quarto, olhoAlto);
+      const ida = ligar(gCima, desembarque, quarto, olhoAlto, portasCima) ?? [no(desembarque, olhoAlto)];
       pontos.push(ida);
       pontos.push([...ida].reverse());
       pontos.push([...subida].reverse());
-      const sala = maisDistante(gTerreo, baixo, interior) ?? interno;
+      const sala = maisDistante(gTerreo, baixo, interior, centrosT) ?? interno;
       ancoras.push({ g: gTerreo, perto: sala, y: piso });
-      pontos.push(ligar(gTerreo, baixo, sala, olho));
+      pontos.push(ligar(gTerreo, baixo, sala, olho, listaPortas) ?? []);
     } else {
-      const fundo = maisDistante(gTerreo, interno, interior) ?? interno;
+      const fundo = maisDistante(gTerreo, interno, interior, centrosT) ?? interno;
       ancoras.push({ g: gTerreo, perto: fundo, y: piso });
-      pontos.push(ligar(gTerreo, interno, fundo, olho));
+      pontos.push(ligar(gTerreo, interno, fundo, olho, listaPortas) ?? []);
     }
-    passeio = suavizar(
-      pontos.flat().filter((p, i, l) => i === 0 || Math.hypot(p[0] - l[i - 1][0], p[1] - l[i - 1][1], p[2] - l[i - 1][2]) > 0.05),
-      2,
-    );
+    passeio = pontos.flat().filter((p, i, l) => i === 0 || Math.hypot(p[0] - l[i - 1][0], p[1] - l[i - 1][1], p[2] - l[i - 1][2]) > 0.05);
   }
   const interno: Trecho[] = [];
   if (passeio.length > 1) {
@@ -316,5 +438,5 @@ export function montarVoo(solidos: Solido[], caixa: { min: P3; max: P3 }, centro
     const lugar = lugarDePessoa(an.g, passeio, an.perto, an.y);
     if (lugar) pessoas.push(lugar);
   }
-  return { quadro, passeio, temEscada: !!escada, entrada, resumo, pessoas };
+  return { quadro, passeio, temEscada: !!escada, entrada, resumo, pessoas, folhas: folhas(todasPortas, [passagem, passeio]) };
 }

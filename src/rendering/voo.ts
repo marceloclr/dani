@@ -79,6 +79,7 @@ export class VooManual {
       cena.controls.target.copy(alvo);
       cena.controls.enabled = true;
       cena.controls.update();
+      cena.atualizarPortas(null);
       aoSair();
     };
     this.aplicar();
@@ -119,7 +120,7 @@ export class VooManual {
     cam.updateProjectionMatrix();
     cam.lookAt(cam.position.clone().add(d));
     cam.updateMatrixWorld();
-    this.cena.pedirQuadro();
+    this.cena.atualizarPortas(cam.position); // portas abrem quando o drone chega perto
   }
 
   parar(): void {
@@ -151,7 +152,7 @@ export class PreviaVoo {
       const u = Math.min((agora - this.inicio) / 1000 / this.segundos, 1);
       this.aoDia(u);
       cena.posicionarLivre(cena.camera, voo.quadro(u));
-      cena.pedirQuadro();
+      cena.atualizarPortas(cena.camera.position);
       if (u < 1) this.quadro = requestAnimationFrame(passo);
       else this.parar();
     };
@@ -166,6 +167,7 @@ export class PreviaVoo {
     this.cena.controls.target.copy(cam.position.clone().add(cam.getWorldDirection(new THREE.Vector3()).multiplyScalar(5)));
     this.cena.controls.enabled = true;
     this.cena.controls.update();
+    this.cena.atualizarPortas(null);
     this.aoFim();
   }
 }

@@ -346,7 +346,7 @@ movel("Travesseiros da suíte leste", "Tecido", travesseiros(7.85, 1.6, 9.85, 3.
 movel("Guarda-roupa da suíte leste", "Madeira", armario(6.1, 0.3, 6.7, 2.3, P), "SHELF")
 # cozinha (0–6 × 13,5–18)
 movel("Bancada da cozinha", "Madeira clara", [(0.15, 13.9, P, 0.75, 14.9, 0.85), (0.15, 16.9, P, 0.75, 17.8, 0.85)], "USERDEFINED")
-movel("Geladeira", "Aço inox", armario(5.15, 17.1, 5.85, 17.8, P, 1.8))
+movel("Geladeira", "Aço inox", armario(4.6, 13.7, 5.3, 14.35, P, 1.8))
 movel("Mesa da cozinha", "Madeira clara", mesa(2.4, 15.4, 3.6, 16.2, P), "TABLE")
 
 # ---------------------------------------------------------------- gravação

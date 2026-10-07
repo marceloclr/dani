@@ -207,7 +207,7 @@ export function caminho(g: Grade, de: P2, para: P2): P2[] | null {
       // diagonal só se as duas vizinhas retas estiverem livres (não corta quina)
       if (di && dj && (!g.livre[indice(g, i + di, j)] || !g.livre[indice(g, i, j + dj)])) continue;
       // perto de parede e móvel custa mais: o caminho segue pelo meio, a até ~0,9 m deles
-      const novo = custo[k] + c * (1 + 3 * Math.max(0, 0.9 - g.distancia[nk]));
+      const novo = custo[k] + c * (1 + 1.2 * Math.max(0, 0.9 - g.distancia[nk]));
       if (novo < custo[nk]) {
         custo[nk] = novo;
         veio[nk] = k;
@@ -259,7 +259,7 @@ export function simplificar(g: Grade, pts: P2[]): P2[] {
 }
 
 /** Ponto livre mais distante (pelo caminho) de `de`, dentro de `limite`: o fundo da casa, o quarto mais afastado. */
-export function maisDistante(g: Grade, de: P2, limite?: Caixa2D): P2 | null {
+export function maisDistante(g: Grade, de: P2, limite?: Caixa2D, evitar: P2[] = [], raio = 1.8): P2 | null {
   const a = livreMaisProximo(g, de);
   if (!a) return null;
   const [ai, aj] = celula(g, a[0], a[1]);
@@ -269,7 +269,9 @@ export function maisDistante(g: Grade, de: P2, limite?: Caixa2D): P2 | null {
   let ultimo = fila[0];
   for (let q = 0; q < fila.length; q++) {
     const k = fila[q];
-    ultimo = k;
+    // o ponto de parada não fica junto de uma porta (a folha abre ali)
+    const [cx, cz] = centro(g, k % g.nx, Math.floor(k / g.nx));
+    if (!evitar.some((p) => Math.hypot(p[0] - cx, p[1] - cz) < raio)) ultimo = k;
     const i = k % g.nx, j = (k - i) / g.nx;
     for (const [di, dj] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
       const ni = i + di, nj = j + dj;
@@ -297,6 +299,9 @@ export interface Porta {
   normal: P2; // para fora da casa
   largura: number;
   externa: boolean;
+  /** Caixa da folha (para a dobradiça e a abertura). */
+  min: P3;
+  max: P3;
 }
 
 /** Portas do modelo, com a normal apontando para fora da casa (para longe do centro das paredes). */
@@ -313,7 +318,7 @@ export function portas(solidos: Solido[], casa: Caixa2D): Porta[] {
     const fora: P2 = [c[0] + normal[0] * 1.2, c[2] + normal[1] * 1.2];
     const externa = fora[0] < casa.x0 || fora[0] > casa.x1 || fora[1] < casa.z0 || fora[1] > casa.z1;
     if (!externa) normal = dx < dz ? [1, 0] : [0, 1];
-    out.push({ guid: s.guid, centro: c, normal, largura: Math.max(dx, dz), externa });
+    out.push({ guid: s.guid, centro: c, normal, largura: Math.max(dx, dz), externa, min: b.min, max: b.max });
   }
   return out;
 }
