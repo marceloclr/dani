@@ -3,7 +3,6 @@
 import * as THREE from "three";
 import { Sky } from "three/addons/objects/Sky.js";
 import { aleatorio } from "./texturas";
-import { LUZES, type Luz } from "./iluminacao";
 import type { P2, P3 } from "./navegacao";
 
 export type Foto = "grama" | "terra" | "tijolo" | "reboco" | "concreto" | "telha-ceramica" | "telha-metalica" | "madeira" | "porcelanato" | "pedra";
@@ -43,8 +42,15 @@ export function tingir(foto: Foto, alvo: [number, number, number]): [number, num
   return [0, 1, 2].map((i) => linear(alvo[i]) / Math.max(linear(m[i]), 1e-4)) as [number, number, number];
 }
 
-/** Cor do horizonte enevoado em cada luz, para a neblina casar com o céu. */
-const COR_NEBLINA: Record<Luz, string> = { dia: "#c6d3de", entardecer: "#d6b08c", noite: "#28324a" };
+/** Céu de um instante (ADR-26): direção do sol na cena e o aspecto do céu na elevação dele. */
+export interface Ceu {
+  sol: P3;
+  turbidez: number;
+  rayleigh: number;
+  noturno: boolean;
+}
+
+export const CEU_PADRAO: Ceu = { sol: [0.6, 0.65, 0.45], turbidez: 4.5, rayleigh: 1.2, noturno: false };
 
 export interface MapasFoto {
   map: THREE.Texture;
@@ -89,9 +95,8 @@ function ceuNoturno(): THREE.Mesh {
   return m;
 }
 
-function cenaDoCeu(luz: Luz): THREE.Scene {
-  const p = LUZES[luz];
-  if (luz === "noite") {
+function cenaDoCeu(p: Ceu): THREE.Scene {
+  if (p.noturno) {
     const s = new THREE.Scene();
     s.add(ceuNoturno());
     return s;
@@ -102,7 +107,7 @@ function cenaDoCeu(luz: Luz): THREE.Scene {
   const u = ceu.material.uniforms;
   u.turbidity.value = p.turbidez;
   u.rayleigh.value = p.rayleigh;
-  u.mieCoefficient.value = 0.004;
+  u.mieCoefficient.value = 0.0025; // halo do sol contido: na hora dourada, o sol baixo não estoura a imagem
   u.mieDirectionalG.value = 0.8;
   u.sunPosition.value.set(...p.sol);
   if (u.cloudCoverage) {
@@ -120,8 +125,8 @@ function cenaDoCeu(luz: Luz): THREE.Scene {
  * Fundo e reflexos de um renderizador: o céu desenhado num cubo (fundo) e pré-filtrado (PMREM) para
  * a luz de ambiente. É alvo de renderização, então cada renderizador (viewport, vídeo, relatório) gera o seu.
  */
-export function criarFundo(renderer: THREE.WebGLRenderer, luz: Luz = "dia"): Fundo {
-  const cena = cenaDoCeu(luz);
+export function criarFundo(renderer: THREE.WebGLRenderer, ceu: Ceu = CEU_PADRAO): Fundo {
+  const cena = cenaDoCeu(ceu);
   const alvo = new THREE.WebGLCubeRenderTarget(1024, { type: THREE.HalfFloatType });
   const cubo = new THREE.CubeCamera(0.1, 5000, alvo);
   const tom = renderer.toneMapping;
@@ -131,9 +136,9 @@ export function criarFundo(renderer: THREE.WebGLRenderer, luz: Luz = "dia"): Fun
   const ambiente = pmrem.fromScene(cena, 0, 0.1, 5000);
   renderer.toneMapping = tom;
   pmrem.dispose();
-  const ceu = cena.children[0] as THREE.Mesh;
-  (ceu.material as THREE.Material).dispose();
-  ceu.geometry.dispose();
+  const malhaCeu = cena.children[0] as THREE.Mesh;
+  (malhaCeu.material as THREE.Material).dispose();
+  malhaCeu.geometry.dispose();
   return {
     background: alvo.texture,
     environment: ambiente.texture,
@@ -262,7 +267,7 @@ export function montarChao(f: Map<Foto, MapasFoto>, buraco: { x0: number; x1: nu
 }
 
 /** Neblina leve que funde o chão com o horizonte do céu. */
-export const neblina = (raio: number, luz: Luz = "dia") => new THREE.Fog(COR_NEBLINA[luz], Math.max(raio * 6, 60), Math.max(raio * 45, 450));
+export const neblina = (raio: number, cor: number = 0xc6d3de) => new THREE.Fog(cor, Math.max(raio * 6, 60), Math.max(raio * 45, 450));
 
 // ------------------------------------------------------------------ árvores
 

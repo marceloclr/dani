@@ -345,7 +345,7 @@ export function gerarCasa(p: ParametrosCasa): ModeloLido {
     for (const x of [0, W]) add("IfcWall", "SOLIDWALL", `Respaldo ${x === 0 ? "esquerdo" : "direito"}`, "bloco", [caixa(x - ESP / 2, topo, ESP / 2, x + ESP / 2, yBeiral, -D - ESP / 2)], pavTopo);
   }
 
-  return { esquema: "PARAMETRICO", elementos, malhas };
+  return { esquema: "PARAMETRICO", elementos, malhas, geo: {} };
 }
 
 export function descreverParametros(p: ParametrosCasa): string {

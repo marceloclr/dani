@@ -29,8 +29,14 @@ export const REGRAS_PADRAO: Record<string, ModeloRegra[]> = {
     },
   ],
   reboco: [{ acao: "finish", onde: { ifcType: ["IfcWall", "IfcWallStandardCase", "IfcColumn", "IfcBeam"] }, descricao: "Reboco das paredes, pilares e vigas (IfcWall, IfcColumn, IfcBeam)" }],
-  esquadrias: [{ acao: "install", onde: { ifcType: ["IfcDoor", "IfcWindow"] }, descricao: "Portas e janelas (IfcDoor, IfcWindow)" }],
-  revestimento: [{ acao: "construct", onde: { ifcType: ["IfcCovering"], predefinedType: ["FLOORING"] }, descricao: "Pisos (IfcCovering FLOORING)" }],
+  esquadrias: [
+    { acao: "install", onde: { ifcType: ["IfcDoor", "IfcWindow"] }, descricao: "Portas e janelas (IfcDoor, IfcWindow)" },
+    { acao: "install", onde: { ifcType: ["IfcCovering"], predefinedType: ["MOLDING"] }, descricao: "Caixilhos, guarnições, peitoris e soleiras (IfcCovering MOLDING)" },
+  ],
+  revestimento: [
+    { acao: "construct", onde: { ifcType: ["IfcCovering"], predefinedType: ["FLOORING"] }, descricao: "Pisos (IfcCovering FLOORING)" },
+    { acao: "construct", onde: { ifcType: ["IfcCovering"], predefinedType: ["SKIRTINGBOARD", "CLADDING"] }, descricao: "Rodapés e revestimentos de fachada (IfcCovering SKIRTINGBOARD, CLADDING)" },
+  ],
   pintura: [{ acao: "finish", onde: { ifcType: ["IfcWall", "IfcWallStandardCase", "IfcColumn", "IfcBeam"] }, descricao: "Pintura das paredes, pilares e vigas (IfcWall, IfcColumn, IfcBeam)" }],
   loucas: [{ acao: "install", onde: { ifcType: ["IfcSanitaryTerminal"] }, descricao: "Louças e metais (IfcSanitaryTerminal)" }],
   paisagismo: [{ acao: "construct", onde: { ifcType: ["IfcGeographicElement"], objectType: ["PAISAGISMO"] }, descricao: "Paisagismo (IfcGeographicElement PAISAGISMO)" }],

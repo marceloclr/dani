@@ -3,7 +3,8 @@ import { readFileSync } from "node:fs";
 import { beforeAll, describe, expect, it } from "vitest";
 import { IfcAPI } from "web-ifc";
 import { lerIfc } from "../src/bim/parseIfc";
-import { LUZES, luminarias } from "../src/rendering/iluminacao";
+import { direcaoDaLuz, luminarias, minutosDaLuz, parametrosDoSol } from "../src/rendering/iluminacao";
+import { horarioDoVoo, resolverContexto } from "../src/rendering/cicloDia";
 import { caixaDe, type Solido } from "../src/rendering/navegacao";
 import { curvaS } from "../src/rendering/acabamento";
 import { tingir } from "../src/rendering/ambiente";
@@ -49,13 +50,54 @@ describe.each([
 });
 
 describe("luz e acabamento", () => {
-  it("o sol fica acima do horizonte de dia e no entardecer, abaixo à noite", () => {
-    expect(LUZES.dia.sol[1]).toBeGreaterThan(0.5);
-    expect(LUZES.entardecer.sol[1]).toBeGreaterThan(0);
-    expect(LUZES.entardecer.sol[1]).toBeLessThan(0.2);
-    expect(LUZES.noite.sol[1]).toBeLessThan(0);
-    expect(LUZES.dia.luminarias).toBe(0);
-    expect(LUZES.noite.luminarias).toBe(1);
+  it("a luz é contínua pela elevação do sol e as luminárias acendem conforme ele desce", () => {
+    let ant = parametrosDoSol(60);
+    for (let e = 59.5; e >= -15; e -= 0.5) {
+      const p = parametrosDoSol(e);
+      expect(Math.abs(p.intensidadeSol - ant.intensidadeSol)).toBeLessThan(0.3); // sem degraus
+      expect(p.luminarias).toBeGreaterThanOrEqual(ant.luminarias - 1e-12); // só aumentam ao escurecer
+      ant = p;
+    }
+    expect(parametrosDoSol(40).luminarias).toBe(0);
+    expect(parametrosDoSol(-10).luminarias).toBe(1);
+    expect(parametrosDoSol(40).brilho).toBe(false);
+    expect(parametrosDoSol(2).brilho).toBe(false);
+    expect(parametrosDoSol(-1).brilho).toBe(true);
+    expect(parametrosDoSol(-6).ceuNoturno).toBe(true);
+    expect(parametrosDoSol(-1).ceuNoturno).toBe(false);
+  });
+  it("abaixo do horizonte, a luz direcional vira o luar, alta e do lado oposto", () => {
+    const l = direcaoDaLuz([1, -0.1, 0]);
+    expect(l[1]).toBeGreaterThan(0.5);
+    expect(l[0]).toBeLessThan(0);
+    expect(direcaoDaLuz([0.6, 0.8, 0])).toEqual([0.6, 0.8, 0]);
+  });
+  it("horário de cada luz no dia", () => {
+    const e = { nascer: 330, meioDia: 690, por: 1050 };
+    expect(minutosDaLuz("nascer", e)).toBe(350);
+    expect(minutosDaLuz("dia", e)).toBe(600);
+    expect(minutosDaLuz("entardecer", e)).toBe(1015);
+    expect(minutosDaLuz("noite", e)).toBe(1100);
+    expect(minutosDaLuz("ciclo", e)).toBe(600);
+  });
+  it("ciclo do voo: do amanhecer à noite, sem voltar atrás, com a hora dourada no instante pedido", () => {
+    const e = { nascer: 330, meioDia: 690, por: 1050 };
+    const m = { fimConstrucao: 0.47, inicioInterno: 0.62, inicioVoltaFinal: 0.82, fimMovimento: 0.94 };
+    expect(horarioDoVoo(0, m, 0.86, e)).toBe(305);
+    expect(horarioDoVoo(0.47, m, 0.86, e)).toBe(720);
+    expect(horarioDoVoo(0.86, m, 0.86, e)).toBe(1015);
+    expect(horarioDoVoo(1, m, 0.86, e)).toBe(1100);
+    let ant = -1;
+    for (let u = 0; u <= 1; u += 0.005) {
+      const h = horarioDoVoo(u, m, 0.86, e);
+      expect(h).toBeGreaterThanOrEqual(ant);
+      ant = h;
+    }
+  });
+  it("local e norte: o ajustado vence o IFC, que vence o município; sem nada, Fortaleza e a frente ao norte", () => {
+    expect(resolverContexto({ norteGraus: 30 }, { norteGraus: 70, lat: -3, lon: -38 }, null)).toMatchObject({ norte: 30, origemNorte: "ajustado", origemLocal: "ifc" });
+    expect(resolverContexto(undefined, { norteGraus: 70 }, { lat: -4, lon: -38.5 })).toMatchObject({ norte: 70, origemNorte: "ifc", origemLocal: "municipio" });
+    expect(resolverContexto(undefined, {}, null)).toMatchObject({ norte: 0, origemNorte: "padrao", origemLocal: "padrao" });
   });
   it("a curva de contraste preserva preto, branco e meio-tom", () => {
     expect(curvaS(0, 0.3)).toBe(0);

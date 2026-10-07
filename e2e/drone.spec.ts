@@ -12,7 +12,7 @@ async function abrirSobrado(page: Page) {
   await page.goto("/");
   await expect(page.getByTestId("slogan-inicial")).toHaveText("Produtor de Vídeos das obras da Super Influencer Dani, a engenheira.");
   await page.getByTestId("abrir-sobrado").click();
-  await expect(page.getByTestId("situacao")).toContainText("125 elementos", { timeout: 90_000 });
+  await expect(page.getByTestId("situacao")).toContainText("157 elementos", { timeout: 90_000 });
 }
 
 const moveisVisiveis = (page: Page) =>
@@ -24,7 +24,7 @@ const moveisVisiveis = (page: Page) =>
 
 test("obra pronta humanizada: a mobília só aparece no fim", async ({ page }) => {
   await abrirSobrado(page);
-  await expect(page.locator(".topo .slogan")).toHaveText("Produtor de Vídeos das obras da Super Influencer Dani, a engenheira.");
+  await expect(page.locator(".topo .slogan")).toHaveCount(0); // o slogan saiu do cabeçalho (pedido do usuário); fica na tela inicial
   await page.evaluate(() => (window as unknown as Janela).__projeto.getState().definirDia(100));
   expect(await moveisVisiveis(page)).toBe(0);
   await page.getByRole("button", { name: "Ir ao fim" }).click();

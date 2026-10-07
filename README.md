@@ -69,7 +69,7 @@ e publique a pasta `dist/` (GitHub Pages, Cloudflare Pages, Netlify ou Vercel). 
 10. **Projetos**, no alto: o projeto é salvo sozinho neste navegador (a demonstração só com "Salvar cópia"). Dali se abre, duplica, exporta e importa `.4dstudio`, e se exportam o cronograma (JSON ou CSV para o Excel) e o mapeamento (JSON).
 11. Aba **Obra**: avanço planejado e real com fórmula, fotos da obra (com data do EXIF ou de um `fotos.csv`), planta sobreposta em PNG, JPG ou PDF, e o **relatório PDF** da data da simulação. Na viewport, alterne entre **Planejado**, **Real** e **Comparar**: no modo Comparar, o carmim marca o que está atrasado e a ardósia, o que está adiantado.
 
-A viewport tem duas aparências: **Realista** (padrão) e **Técnica**. Na Realista, os materiais são fotografias PBR em escala real (tijolo, reboco, concreto, telhas, madeira, porcelanato e pedra), e a cena tem sol, sombras, céu e acabamento de câmera. A luz pode ser **Dia**, **Entardecer** ou **Noite**: no entardecer e à noite, as luminárias da obra pronta acendem no meio de cada cômodo. Na Técnica, os elementos em execução aparecem em latão; os concluídos, com a cor do material; os que nenhuma tarefa faz surgir ficam translúcidos ("fantasma"). Paredes mudam de cor quando o reboco e a pintura terminam.
+A viewport tem duas aparências: **Realista** (padrão) e **Técnica**. Na Realista, os materiais são fotografias PBR em escala real (tijolo, reboco, concreto, telhas, madeira, porcelanato e pedra), e a cena tem sol, sombras, céu e acabamento de câmera. A luz é a do **sol real**: local da obra (IFC ou município), data da simulação e norte da casa (IFC ou bússola na aba Vídeo). Escolha **Nascer**, **Dia**, **Entardecer**, **Noite** ou **Ciclo**; no Ciclo, o voo automático e a câmera Drone vão do amanhecer à noite, com a hora dourada diante da fachada que recebe o sol da tarde. No entardecer e à noite, as luminárias da obra pronta acendem no meio de cada cômodo. O botão **Insolação** mostra, sobre a imagem, o sol na hora escolhida, as sombras, o arco do sol no dia, as fachadas ao sol e o sol direto de cada fachada no dia (ADR-26). Na Técnica, os elementos em execução aparecem em latão; os concluídos, com a cor do material; os que nenhuma tarefa faz surgir ficam translúcidos ("fantasma"). Paredes mudam de cor quando o reboco e a pintura terminam.
 
 ## Modelos de arquivo
 
@@ -165,6 +165,7 @@ Chrome, Edge ou Brave atualizados (testado no Chromium 153 do Playwright). Firef
 | [prompts/incremento-9.md](prompts/incremento-9.md) | Prompt do incremento 9 (drone e obra humanizada) |
 | [docs/adrs.md](docs/adrs.md#adr-24--imagem-mais-real-marca-da-cliente-e-apresentadora-em-primeiro-plano) | ADR-24: materiais fotográficos, luz, marca e apresentadora (incremento 10) |
 | [docs/adrs.md](docs/adrs.md#adr-25--montagem-em-cenas-reels-e-revelação-terreno-real--projeto) | ADR-25: montagem em cenas (Reels) e revelação (incremento 11) |
+| [docs/adrs.md](docs/adrs.md#adr-26--sol-real-local-data-e-orientação-insolação-e-ciclo-do-dia) | ADR-26: sol real, Insolação e ciclo do dia (incremento 12) |
 | [docs/feriados.md](docs/feriados.md) | Feriados do Ceará e da RMF, com fontes |
 | [public/modelos/](public/modelos/) | Modelos de arquivo para download |
 | [public/samples/](public/samples/) | Casa de demonstração e cronograma |
@@ -201,6 +202,8 @@ Gerados por script (ADR-08). Para regenerar:
 python -m venv .venv && .venv/bin/pip install ifcopenshell==0.9.0 matplotlib
 .venv/bin/python tools/gerar_demo_ifc.py      # public/samples/demo.ifc (casa térrea)
 .venv/bin/python tools/gerar_sobrado_ifc.py   # public/modelos/sobrado-exemplo.ifc
-# a mobília dos dois vem de tools/mobilia.py e fica no fim do arquivo (os GUIDs antigos não mudam)
+# a mobília dos dois vem de tools/mobilia.py e fica no fim do arquivo (os GUIDs antigos não mudam);
+# o sobrado também traz acabamentos (caixilhos, peitoris, guarnições, soleiras, rodapé, pedra e ripado),
+# a localização de Fortaleza (IfcSite) e o norte verdadeiro (frente a 70°), para o sol real (ADR-26 e ADR-27)
 .venv/bin/python tools/previa_demo.py      # docs/demo-etapas.png
 ```

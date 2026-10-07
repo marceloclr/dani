@@ -2,7 +2,10 @@ import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "reac
 import { aoMudarApresentadora, blobDaApresentadora } from "../app/anexos";
 import { duracaoDoVideo } from "../rendering/composicao";
 import { SecaoApresentadora } from "./SecaoApresentadora";
+import { SolOrientacao } from "./SolOrientacao";
 import { EditorMontagem } from "./EditorMontagem";
+import { aplicarSol, cicloDoVoo, definirInsolacaoAtiva, diaCivilDaSimulacao, insolacaoLigada, solDoProjeto } from "../app/solDaCena";
+import { horarioDoVoo } from "../rendering/cicloDia";
 import { NOME_CENA, cenaNoTempo, normalizar, obraNaCena, poseDaCena, roteiroReels, trechoDoVoo } from "../rendering/montagem";
 import { camadasPara, obterCena } from "../app/estadoCena";
 import { duracaoObra } from "../fourd/simulacao";
@@ -130,6 +133,25 @@ export function PainelVideo() {
     const e = cena.enquadramento();
     const voo = comDrone ? cena.voo() : null;
     const seg = segundos;
+    // sol real por quadro (ADR-26): a data é a do dia da obra no quadro; no Ciclo, o horário corre
+    let diaAtual = 0;
+    const ciclo = video.luz === "ciclo";
+    const vooCiclo = ciclo ? cena.voo() : null;
+    const horaDoVoo = vooCiclo ? cicloDoVoo(vooCiclo) : null;
+    const efem = solDoProjeto(st(), 600, diaCivilDaSimulacao(st(), Number.MAX_SAFE_INTEGER)).efemerides;
+    const marcasGlobais = { fimConstrucao: 0.3, inicioInterno: 0.5, inicioVoltaFinal: 0.7, fimMovimento: 0.97 };
+    const minutosNoQuadro = (i: number, n: number): number | undefined => {
+      if (!ciclo) return undefined;
+      const t = i / video.fps, uVideo = n > 1 ? i / (n - 1) : 1;
+      if (comDrone && horaDoVoo) return horaDoVoo(t / seg);
+      if (comMontagem && horaDoVoo && vooCiclo) {
+        const m = cenaNoTempo(cenas, t, seg);
+        if (m.cena.camera === "drone" && m.cena.tipo === "obra") return horaDoVoo(trechoDoVoo(m.cena, m.u, vooCiclo.fimConstrucao));
+      }
+      return horarioDoVoo(uVideo, marcasGlobais, 0.85, efem);
+    };
+    const insolacaoAntes = insolacaoLigada();
+    definirInsolacaoAtiva(!!video.insolacaoNoVideo && st().aparencia3d === "realista");
     const montagem = comMontagem ? { cenas, enquadramento: e, voo: cena.voo(), cartela: { nome: CLIENTE.nome, slogan: CLIENTE.slogan, secundario: CLIENTE.instagram } } : undefined;
     try {
       const arq = await gerarVideo(cena, {
@@ -140,7 +162,13 @@ export function PainelVideo() {
         segundos: segundos,
         diasDeObra: dias,
         nomeBase: `obra-4d-${video.formato}-${segundos}s`,
-        aplicarDia: (d) => cena.aplicar(camadasPara(st(), cena, d, true)),
+        aplicarDia: (d) => {
+          diaAtual = d;
+          cena.aplicar(camadasPara(st(), cena, d, true));
+        },
+        aoQuadro: (i, n) => {
+          if (st().aparencia3d === "realista") aplicarSol(cena, minutosNoQuadro(i, n), diaCivilDaSimulacao(st(), diaAtual));
+        },
         maxima: video.qualidade === "maxima" && st().aparencia3d === "realista",
         ...(fala && blobFala ? { apresentadora: { arquivo: blobFala, cfg: fala } } : {}),
         ...(video.assinatura !== false ? { assinatura: { nome: CLIENTE.nome, slogan: CLIENTE.slogan, secundario: SLOGAN } } : {}),
@@ -170,6 +198,9 @@ export function PainelVideo() {
       quadroPrevia.current?.replaceChildren();
       setProgresso(null);
       st().definirGerandoVideo(false);
+      // volta o sol e a insolação da viewport
+      definirInsolacaoAtiva(insolacaoAntes);
+      aplicarSol(cena);
     }
   };
 
@@ -325,7 +356,7 @@ export function PainelVideo() {
 
         <h4>Imagem</h4>
         <div className="linha-campos">
-          <label className="campo" data-tip={"A luz da cena (também no seletor da viewport). No entardecer e à noite, as luminárias da casa acendem com a obra pronta."}>
+          <label className="campo" data-tip={"A luz da cena (também no seletor da viewport): o sol real no local da obra, na data de cada quadro e com o norte da casa.\nNascer, Dia (10h), Entardecer e Noite fixam o horário; Ciclo faz o horário correr do amanhecer à noite (na câmera Drone, com a hora dourada diante da fachada ao sol).\nNo entardecer e à noite, as luminárias acendem com a obra pronta."}>
             <span>Luz</span>
             <select data-testid="video-luz" value={video.luz ?? "dia"} onChange={(e) => st().definirVideo({ luz: e.target.value as Luz })} disabled={!realista}>
               {(Object.keys(NOME_LUZ) as Luz[]).map((l) => (
@@ -347,6 +378,12 @@ export function PainelVideo() {
           </label>
         </div>
         {!realista && <p className="tenue pequeno">Luz e qualidade valem na aparência Realista.</p>}
+        <h4>Sol e orientação</h4>
+        <SolOrientacao />
+        <label className="marcar" data-tip="Desenha no vídeo o arco do sol no dia, o sol e as faixas laranja ao pé das fachadas ao sol (como a Insolação da viewport).">
+          <input type="checkbox" checked={!!video.insolacaoNoVideo} onChange={(e) => st().definirVideo({ insolacaoNoVideo: e.target.checked })} data-testid="video-insolacao" disabled={!realista} />
+          Mostrar a insolação no vídeo
+        </label>
 
         <h4>Apresentadora</h4>
         <SecaoApresentadora largura={largura} altura={altura} segundosEscolhidos={video.segundos} />

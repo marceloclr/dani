@@ -41,6 +41,7 @@ export async function carregarIfc(nome: string, bytes: ArrayBuffer, demo = false
     ultimasMalhas = modelo.malhas;
     ifcAtual = copia;
     useProjeto.getState().definirModelo(modelo.elementos, nome, demo, "IFC");
+    useProjeto.setState({ geoIfc: modelo.geo ?? {} }); // local e norte do IFC (ADR-26)
     ouvintes.forEach((f) => f(modelo.malhas));
     return true;
   } catch (e) {
@@ -60,6 +61,7 @@ export function carregarParametrico(p: ParametrosCasa): boolean {
     ultimasMalhas = modelo.malhas;
     ifcAtual = null;
     st.definirModelo(modelo.elementos, "modelo paramétrico", false, "PARAMETRICO", p);
+    useProjeto.setState({ geoIfc: {} });
     ouvintes.forEach((f) => f(modelo.malhas));
     return true;
   } catch (e) {

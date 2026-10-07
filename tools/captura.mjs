@@ -1,11 +1,11 @@
 // Capturas de comparação (fora da bateria): node tools/captura.mjs <url> <pasta>
 import { chromium } from "@playwright/test";
-const [url, pasta, luz] = process.argv.slice(2); // luz opcional: dia, entardecer ou noite
+const [url, pasta, luz] = process.argv.slice(2); // luz opcional: nascer, dia, entardecer, noite ou ciclo
 const nav = await chromium.launch({ args: ["--use-angle=swiftshader", "--enable-unsafe-swiftshader"] });
 const page = await nav.newPage({ viewport: { width: 1600, height: 1000 } });
 await page.goto(url);
 await page.getByTestId("abrir-sobrado").click();
-await page.getByTestId("situacao").filter({ hasText: "125 elementos" }).waitFor({ timeout: 90_000 });
+await page.getByTestId("situacao").filter({ hasText: "157 elementos" }).waitFor({ timeout: 90_000 });
 await page.getByTestId("data-simulacao").fill("2026-11-26");
 await page.waitForTimeout(4000);
 if (luz) await page.getByTestId(`luz-${luz}`).click();

@@ -37,6 +37,10 @@ export function materialRealista(material: string | null, ifcType: string, acaba
   if (/inox/.test(n)) return M("liso", 0.35, 0.85, 0, { usarCorIfc: true });
   if (/terracota/.test(n)) return M("liso", 0.9, 0, 0, { usarCorIfc: true });
   if (/pedra|stone|rocha|moledo|canjiquinha|cacos/.test(n)) return M("pedra", 0.9, 0, 0.03);
+  // acabamentos (INC-13): esquadria de alumínio (perfil liso, não telha), granito de peitoril e soleira, laca
+  if (/esquadria|caixilho|anodizado/.test(n)) return M("liso", 0.35, 0.6, 0, { usarCorIfc: true });
+  if (/granito|peitoril|soleira/.test(n)) return M("liso", 0.32, 0, 0, { usarCorIfc: true });
+  if (/laca/.test(n)) return M("liso", 0.45, 0, 0, { usarCorIfc: true });
   if (/quartzo|bancada|silestone|corian/.test(n)) return M("liso", 0.2, 0, 0, { usarCorIfc: true });
   if (/vidro|glass/.test(n)) return M("liso", 0.05, 0, 0, { opacidade: 0.32, usarCorIfc: true });
   if (/telha metal|metalica|aco|steel|zinco|aluminio/.test(n)) return M("telha-metalica", 0.45, 0.6, 0.01);

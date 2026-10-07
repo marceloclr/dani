@@ -12,10 +12,72 @@ export interface MalhaElemento {
   cor: [number, number, number, number];
 }
 
+/** Local e orientação do IFC (ADR-26); ausentes quando o arquiteto não informou. */
+export interface GeoIfc {
+  lat?: number;
+  lon?: number;
+  /** Rumo da bússola (graus, do norte no sentido horário) para onde a fachada frontal (+z da cena) olha. */
+  norteGraus?: number;
+}
+
 export interface ModeloLido {
   esquema: string;
   elementos: ElementoMeta[];
   malhas: MalhaElemento[];
+  geo: GeoIfc;
+}
+
+/** Ângulo composto do IFC (graus, minutos, segundos, milionésimos) em graus decimais. */
+export function anguloComposto(partes: number[]): number {
+  const [g = 0, m = 0, s = 0, mi = 0] = partes;
+  return g + m / 60 + s / 3600 + mi / 3.6e9;
+}
+
+/**
+ * Rumo da fachada frontal a partir do TrueNorth (vetor do norte no plano XY do IFC). A cena tem +z = −Y
+ * do IFC (o web-ifc gira Z para cima), e a frente da casa é +z: o rumo é o ângulo, no sentido horário,
+ * do norte até −Y.
+ */
+export function rumoDaFrente(norteX: number, norteY: number): number {
+  const g = (-Math.atan2(-norteX, -norteY) * 180) / Math.PI;
+  return ((g % 360) + 360) % 360;
+}
+
+function geoDoIfc(api: W.IfcAPI, modelo: number): GeoIfc {
+  const geo: GeoIfc = {};
+  // o web-ifc entrega listas como { value: [...] } (ângulo composto) ou como [{ _representationValue }] (IfcReal)
+  const numero = (v: unknown) => {
+    const o = v as { _representationValue?: unknown; value?: unknown } | number;
+    return Number(typeof o === "object" && o !== null ? (o._representationValue ?? o.value) : o);
+  };
+  const numeros = (x: unknown): number[] | null => {
+    const l = Array.isArray(x) ? x : Array.isArray((x as { value?: unknown })?.value) ? ((x as { value: unknown[] }).value) : null;
+    return l ? l.map(numero) : null;
+  };
+  try {
+    for (const id of idsDe(api, modelo, W.IFCSITE)) {
+      const s = api.GetLine(modelo, id, false);
+      const la = numeros(s.RefLatitude), lo = numeros(s.RefLongitude);
+      if (la && lo && la.length && lo.length) {
+        geo.lat = anguloComposto(la);
+        geo.lon = anguloComposto(lo);
+        break;
+      }
+    }
+    for (const id of idsDe(api, modelo, W.IFCGEOMETRICREPRESENTATIONCONTEXT)) {
+      const c = api.GetLine(modelo, id, false);
+      const ref = (c.TrueNorth as { value?: number } | null)?.value;
+      if (!ref) continue;
+      const d = numeros(api.GetLine(modelo, ref, false).DirectionRatios);
+      if (d && d.length >= 2 && Math.hypot(d[0], d[1]) > 1e-9) {
+        geo.norteGraus = rumoDaFrente(d[0], d[1]);
+        break;
+      }
+    }
+  } catch {
+    /* sem geo: o app usa o município e a bússola */
+  }
+  return geo;
 }
 
 export class ErroIfc extends Error {
@@ -109,7 +171,7 @@ export function lerIfc(api: W.IfcAPI, bytes: Uint8Array, progresso: (fracao: num
       if (indice % 8 === 0 || indice === total - 1) progresso(0.1 + 0.9 * ((indice + 1) / Math.max(total, 1)), "Gerando geometria");
     });
     if (!malhas.length) throw new ErroIfc("O modelo IFC não tem nenhum elemento com geometria.", `Esquema ${esquema}.`);
-    return { esquema, elementos, malhas };
+    return { esquema, elementos, malhas, geo: geoDoIfc(api, modelo) };
   } finally {
     api.CloseModel(modelo);
   }

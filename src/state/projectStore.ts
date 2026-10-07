@@ -7,6 +7,8 @@ import type { Aparencia3D } from "../rendering/aparencia";
 import type { Luz } from "../rendering/iluminacao";
 import type { ConfigApresentadora } from "../rendering/composicao";
 import type { Cena } from "../rendering/montagem";
+import type { ConfigSol } from "../rendering/cicloDia";
+import type { GeoIfc } from "../bim/parseIfc";
 import type { FotoObra, PlantaSobreposta, Tarefa, Visao } from "../types";
 import type { Problema } from "../importers/cronograma";
 import { aplicarMapeamento, regrasPadrao } from "../fourd/regras";
@@ -41,6 +43,10 @@ export interface ConfigVideo {
   vinheta?: boolean;
   /** Luz da cena no realista (ADR-24): dia (padrão), entardecer ou noite. Vale para a viewport também. */
   luz?: Luz;
+  /** Sol e orientação (ADR-26): norte e local ajustados na tela; ausentes = os do IFC e do município. */
+  sol?: ConfigSol;
+  /** Insolação sobre a imagem do vídeo (arco do sol e fachadas ao sol, ADR-26). */
+  insolacaoNoVideo?: boolean;
   /** Apresentadora em primeiro plano (ADR-24); o arquivo fica no IndexedDB. null = sem apresentadora. */
   apresentadora?: ConfigApresentadora | null;
   /** Qualidade do vídeo (ADR-24): máxima renderiza a 1,5× e reduz (mais lento). */
@@ -113,6 +119,8 @@ export interface Estado {
   visao: Visao;
   /** Aparência da cena, do vídeo e do relatório (ADR-21). */
   aparencia3d: Aparencia3D;
+  /** Local e norte lidos do IFC (ADR-26). */
+  geoIfc: GeoIfc;
   fotos: FotoObra[];
   mostrarFotos: boolean;
   planta: PlantaSobreposta | null;
@@ -164,7 +172,7 @@ function INICIAL_COMPLETO(): Partial<Estado> {
     regras: [], excecoes: [], politica: "fantasma", dia: 0, tocando: false,
     selecionado: null, ocultosUsuario: new Set(), tarefaIsolada: null, painel: "tarefas", erro: null,
     modoAnimacao: "progressivo", video: { formato: "horizontal", fps: 30, segundos: 30, roteiro: null }, gerandoVideo: false,
-    visao: "planejado", aparencia3d: "realista", fotos: [], mostrarFotos: true, planta: null,
+    visao: "planejado", aparencia3d: "realista", geoIfc: {}, fotos: [], mostrarFotos: true, planta: null,
   };
 }
 
@@ -242,6 +250,7 @@ export const useProjeto = create<Estado>((set, get) => {
     gerandoVideo: false,
     visao: "planejado",
     aparencia3d: "realista",
+    geoIfc: {},
     fotos: [],
     mostrarFotos: true,
     planta: null,

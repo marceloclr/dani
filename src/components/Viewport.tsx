@@ -11,6 +11,8 @@ import { useUi } from "../state/uiStore";
 import type { Visao } from "../types";
 import { AJUDA_VOO, PreviaVoo, VooManual, type Comando } from "../rendering/voo";
 import { VELOCIDADE_VOO, diaDoVoo, duracaoDoVooAutomatico } from "../rendering/drone";
+import { aplicarSol, cicloDoVoo, definirInsolacaoAtiva, forcarHorario } from "../app/solDaCena";
+import { PainelInsolacao } from "./PainelInsolacao";
 import { NOME_LUZ, type Luz } from "../rendering/iluminacao";
 
 export function Viewport() {
@@ -21,6 +23,9 @@ export function Viewport() {
   const drone = useRef<VooManual | null>(null);
   const previa = useRef<PreviaVoo | null>(null);
   const [modoDrone, setModoDrone] = useState<"manual" | "automatico" | null>(null);
+  /** Insolação sobre a imagem (ADR-26): hora escolhida, em minutos; null = desligada. */
+  const [insolacao, setInsolacao] = useState<number | null>(null);
+  const realistaAtivo = useProjeto((s) => s.aparencia3d === "realista");
 
   const selecionado = useProjeto((s) => s.selecionado);
   const ocultos = useProjeto((s) => s.ocultosUsuario);
@@ -39,8 +44,8 @@ export function Viewport() {
     const fora = () => new Set(st().elementos.filter((e) => e.ifcType === "IfcGeographicElement").map((e) => e.guid));
     // material, classe e tipo de cada elemento, para os materiais realistas (ADR-21)
     const metas = () => new Map(st().elementos.map((e) => [e.guid, { material: e.material, ifcType: e.ifcType, objectType: e.objectType }]));
-    c.definirLuz(st().video.luz ?? "dia");
     c.definirAparencia(st().aparencia3d);
+    aplicarSol(c);
     const aplicar = () => {
       const s = st();
       if (!s.gerandoVideo) c.aplicar(camadasPara(s, c, s.dia));
@@ -67,7 +72,8 @@ export function Viewport() {
       ) aplicar();
       if (s.planta !== a.planta) c.definirPlanta(s.planta, urlDaPlantaAtual());
       if (s.aparencia3d !== a.aparencia3d) c.definirAparencia(s.aparencia3d);
-      if (s.video.luz !== a.video.luz) c.definirLuz(s.video.luz ?? "dia");
+      // sol real (ADR-26): muda com a data, a luz, a bússola, o local e o IFC
+      if (!s.gerandoVideo && (s.dia !== a.dia || s.video.luz !== a.video.luz || s.video.sol !== a.video.sol || s.geoIfc !== a.geoIfc || s.cronograma !== a.cronograma)) aplicarSol(c);
     });
     c.definirPlanta(st().planta, urlDaPlantaAtual());
     const sairPlanta = aoMudarImagemPlanta(() => c.definirPlanta(st().planta, urlDaPlantaAtual()));
@@ -106,23 +112,55 @@ export function Viewport() {
     setOrbita(false);
     setModoDrone("manual");
   };
+  /** Liga a insolação na hora atual do sol da luz escolhida, ou desliga e volta ao horário da luz. */
+  const definirHoraInsolacao = (m: number | null) => {
+    setInsolacao(m);
+    definirInsolacaoAtiva(m !== null);
+    forcarHorario(m);
+    if (cena.current) aplicarSol(cena.current);
+  };
+  const alternarInsolacao = () => {
+    if (insolacao !== null) return definirHoraInsolacao(null);
+    const agora = cena.current ? aplicarSol(cena.current).minutos : 600;
+    definirHoraInsolacao(Math.round(Math.min(Math.max(agora, 5 * 60), 19 * 60) / 15) * 15);
+  };
+  // a técnica não tem sol: desliga a insolação
+  useEffect(() => {
+    if (!realistaAtivo && insolacao !== null) definirHoraInsolacao(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [realistaAtivo]);
+
   const alternarAutomatico = () => {
     if (modoDrone === "automatico") return pararDrone();
     pararDrone();
+    if (insolacao !== null) definirHoraInsolacao(null); // o voo controla o horário
     if (!cena.current) return;
     const s = st();
     const dias = s.cronograma?.tarefas.length ? Math.max(...s.cronograma.tarefas.map((t) => t.fim)) + 1 : 0;
     setOrbita(false);
     setModoDrone("automatico");
     // velocidade de cruzeiro fixa: a duração sai do comprimento do voo (ADR-25)
-    const voo = cena.current.voo();
+    const c = cena.current;
+    const voo = c.voo();
+    // Ciclo do dia (ADR-26): o horário corre do amanhecer à noite, com a hora dourada diante da fachada ao sol
+    const ciclo = s.video.luz === "ciclo" && voo ? cicloDoVoo(voo) : null;
     previa.current = new PreviaVoo(
-      cena.current,
+      c,
       voo ? duracaoDoVooAutomatico(voo.comprimento) : 30,
-      (u) => dias && st().definirDia(diaDoVoo(u, dias, cena.current?.voo()?.fimConstrucao)),
+      (u) => {
+        if (dias) st().definirDia(diaDoVoo(u, dias, voo?.fimConstrucao));
+        if (ciclo) {
+          forcarHorario(ciclo(u));
+          aplicarSol(c);
+        }
+      },
       () => {
         previa.current = null;
         setModoDrone(null);
+        if (ciclo) {
+          forcarHorario(null);
+          aplicarSol(c);
+        }
       },
     );
   };
@@ -200,6 +238,17 @@ export function Viewport() {
         >
           Voo automático
         </button>
+        <button
+          type="button"
+          className="btn"
+          aria-pressed={insolacao !== null}
+          disabled={!realistaAtivo}
+          data-testid="insolacao"
+          data-tip={"Insolação, como no modulus: escolha a hora e veja o sol real (local, data da simulação e norte da casa), as sombras andando, o arco do sol no dia e as fachadas ao sol em laranja, com o sol direto de cada fachada no dia.\nSó na aparência Realista."}
+          onClick={alternarInsolacao}
+        >
+          Insolação
+        </button>
         <SeletorAparencia />
         <SeletorLuz />
         {temCronograma && <SeletorVisao />}
@@ -228,6 +277,7 @@ export function Viewport() {
       )}
       {temCronograma && <Legenda />}
       <FotoFlutuante />
+      {insolacao !== null && <PainelInsolacao minutos={insolacao} aoMudar={definirHoraInsolacao} aoFechar={() => definirHoraInsolacao(null)} />}
       {gerandoVideo && <div className="aviso-video">Gerando vídeo: a pré-visualização está no painel Vídeo.</div>}
     </div>
   );
@@ -299,9 +349,11 @@ function SeletorLuz() {
   const realista = useProjeto((s) => s.aparencia3d === "realista");
   const luz = useProjeto((s) => s.video.luz ?? "dia");
   const opcoes: { id: Luz; dica: string }[] = [
-    { id: "dia", dica: "Sol alto, da frente e da direita, com sombras." },
-    { id: "entardecer", dica: "Sol baixo e dourado, céu quente e as luzes da casa começando a acender (obra pronta)." },
-    { id: "noite", dica: "Hora azul, luar e as luminárias da casa acesas em luz quente (2.700 K), no meio de cada cômodo (obra pronta)." },
+    { id: "nascer", dica: "20 min depois do nascer do sol, no dia da simulação, no local da obra e com o norte da casa." },
+    { id: "dia", dica: "10h do dia da simulação: o sol real, no local da obra e com o norte da casa, com sombras." },
+    { id: "entardecer", dica: "35 min antes do pôr do sol: sol baixo e dourado na fachada que o recebe, e as luzes da casa começando a acender (obra pronta)." },
+    { id: "noite", dica: "50 min depois do pôr do sol: hora azul, luar e as luminárias da casa acesas em luz quente (2.700 K), no meio de cada cômodo (obra pronta)." },
+    { id: "ciclo", dica: "Ciclo do dia: no Voo automático (e na câmera Drone do vídeo), o horário corre do amanhecer à noite, com a hora dourada diante da fachada que recebe o sol da tarde. Parado, mostra as 10h." },
   ];
   return (
     <div className={`segmentos visao3d luz3d${realista ? "" : " inativo"}`} role="tablist" aria-label="Luz">

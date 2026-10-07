@@ -1,3 +1,5 @@
+import { CLIENTE } from "./marca";
+import { Monograma } from "../components/Monograma";
 import { useEffect, useState } from "react";
 import { ErroAmigavel } from "../components/ErroAmigavel";
 import { ModalParametrico } from "../components/ModalParametrico";
@@ -7,7 +9,6 @@ import { ModalFoto } from "../components/ModalFoto";
 import { ModalModelos } from "../components/ModalModelos";
 import { ModalEstimativa } from "../components/ModalEstimativa";
 import { carregarFeriados } from "../storage/IndexedDb";
-import { SLOGAN } from "./marca";
 import { PainelLateral } from "../components/PainelLateral";
 import { SeletorArquivo } from "../components/SeletorArquivo";
 import { TelaInicial } from "../components/TelaInicial";
@@ -72,11 +73,14 @@ export function App() {
     <div className="app">
       <header className="topo">
         <div className="topo-linha">
-          <div className="brasao" aria-hidden>4D</div>
+          <div className="marca-topo" data-testid="marca-topo" data-tip={`${CLIENTE.empresa} · ${CLIENTE.slogan}\nConstruction 4D Studio`}>
+            <Monograma tamanho={34} titulo={`Monograma ${CLIENTE.empresa}`} />
+            <div className="marca-topo-texto">
+              <h1>{CLIENTE.nome.toLocaleUpperCase("pt-BR")}</h1>
+              <span className="slogan-topo">Simulação 4D de obras residenciais</span>
+            </div>
+          </div>
           <div className="titulo-bloco">
-            <h1>
-              Construction 4D Studio <span className="slogan" data-testid="slogan">{SLOGAN}</span>
-            </h1>
             <span className="sub" data-testid="situacao">{situacao}</span>
           </div>
           {demo && (

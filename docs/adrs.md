@@ -514,3 +514,101 @@ Testes: lógica, parsing de CSV e de IFC no Vitest (Node). Exportação de víde
   - marca em grafite;
   - voz em AAC audível;
   - edição da lista.
+
+## ADR-26 — Sol real (local, data e orientação), Insolação e ciclo do dia
+
+**Status:** aceito em 2026-10-07 (INC-12).
+
+**Pedidos.**
+- "Quero que o voo automático considere a orientação da casa para mostrar o impacto na luz do sol sobre a edificação quando escolher entardecer. Planeje um voo automático passando pelas 3 fases do dia (Dia, Entardecer e Noite), pode adicionar o nascer do sol também, onde exatamente bate o sol considerando a data da simulação/geração do vídeo."
+- "Utilizar o mesmo recurso usado no projeto modulus onde mostra a incidência do sol com a projeção das sombras de acordo com a hora do dia, mas sobre a imagem gerada pelo sistema."
+
+**Decisões do usuário:**
+- norte: o do IFC e, sem ele, a bússola na tela;
+- local: o do IFC, depois o município e, por último, Fortaleza;
+- ciclo: time-lapse contínuo.
+
+**Sol** (`src/rendering/sol.ts`, puro):
+- fórmulas do NOAA (Meeus: declinação, equação do tempo, ângulo horário e refração), com precisão de cerca de 0,5°;
+- hora de Brasília (UTC−3, sem horário de verão);
+- nascer e pôr com elevação de −0,833°;
+- datas como dia civil (ADR-05).
+
+**Convenção do norte:** `norteGraus` é o rumo para onde a **fachada frontal (+z da cena)** olha. O sol de rumo A fica na direção `(−sin(A−θ)·cos e, sin e, cos(A−θ)·cos e)`. Com a frente ao norte, o leste fica em −x (à esquerda de quem olha a fachada). Fachadas: frontal θ, lateral esquerda θ+90°, fundos θ+180°, lateral direita θ+270°.
+
+**IFC** (`parseIfc.ts`):
+- `IfcSite.RefLatitude/RefLongitude` (ângulos compostos);
+- `TrueNorth` do contexto geométrico, convertido para a cena: o web-ifc põe Z para cima e −Y do IFC vira +z, que é a frente; o rumo da frente é o ângulo, no sentido horário, do norte até −Y.
+
+O sobrado de exemplo passou a ter Fortaleza e a frente para 70° (lés-nordeste). Os GUIDs e as contagens não mudaram.
+
+**Municípios:** coordenadas das 19 sedes da RMF (IBGE, Localidades, pelo conjunto `kelvins/municipios-brasileiros`) em `MUNICIPIOS`.
+
+**Luz contínua** (`iluminacao.ts`):
+- `parametrosDoSol(elevação)` interpola cinco pontos de controle (25°, 10°, 3°, −2°, −8°): cor e intensidade do sol (abaixo de 0° vira o luar, alto e do lado oposto), céu, chão, exposição, turbidez, Rayleigh, neblina e luminárias;
+- as luminárias vão de 0 a 1 entre 3° e −8°;
+- o brilho (bloom) fica só abaixo de 0°: com o sol acima do horizonte, o céu passaria do limiar;
+- o céu é o de Preetham com o sol real e, abaixo de −4°, o céu noturno;
+- a `Cena` refaz o céu e os reflexos (PMREM) só quando o sol anda mais de 0,5° ou o céu troca de tipo.
+
+**Luzes:** Nascer (nascer + 20 min), Dia (10h), Entardecer (pôr − 35 min), Noite (pôr + 50 min) e **Ciclo**. A data é a do dia da obra (no vídeo, a de cada quadro).
+
+**Ciclo do dia no voo** (`cicloDia.ts`):
+- pontos-chave: amanhecer (nascer − 25 min) no começo → 12h quando a obra fica pronta → 15h30 ao entrar → **hora dourada no instante da última volta externa em que a câmera está diante da fachada que recebe o sol da tarde** → noite (pôr + 50 min) no fim do movimento → parada à noite na fachada frontal, com as luminárias acesas;
+- as marcas das fases saem do próprio voo (`Voo.marcas`);
+- no vídeo, a câmera Drone e as cenas de drone da montagem seguem o voo; as outras câmeras correm o dia pela fração do vídeo.
+
+**Insolação** (botão na viewport, só no Realista), como no modulus (`modulus/gerador/insolacao.js`), aqui sobre a imagem 3D:
+- controle de hora (5h a 19h, passo de 15 min);
+- o sol real move as **sombras do 3D**;
+- arco tracejado do sol no dia, o sol com halo e a linha até a casa;
+- faixas laranja ao pé das fachadas ao sol, com a opacidade pelo cosseno da incidência;
+- painel com altura, azimute e rumo, as fachadas ao sol e o **sol direto nas fachadas no dia** (Σ DNI × cos da incidência, das 6h às 18h, passo de 15 min; DNI de Meinel como no modulus), com a fórmula na dica;
+- opção "Mostrar a insolação no vídeo".
+
+**Aba Vídeo, "Sol e orientação":** bússola (planta com a frente embaixo, o N e o sol do entardecer), o rumo da frente com a origem, o local com a origem e o resumo "nasce… bate na…; no entardecer, bate na…".
+
+**Também neste incremento:**
+- marca da cliente no cabeçalho (monograma, DANIELLA POMPEU e "Simulação 4D de obras residenciais");
+- o slogan do produto saiu do cabeçalho (fica na tela inicial, na assinatura do vídeo e no relatório).
+
+**Limites:**
+- só a radiação direta (como no modulus);
+- sem manchas de sol no piso pelas janelas, porque as sombras do 3D já mostram onde o sol entra;
+- fora da RMF e sem coordenadas no IFC, o local é Fortaleza, e a tela diz isso.
+
+**Verificação.**
+- Vitest:
+  - meio-dia solar (90 − |lat − declinação|);
+  - nascer e pôr entre 5h05–5h45 e 17h10–17h50 nas quatro estações;
+  - azimute do nascer (66° em junho, 114° em dezembro);
+  - convenção do norte e fachadas, DNI e radiação por fachada (em junho, o norte supera o leste; em dezembro, o sul supera o norte);
+  - luz contínua, ciclo monótono e origem do local e do norte;
+  - leitura do IFC do sobrado.
+- Playwright:
+  - sol do entardecer igual ao calculado;
+  - bússola girando o sol;
+  - Insolação às 7h (frontal) e às 16h (fundos);
+  - ciclo começando no amanhecer.
+
+## ADR-27 — Acabamentos do sobrado de exemplo e regras 4D dos acabamentos
+
+**Status:** aceito em 2026-10-07 (INC-13).
+
+**Pedido:** "Consegue melhorar os acabamentos do modelo tipo sobrado exemplo? Paredes, portas, janelas…"
+
+**Decisão.** O gerador do sobrado (`tools/gerar_sobrado_ifc.py`) ganha os acabamentos como elementos próprios. Eles ficam no fim do arquivo, depois da mobília, e os GUIDs anteriores não mudam. São 32 elementos novos: de 125 para 157 com geometria e de 144 para 176 produtos.
+- **Janelas** (`IfcCovering MOLDING`):
+  - caixilho de alumínio preto (perfil de 5 × 7 cm), com montante central nas janelas de 1,5 m ou mais (de correr);
+  - peitoril de granito para fora, com 4 cm de pingadeira.
+- **Portas** (`IfcCovering MOLDING`): batente forrando o vão, guarnições de 7 cm nas duas faces e soleira de granito. As portas externas são de madeira; as internas, de laca branca.
+- **Paredes:**
+  - rodapé de porcelanato de 7 cm nas faces internas, sem os vãos das portas (`SKIRTINGBOARD`);
+  - na fachada frontal, pedra em cacos dos dois lados da porta de entrada e ripado de freijó entre as janelas dos quartos (`CLADDING`), no estilo dos projetos da cliente (prints em `docs/referencias/`).
+- **Regras 4D** (`src/fourd/regras.ts`), que valem para qualquer IFC:
+  - `esquadrias` passa a instalar também `IfcCovering MOLDING` (caixilhos, guarnições, peitoris, soleiras);
+  - `revestimento` passa a construir também `IfcCovering SKIRTINGBOARD` e `CLADDING`.
+- **Materiais realistas** (`aparencia.ts`): "esquadria/caixilho/anodizado" vira perfil metálico liso com a cor do IFC (antes, "alumínio" caía na telha metálica); "granito/peitoril/soleira", pedra polida lisa com a cor do IFC; "laca", pintura acetinada.
+- **Navegação:** os revestimentos não barram o drone (`IfcCovering` já estava fora do mapa de ocupação). O batente estreita o vão em 3 cm de cada lado, e o teste de colisão do voo inteiro continua passando.
+
+**Verificação.** Vitest: contagem do sobrado, voo sem colisões e luminárias. Playwright: as contagens nas telas e as capturas da fachada frontal, da porta e dos fundos.

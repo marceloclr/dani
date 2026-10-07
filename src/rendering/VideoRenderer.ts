@@ -99,6 +99,8 @@ export interface PedidoVideo {
   nomeBase: string;
   /** Aplica à cena o estado da obra no instante `dia` (fracionário). */
   aplicarDia(dia: number): void;
+  /** Chamado a cada quadro, antes de desenhar (sol real e ciclo do dia, ADR-26). */
+  aoQuadro?(i: number, total: number): void;
   /** Pose da câmera no segundo `t` do vídeo. */
   poseNoTempo(t: number): Pose;
   /** Câmera livre (drone, ADR-23): substitui a pose quando informada. */
@@ -191,13 +193,14 @@ export async function gerarVideo(cena: Cena, pedido: PedidoVideo): Promise<Arqui
   /** Quadro de uma montagem em cenas (ADR-25). */
   const desenharCena = async (i: number, m: NonNullable<PedidoVideo["montagem"]>) => {
     const { cena: c, u } = cenaNoTempo(m.cenas, i / p.fps, total / p.fps);
+    if (c.tipo !== "fala" && c.tipo !== "marca") p.aplicarDia(obraNaCena(c, u) * p.diasDeObra);
+    p.aoQuadro?.(i, total);
     const img = fala ? await fala.proximo(i / p.fps) : null; // a leitura da fala é sequencial: avança sempre
     if (c.tipo === "fala" || c.tipo === "marca") {
       renderer.setRenderTarget(null);
       renderer.setClearColor(0x000000, 1);
       renderer.clear();
     } else {
-      p.aplicarDia(obraNaCena(c, u) * p.diasDeObra);
       if (c.camera === "drone" && m.voo) cena.posicionarLivre(camera, m.voo.quadro(trechoDoVoo(c, u, m.voo.fimConstrucao)));
       else {
         cena.atualizarPortas(null);
@@ -227,6 +230,7 @@ export async function gerarVideo(cena: Cena, pedido: PedidoVideo): Promise<Arqui
       return;
     }
     p.aplicarDia(p.diaNoQuadro ? p.diaNoQuadro(i, total) : diaDoQuadro(i, total, p.diasDeObra));
+    p.aoQuadro?.(i, total);
     if (p.quadroLivre) {
       cena.posicionarLivre(camera, p.quadroLivre(i / p.fps));
     } else cena.posicionar(camera, p.poseNoTempo(i / p.fps));

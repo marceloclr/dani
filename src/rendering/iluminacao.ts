@@ -1,12 +1,29 @@
-// Luz da cena (ADR-24): dia, entardecer e noite, e as luminárias da obra pronta. Puro, sem Three.js,
-// testado no Node: as luminárias saem do próprio IFC (o meio de cada cômodo, logo abaixo da laje).
+// Luz da cena (ADR-24 e ADR-26): a luz sai da elevação do sol real (local, data e hora), em faixas
+// interpoladas do dia à noite, e as luminárias da obra pronta. Puro, sem Three.js, testado no Node: as
+// luminárias saem do próprio IFC (o meio de cada cômodo, logo abaixo da laje).
 import { caixaDe, escadas, gradeDoPavimento, type Caixa2D, type P3, type Solido } from "./navegacao";
+import type { Efemerides } from "./sol";
 
-export type Luz = "dia" | "entardecer" | "noite";
+/** Luz escolhida: um horário do dia ou o ciclo (o horário corre durante o voo e o vídeo). */
+export type Luz = "nascer" | "dia" | "entardecer" | "noite" | "ciclo";
+
+export const NOME_LUZ: Record<Luz, string> = { nascer: "Nascer", dia: "Dia", entardecer: "Entardecer", noite: "Noite", ciclo: "Ciclo" };
+
+/** Horário (minutos locais) de cada luz no dia da simulação. Parado (fora de um voo), o Ciclo mostra o Dia. */
+export function minutosDaLuz(luz: Luz, e: Efemerides): number {
+  switch (luz) {
+    case "nascer":
+      return e.nascer + 20;
+    case "entardecer":
+      return e.por - 35;
+    case "noite":
+      return e.por + 50;
+    default:
+      return 10 * 60;
+  }
+}
 
 export interface ParametrosLuz {
-  /** Direção do sol (para onde ele está, a partir da cena), normalizada. */
-  sol: P3;
   corSol: number;
   intensidadeSol: number;
   /** Céu (hemisfério) e chão refletido. */
@@ -15,30 +32,59 @@ export interface ParametrosLuz {
   intensidadeCeu: number;
   /** Peso dos reflexos do céu. */
   intensidadeAmbiente: number;
-  /** Luminárias da casa (0 = apagadas). */
+  /** Luminárias da casa (0 = apagadas, 1 = plenas). */
   luminarias: number;
   exposicao: number;
-  /** Turbidez e Rayleigh do céu de Preetham (mais altos = céu mais dourado no entardecer). */
+  /** Turbidez e Rayleigh do céu de Preetham (mais altos = céu mais dourado). */
   turbidez: number;
   rayleigh: number;
+  /** Cor da neblina do horizonte. */
+  corNeblina: number;
+  /** Brilho (bloom) das fontes de luz: só com o céu escuro o bastante. */
+  brilho: boolean;
+  /** Céu da noite (degradê com estrelas) no lugar do de Preetham. */
+  ceuNoturno: boolean;
 }
 
-const norm = (v: P3): P3 => {
-  const n = Math.hypot(v[0], v[1], v[2]) || 1;
-  return [v[0] / n, v[1] / n, v[2] / n];
+type Numericos = Omit<ParametrosLuz, "brilho" | "ceuNoturno">;
+
+/** Pontos de controle pela elevação do sol (graus), do mais alto ao mais baixo. Abaixo de 0°, o "sol" é o luar. */
+const FAIXAS: [number, Numericos][] = [
+  [25, { corSol: 0xfff0dc, intensidadeSol: 2.8, corCeu: 0xdde8f4, corChao: 0x6e5c46, intensidadeCeu: 1.1, intensidadeAmbiente: 0.45, luminarias: 0, exposicao: 0.82, turbidez: 4.5, rayleigh: 1.2, corNeblina: 0xc6d3de }],
+  [10, { corSol: 0xffe0b0, intensidadeSol: 2.6, corCeu: 0xe6e0d4, corChao: 0x66553f, intensidadeCeu: 0.95, intensidadeAmbiente: 0.42, luminarias: 0, exposicao: 0.86, turbidez: 5.5, rayleigh: 1.6, corNeblina: 0xd4d3cc }],
+  [3, { corSol: 0xffa25a, intensidadeSol: 2.2, corCeu: 0xf2c79a, corChao: 0x5a4636, intensidadeCeu: 0.55, intensidadeAmbiente: 0.35, luminarias: 0.55, exposicao: 1.0, turbidez: 8, rayleigh: 2.5, corNeblina: 0xd6b08c }],
+  [-2, { corSol: 0xc98a7c, intensidadeSol: 0.55, corCeu: 0x8a8fb8, corChao: 0x3a3238, intensidadeCeu: 0.5, intensidadeAmbiente: 0.3, luminarias: 0.9, exposicao: 1.1, turbidez: 3, rayleigh: 3, corNeblina: 0x6f6a8a }],
+  [-8, { corSol: 0x8fa8d8, intensidadeSol: 0.45, corCeu: 0x6a80b0, corChao: 0x2a2a30, intensidadeCeu: 0.6, intensidadeAmbiente: 0.25, luminarias: 1, exposicao: 1.15, turbidez: 2, rayleigh: 3, corNeblina: 0x28324a }],
+];
+
+const misturaCor = (a: number, b: number, t: number) => {
+  const c = (x: number, s: number) => (x >> s) & 255;
+  return [16, 8, 0].reduce((v, s) => v | (Math.round(c(a, s) + (c(b, s) - c(a, s)) * t) << s), 0);
 };
 
-/**
- * Parâmetros de cada luz. O sol fica sempre do lado da frente e da direita (as fachadas da frente
- * recebem a luz, ADR-21): alto de dia, a 6° no entardecer e abaixo do horizonte à noite (hora azul).
- */
-export const LUZES: Record<Luz, ParametrosLuz> = {
-  dia: { sol: norm([0.65, 0.7, 0.35]), corSol: 0xfff0dc, intensidadeSol: 2.8, corCeu: 0xdde8f4, corChao: 0x6e5c46, intensidadeCeu: 1.1, intensidadeAmbiente: 0.45, luminarias: 0, exposicao: 0.82, turbidez: 4.5, rayleigh: 1.2 },
-  entardecer: { sol: norm([0.8, 0.105, 0.45]), corSol: 0xffa25a, intensidadeSol: 2.2, corCeu: 0xf2c79a, corChao: 0x5a4636, intensidadeCeu: 0.55, intensidadeAmbiente: 0.35, luminarias: 0.7, exposicao: 1.0, turbidez: 8, rayleigh: 2.5 },
-  noite: { sol: norm([0.8, -0.04, 0.45]), corSol: 0x8fa8d8, intensidadeSol: 0.45, corCeu: 0x6a80b0, corChao: 0x2a2a30, intensidadeCeu: 0.6, intensidadeAmbiente: 0.25, luminarias: 1, exposicao: 1.15, turbidez: 2, rayleigh: 3 },
-};
+/** Parâmetros da luz para o sol na elevação `e` (graus): contínuos, sem degraus entre as faixas. */
+export function parametrosDoSol(e: number): ParametrosLuz {
+  const i = FAIXAS.findIndex(([lim]) => e >= lim);
+  let base: Numericos;
+  if (i === 0) base = FAIXAS[0][1];
+  else if (i < 0) base = FAIXAS[FAIXAS.length - 1][1];
+  else {
+    const [ea, a] = FAIXAS[i - 1], [eb, b] = FAIXAS[i];
+    const t = (ea - e) / (ea - eb);
+    base = Object.fromEntries(
+      (Object.keys(a) as (keyof Numericos)[]).map((k) => [k, k.startsWith("cor") ? misturaCor(a[k], b[k], t) : a[k] + (b[k] - a[k]) * t]),
+    ) as Numericos;
+  }
+  return { ...base, brilho: e < 0, ceuNoturno: e < -4 }; // com o sol acima do horizonte, o céu passaria do limiar do brilho
+}
 
-export const NOME_LUZ: Record<Luz, string> = { dia: "Dia", entardecer: "Entardecer", noite: "Noite" };
+/** Direção da luz direcional: o sol acima do horizonte; abaixo, o luar, alto e do lado oposto. */
+export function direcaoDaLuz(sol: P3): P3 {
+  if (sol[1] >= 0.02) return sol;
+  const h = Math.hypot(sol[0], sol[2]) || 1;
+  const v: P3 = [(-sol[0] / h) * 0.6, 0.8, (-sol[2] / h) * 0.6];
+  return v;
+}
 
 export interface Luminaria {
   /** Ponto logo abaixo do teto, no meio do cômodo. */

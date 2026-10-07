@@ -18,7 +18,7 @@ describe("sobrado-exemplo.ifc (segundo modelo de teste)", () => {
   it("abre com dois pavimentos, escada e telhado de duas águas", () => {
     const m = ler();
     expect(m.esquema).toBe("IFC4");
-    expect(m.elementos).toHaveLength(125); // 144 produtos − 14 vãos − sítio, edifício, 2 pavimentos − IfcRoof (agregado, sem geometria); 24 são móveis
+    expect(m.elementos).toHaveLength(157); // 176 produtos − 14 vãos − sítio, edifício, 2 pavimentos − IfcRoof (agregado, sem geometria); 24 são móveis e 32 acabamentos (INC-13)
     const baseY = new Map(m.malhas.map((x) => [x.guid, Math.min(...Array.from({ length: x.posicoes.length / 3 }, (_, i) => x.posicoes[i * 3 + 1]))]));
     expect(pavimentosDoModelo(m.elementos, (g) => baseY.get(g))).toEqual(["Térreo", "Pavimento superior"]);
     expect(m.elementos.filter((e) => e.ifcType === "IfcStair")).toHaveLength(1);

@@ -18,7 +18,8 @@ import { arvore, carregarFotos, criarFundo, montarChao, neblina, pessoa, semRepe
 import { aberturaDaPorta, anguloDaPorta, montarVoo, type EstadoPorta, type QuadroCamera, type Voo } from "./drone";
 import type { Solido } from "./navegacao";
 import { CLASSES_HUMANIZACAO } from "../fourd/regras";
-import { LUZES, luminarias, type Luz } from "./iluminacao";
+import { direcaoDaLuz, luminarias, parametrosDoSol } from "./iluminacao";
+import type { P3 } from "./navegacao";
 
 const ehArvore = (m: MetaVisual | undefined) => !!m && m.ifcType === "IfcGeographicElement" && /copa|arvore|árvore|tree/i.test((m.material ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, ""));
 /** Cores de aparência por acabamento concluído; "base" usa a cor do IFC. */
@@ -107,8 +108,19 @@ export class Cena {
   private desenhista: Desenhista;
   // ambiente realista e humanização (ADR-23)
   private fotos: Map<Foto, MapasFoto> | null = null;
-  /** Luz da cena (ADR-24): dia, entardecer ou noite com as luzes da casa acesas. */
-  private luz: Luz = "dia";
+  /**
+   * Sol da cena (ADR-26): direção na cena (unitária) e elevação em graus, vindos do sol real (local, data,
+   * hora e norte da casa). A luz, o céu, a neblina e as luminárias saem da elevação.
+   */
+  private solDir: P3 = [0.6, 0.65, 0.45];
+  private solElev = 40;
+  /** Muda quando o sol anda o bastante para refazer o céu e os reflexos (cada desenhista confere). */
+  private versaoCeu = 0;
+  private concluida = true;
+  /** Cota do piso do térreo (base das paredes): o chão das faixas de insolação. */
+  private nivelPiso = 0;
+  /** Insolação sobre a imagem (ADR-26): arco do sol, o sol e as faixas das fachadas ao sol. */
+  private readonly insolacao = new THREE.Group();
   /** Luminárias da obra pronta (acendem no entardecer e à noite). */
   private readonly lampadas = new THREE.Group();
   private readonly prontoFotos: Promise<void>;
@@ -135,7 +147,7 @@ export class Cena {
 
     this.observador = new ResizeObserver(() => this.redimensionar());
     this.observador.observe(host);
-    this.scene.add(this.ambiente, this.pessoas, this.lampadas);
+    this.scene.add(this.ambiente, this.pessoas, this.lampadas, this.insolacao);
     this.atualizarTema();
     this.definirAparencia(this.aparencia);
     this.redimensionar();
@@ -175,19 +187,8 @@ export class Cena {
     this.aparencia = a;
     const real = a === "realista";
     this.scene.background = real ? this.texturaCeu() : this.corPapel;
-    this.scene.fog = real && !this.caixa.isEmpty() ? neblina(this.enquadramento().raio, this.luz) : null;
     this.ambiente.visible = real;
-    // a luz escolhida (dia, entardecer, noite) só vale no realista; a técnica fica sempre clara
-    const p = LUZES[real ? this.luz : "dia"];
-    this.hemi.color.set(real ? p.corCeu : 0xffffff);
-    this.hemi.groundColor.set(real ? p.corChao : 0x8a8170);
-    this.hemi.intensity = real ? p.intensidadeCeu : 1.6;
-    this.sol.color.set(real ? p.corSol : 0xffffff);
-    this.sol.intensity = real ? p.intensidadeSol : 1.6;
-    this.sol.castShadow = real && p.sol[1] > 0;
-    this.contraluz.intensity = real ? 0.25 * p.intensidadeCeu : 0.5;
-    this.scene.environmentIntensity = p.intensidadeAmbiente;
-    this.ajustarSol();
+    this.aplicarLuzDoSol();
     for (const m of this.malhas.values()) {
       const vidro = m.userData.opacidadeBase < 0.99;
       m.castShadow = real && !vidro && !m.userData.terreno;
@@ -208,15 +209,110 @@ export class Cena {
     this.sol.shadow.map = null;
   }
 
-  /** Troca a luz da cena (ADR-24); vale para a viewport, o vídeo e o relatório. */
-  definirLuz(luz: Luz): void {
-    if (luz === this.luz) return;
-    this.luz = luz;
-    this.definirAparencia(this.aparencia);
+  /**
+   * Põe o sol (ADR-26): `dir` é a direção do sol na cena e `elevacao` a altura em graus (negativa à noite).
+   * Refaz o céu e os reflexos só quando o sol anda mais de 0,5° ou o céu troca de dia para noite.
+   */
+  definirSol(dir: P3, elevacao: number): void {
+    const n = Math.hypot(dir[0], dir[1], dir[2]) || 1;
+    const novo: P3 = [dir[0] / n, dir[1] / n, dir[2] / n];
+    const cos = novo[0] * this.solDir[0] + novo[1] * this.solDir[1] + novo[2] * this.solDir[2];
+    const trocaCeu = parametrosDoSol(elevacao).ceuNoturno !== parametrosDoSol(this.solElev).ceuNoturno;
+    if (cos < Math.cos((0.5 * Math.PI) / 180) || trocaCeu) this.versaoCeu++;
+    this.solDir = novo;
+    this.solElev = elevacao;
+    this.aplicarLuzDoSol();
+    this.pedirQuadro();
   }
 
-  get luzAtual(): Luz {
-    return this.luz;
+  /**
+   * Desenha (ou apaga, com null) a insolação sobre a imagem, como no modulus: o arco tracejado do sol no
+   * dia, o sol na hora, a linha até a casa e uma faixa laranja ao pé de cada fachada ao sol, com a
+   * opacidade pelo cosseno da incidência. `arco` e `sol` são direções do sol na cena.
+   */
+  definirInsolacao(d: { arco: P3[]; sol: P3 | null; fachadas: Record<"frontal" | "lateral direita" | "fundos" | "lateral esquerda", number> } | null): void {
+    this.insolacao.traverse((o) => {
+      if (o instanceof THREE.Mesh || o instanceof THREE.Line) {
+        o.geometry.dispose();
+        (o.material as THREE.Material).dispose();
+      }
+    });
+    this.insolacao.clear();
+    if (!d || this.caixa.isEmpty()) {
+      this.pedirQuadro();
+      return;
+    }
+    const c = this.caixa.getCenter(new THREE.Vector3());
+    const r = this.caixa.getBoundingSphere(new THREE.Sphere()).radius;
+    // cúpula do sol logo acima da casa (como no modulus, o sol fica dentro do lote), visível nas vistas
+    const R = r * 1.15;
+    const piso = this.nivelPiso + 0.03;
+    const ponto = (v: P3) => new THREE.Vector3(c.x + v[0] * R, piso + v[1] * R, c.z + v[2] * R);
+    const SOL = 0xf59e0b, SOL_CLARO = 0xfcd34d, SOL_ESCURO = 0xd97706;
+    if (d.arco.length > 1) {
+      const g = new THREE.BufferGeometry().setFromPoints(d.arco.map(ponto));
+      const arco = new THREE.Line(g, new THREE.LineDashedMaterial({ color: SOL_ESCURO, dashSize: r * 0.12, gapSize: r * 0.08, transparent: true, opacity: 0.85, depthTest: false, fog: false }));
+      arco.computeLineDistances();
+      arco.renderOrder = 10;
+      this.insolacao.add(arco);
+    }
+    if (d.sol && d.sol[1] > 0) {
+      const p = ponto(d.sol);
+      const disco = new THREE.Mesh(new THREE.SphereGeometry(r * 0.07, 24, 12), new THREE.MeshBasicMaterial({ color: SOL_CLARO, fog: false, toneMapped: false, depthTest: false }));
+      disco.position.copy(p);
+      disco.renderOrder = 12;
+      const halo = new THREE.Mesh(new THREE.SphereGeometry(r * 0.12, 24, 12), new THREE.MeshBasicMaterial({ color: SOL_CLARO, transparent: true, opacity: 0.25, fog: false, toneMapped: false, depthWrite: false, depthTest: false }));
+      halo.position.copy(p);
+      halo.renderOrder = 11;
+      const raio = new THREE.Line(new THREE.BufferGeometry().setFromPoints([p, new THREE.Vector3(c.x, piso, c.z)]), new THREE.LineDashedMaterial({ color: SOL, dashSize: r * 0.05, gapSize: r * 0.06, transparent: true, opacity: 0.9, fog: false, depthTest: false }));
+      raio.computeLineDistances();
+      raio.renderOrder = 10;
+      this.insolacao.add(disco, halo, raio);
+    }
+    // faixas ao pé das fachadas: frente em +z, fundos em −z, lateral direita em +x, esquerda em −x
+    const b = this.caixa, larg = Math.max(0.25, r * 0.035), fora = larg * 0.8;
+    const faixas: [keyof typeof d.fachadas, number, number, number, number][] = [
+      ["frontal", (b.min.x + b.max.x) / 2, b.max.z + fora, b.max.x - b.min.x, larg],
+      ["fundos", (b.min.x + b.max.x) / 2, b.min.z - fora, b.max.x - b.min.x, larg],
+      ["lateral direita", b.max.x + fora, (b.min.z + b.max.z) / 2, larg, b.max.z - b.min.z],
+      ["lateral esquerda", b.min.x - fora, (b.min.z + b.max.z) / 2, larg, b.max.z - b.min.z],
+    ];
+    for (const [f, x, z, w, dz] of faixas) {
+      const k = d.fachadas[f];
+      if (!(k > 0.05)) continue; // mesmo limiar do painel ("bate na fachada…")
+      const faixa = new THREE.Mesh(new THREE.BoxGeometry(w, 0.04, dz), new THREE.MeshBasicMaterial({ color: SOL, transparent: true, opacity: 0.25 + 0.75 * k, fog: false, toneMapped: false, depthWrite: false }));
+      faixa.position.set(x, piso + 0.03, z);
+      faixa.name = `faixa-${f}`;
+      this.insolacao.add(faixa);
+    }
+    this.pedirQuadro();
+  }
+
+  /** Faixas de insolação visíveis (para os testes). */
+  get faixasDeInsolacao(): string[] {
+    return this.insolacao.children.filter((o) => o.name.startsWith("faixa-")).map((o) => o.name.slice(6));
+  }
+
+  /** Sol atual (para os testes e a rosa dos ventos). */
+  get estadoSol(): { dir: P3; elevacao: number } {
+    return { dir: [...this.solDir] as P3, elevacao: this.solElev };
+  }
+
+  /** Luz, neblina e luminárias pela elevação do sol; a aparência técnica fica sempre clara. */
+  private aplicarLuzDoSol(): void {
+    const real = this.aparencia === "realista";
+    const p = parametrosDoSol(real ? this.solElev : 40);
+    this.scene.fog = real && !this.caixa.isEmpty() ? neblina(this.enquadramento().raio, p.corNeblina) : null;
+    this.hemi.color.set(real ? p.corCeu : 0xffffff);
+    this.hemi.groundColor.set(real ? p.corChao : 0x8a8170);
+    this.hemi.intensity = real ? p.intensidadeCeu : 1.6;
+    this.sol.color.set(real ? p.corSol : 0xffffff);
+    this.sol.intensity = real ? p.intensidadeSol : 1.6;
+    this.sol.castShadow = real;
+    this.contraluz.intensity = real ? 0.25 * p.intensidadeCeu : 0.5;
+    this.scene.environmentIntensity = p.intensidadeAmbiente;
+    this.ajustarSol();
+    this.atualizarLampadas(this.concluida);
   }
 
   /** Luminárias: luz pontual quente (2.700 K) e o disco aceso do spot no teto, no meio de cada cômodo. */
@@ -238,7 +334,8 @@ export class Cena {
 
   /** Acende as luminárias conforme a luz e a obra pronta. */
   private atualizarLampadas(concluida: boolean): void {
-    const k = this.aparencia === "realista" && concluida ? LUZES[this.luz].luminarias : 0;
+    this.concluida = concluida;
+    const k = this.aparencia === "realista" && concluida ? parametrosDoSol(this.solElev).luminarias : 0;
     this.lampadas.visible = k > 0;
     for (const o of this.lampadas.children) if (o instanceof THREE.PointLight) o.intensity = o.userData.base * k;
   }
@@ -248,10 +345,9 @@ export class Cena {
     if (this.caixa.isEmpty()) return;
     const c = this.caixa.getCenter(new THREE.Vector3());
     const r = this.caixa.getBoundingSphere(new THREE.Sphere()).radius + 6;
-    // sol da frente e da direita: fachadas da frente iluminadas e sombras para trás e para a esquerda, à vista da câmera isométrica
-    const d = LUZES[this.luz].sol;
-    // à noite o "sol" é a lua, do mesmo lado, acima do horizonte
-    this.sol.position.copy(c).add(new THREE.Vector3(d[0], Math.max(d[1], 0.5), d[2]).normalize().multiplyScalar(r * 2));
+    // o sol real (ADR-26); abaixo do horizonte, a luz direcional vira o luar
+    const d = direcaoDaLuz(this.solDir);
+    this.sol.position.copy(c).add(new THREE.Vector3(d[0], d[1], d[2]).normalize().multiplyScalar(r * 2));
     this.sol.target.position.copy(c);
     const cam = this.sol.shadow.camera;
     cam.left = cam.bottom = -r;
@@ -273,14 +369,19 @@ export class Cena {
     const real = this.aparencia === "realista";
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.toneMapping = real ? THREE.ACESFilmicToneMapping : THREE.NoToneMapping;
-    renderer.toneMappingExposure = real ? LUZES[this.luz].exposicao : 1.0;
+    renderer.toneMappingExposure = real ? parametrosDoSol(this.solElev).exposicao : 1.0;
     renderer.shadowMap.enabled = real;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     if (!real) {
       return { desenhar: (cam) => renderer.render(this.scene, cam), redimensionar: () => {}, dispose: () => {} };
     }
     // céu e reflexos: alvos de renderização, então cada renderizador gera os seus
-    const fundo = criarFundo(renderer, this.luz);
+    const ceu = () => {
+      const p = parametrosDoSol(this.solElev);
+      return { sol: this.solDir, turbidez: p.turbidez, rayleigh: p.rayleigh, noturno: p.ceuNoturno };
+    };
+    let fundo = criarFundo(renderer, ceu());
+    let versaoFundo = this.versaoCeu;
     const camBase = new THREE.PerspectiveCamera();
     // alvo com multiamostragem (MSAA): o composer, sem isso, perde o antialias do renderizador (ADR-24)
     const alvo = new THREE.WebGLRenderTarget(largura, altura, { type: THREE.HalfFloatType, samples: 4 });
@@ -294,7 +395,7 @@ export class Cena {
     // brilho só nas fontes de luz (LED e lâmpadas, emissivas e intensas): o limiar fica acima de uma
     // fachada branca ao sol (≈ 2,5 em luz linear), para o dia não estourar
     const brilho = new UnrealBloomPass(new THREE.Vector2(largura, altura), 0.18, 0.3, 4);
-    brilho.enabled = this.luz !== "dia"; // de dia, o céu claro passaria do limiar e enevoaria a imagem
+    brilho.enabled = parametrosDoSol(this.solElev).brilho; // de dia, o céu claro passaria do limiar e enevoaria a imagem
     const acabamento = passoAcabamento();
     composer.addPass(passoCena);
     composer.addPass(gtao);
@@ -305,7 +406,16 @@ export class Cena {
     composer.setSize(largura, altura);
     return {
       desenhar: (cam, quadro) => {
-        const anterior = this.scene.environment, ceu = this.scene.background;
+        // o sol andou: refaz o céu e os reflexos deste renderizador; exposição e brilho seguem o sol
+        if (versaoFundo !== this.versaoCeu) {
+          fundo.dispose();
+          fundo = criarFundo(renderer, ceu());
+          versaoFundo = this.versaoCeu;
+        }
+        const p = parametrosDoSol(this.solElev);
+        renderer.toneMappingExposure = p.exposicao;
+        brilho.enabled = p.brilho;
+        const anterior = this.scene.environment, ceuAnterior = this.scene.background;
         this.scene.environment = fundo.environment;
         this.scene.background = fundo.background;
         passoCena.camera = cam;
@@ -313,7 +423,7 @@ export class Cena {
         acabamento.definirQuadro(quadro ?? 0);
         composer.render();
         this.scene.environment = anterior;
-        this.scene.background = ceu;
+        this.scene.background = ceuAnterior;
       },
       redimensionar: (w, h) => composer.setSize(w, h),
       dispose: () => {
@@ -390,7 +500,7 @@ export class Cena {
     if (this.caixa.isEmpty()) for (const m of this.malhas.values()) this.caixa.union(m.geometry.boundingBox!);
     this.ajustarSol();
     this.vooCache = null;
-    this.scene.fog = this.aparencia === "realista" && !this.caixa.isEmpty() ? neblina(this.enquadramento().raio, this.luz) : null;
+    this.aplicarLuzDoSol();
     this.montarAmbiente();
     this.vista("isometrica");
   }
@@ -437,6 +547,7 @@ export class Cena {
     }
     const paredes = [...this.malhas].filter(([g]) => /IfcWall/.test(this.metas.get(g)?.ifcType ?? "")).map(([, m]) => m.geometry.boundingBox!.min.y);
     const piso = paredes.length ? Math.min(...paredes) : this.caixa.min.y;
+    this.nivelPiso = piso;
     const buraco = lote.isEmpty()
       ? { x0: this.caixa.min.x - 0.8, x1: this.caixa.max.x + 0.8, z0: this.caixa.min.z - 0.8, z1: this.caixa.max.z + 0.8 }
       : { x0: lote.min.x, x1: lote.max.x, z0: lote.min.z, z1: lote.max.z };

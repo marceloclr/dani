@@ -24,30 +24,33 @@ export interface Feriado {
 export interface Municipio {
   id: string;
   nome: string;
+  /** Sede do município (IBGE, Localidades; graus decimais), para a posição do sol (ADR-26). */
+  lat: number;
+  lon: number;
 }
 
 /** Região Metropolitana de Fortaleza: 19 municípios (LC estadual 18/1999 e ampliações até 2014). */
-export const MUNICIPIOS: Municipio[] = [
-  ["fortaleza", "Fortaleza"],
-  ["aquiraz", "Aquiraz"],
-  ["cascavel", "Cascavel"],
-  ["caucaia", "Caucaia"],
-  ["chorozinho", "Chorozinho"],
-  ["eusebio", "Eusébio"],
-  ["guaiuba", "Guaiúba"],
-  ["horizonte", "Horizonte"],
-  ["itaitinga", "Itaitinga"],
-  ["maracanau", "Maracanaú"],
-  ["maranguape", "Maranguape"],
-  ["pacajus", "Pacajus"],
-  ["pacatuba", "Pacatuba"],
-  ["paracuru", "Paracuru"],
-  ["paraipaba", "Paraipaba"],
-  ["pindoretama", "Pindoretama"],
-  ["sao-goncalo-do-amarante", "São Gonçalo do Amarante"],
-  ["sao-luis-do-curu", "São Luís do Curu"],
-  ["trairi", "Trairi"],
-].map(([id, nome]) => ({ id, nome }));
+export const MUNICIPIOS: Municipio[] = ([
+  ["fortaleza", "Fortaleza", -3.71664, -38.5423],
+  ["aquiraz", "Aquiraz", -3.89929, -38.3896],
+  ["cascavel", "Cascavel", -4.12967, -38.2412],
+  ["caucaia", "Caucaia", -3.72797, -38.6619],
+  ["chorozinho", "Chorozinho", -4.28873, -38.4986],
+  ["eusebio", "Eusébio", -3.8925, -38.4559],
+  ["guaiuba", "Guaiúba", -4.04057, -38.6404],
+  ["horizonte", "Horizonte", -4.1209, -38.4707],
+  ["itaitinga", "Itaitinga", -3.96577, -38.5298],
+  ["maracanau", "Maracanaú", -3.86699, -38.6259],
+  ["maranguape", "Maranguape", -3.89143, -38.6829],
+  ["pacajus", "Pacajus", -4.17107, -38.465],
+  ["pacatuba", "Pacatuba", -3.9784, -38.6183],
+  ["paracuru", "Paracuru", -3.41436, -39.03],
+  ["paraipaba", "Paraipaba", -3.43799, -39.1479],
+  ["pindoretama", "Pindoretama", -4.01584, -38.3061],
+  ["sao-goncalo-do-amarante", "São Gonçalo do Amarante", -3.60515, -38.9726],
+  ["sao-luis-do-curu", "São Luís do Curu", -3.66976, -39.2391],
+  ["trairi", "Trairi", -3.26932, -39.2681],
+] as [string, string, number, number][]).map(([id, nome, lat, lon]) => ({ id: id as string, nome: nome as string, lat: lat as number, lon: lon as number }));
 
 /** Fora da RMF: só feriados nacionais e estaduais. */
 export const OUTRO_MUNICIPIO = "outro-ce";

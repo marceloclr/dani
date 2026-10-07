@@ -12,7 +12,13 @@ html, body, #raiz { height: 100%; }
   background: linear-gradient(150deg, var(--grafite), var(--ardosia)); color: var(--carta);
   font: 600 13px/1 var(--fonte-titulo);
 }
-.titulo-bloco { display: flex; flex-direction: column; line-height: 1.25; min-width: 0; }
+/* marca da cliente no cabeçalho (monograma no dourado da marca, nome em caixa-alta espaçada) */
+.marca-topo { display: flex; align-items: center; gap: 10px; flex: none; }
+.marca-topo .monograma { color: #b88848; flex: none; }
+.marca-topo-texto { display: flex; flex-direction: column; line-height: 1.2; }
+.marca-topo-texto h1 { font: 600 15px var(--fonte-corpo); letter-spacing: 0.16em; color: var(--tinta); margin: 0; }
+.slogan-topo { font: 500 10.5px var(--fonte-corpo); letter-spacing: 0.08em; color: var(--latao); white-space: nowrap; }
+.titulo-bloco { display: flex; flex-direction: column; line-height: 1.25; min-width: 0; padding-left: 14px; border-left: 1px solid var(--linha); }
 .titulo-bloco h1 { font-size: 17px; }
 .titulo-bloco .sub { font-size: 11.5px; color: var(--tinta-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .topo-acoes .btn { white-space: nowrap; }
@@ -44,8 +50,6 @@ html, body, #raiz { height: 100%; }
 .marca-cliente strong { display: block; font: 600 15px var(--fonte-corpo); letter-spacing: 0.16em; color: var(--tinta); }
 .marca-cliente span { display: block; font: 500 11px var(--fonte-corpo); letter-spacing: 0.24em; color: var(--latao); margin-top: 2px; }
 .slogan-inicial { font-family: var(--fonte-titulo); font-style: italic; color: var(--latao); font-size: 16px; margin: 4px 0 0; }
-.topo h1 .slogan { font: italic 400 12px var(--fonte-titulo); color: var(--tinta-3); margin-left: 8px; white-space: nowrap; }
-@media (max-width: 1100px) { .topo h1 .slogan { display: none; } }
 .lede { font-family: var(--fonte-titulo); font-size: 17px; line-height: 1.55; color: var(--tinta-2); max-width: 60ch; margin: 10px 0 22px; }
 .passos { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
 .passos .bloco { margin: 0; display: flex; flex-direction: column; gap: 10px; align-items: flex-start; }
@@ -313,3 +317,17 @@ button.link { appearance: none; border: 0; background: none; padding: 0; font: i
 .lista-cenas input[type="number"] { width: 58px; }
 .obra-cena { display: inline-flex; align-items: center; gap: 3px; }
 .acoes-cena { margin-left: auto; display: inline-flex; gap: 2px; }
+
+/* insolação sobre a imagem (ADR-26) */
+.painel-insolacao { position: absolute; right: 12px; bottom: 12px; width: min(330px, calc(100% - 24px)); z-index: 5; background: var(--carta); border: 1px solid var(--linha); border-radius: 10px; box-shadow: var(--sombra); padding: 10px 12px; display: grid; gap: 8px; font-size: 12.5px; }
+.painel-insolacao header { display: flex; align-items: center; justify-content: space-between; }
+.painel-insolacao h4 { margin: 2px 0 0; font-size: 12px; }
+.painel-insolacao .sol-agora { margin: 0; color: var(--tinta-2); }
+.barras-sol { display: grid; gap: 4px; }
+.barra-sol { display: grid; grid-template-columns: 104px 1fr 96px; align-items: center; gap: 6px; }
+.barra-sol i { display: block; height: 8px; border-radius: 4px; background: #f59e0b; min-width: 2px; }
+.barra-sol em { font-style: normal; text-align: right; color: var(--tinta-2); white-space: nowrap; }
+.sol-orientacao { display: grid; gap: 6px; }
+.sol-linha { display: flex; gap: 10px; align-items: center; }
+.sol-campos { flex: 1; min-width: 0; display: grid; gap: 4px; }
+.bussola { flex: none; }
