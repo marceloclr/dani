@@ -11,6 +11,7 @@ import { useUi } from "../state/uiStore";
 import type { Visao } from "../types";
 import { AJUDA_VOO, PreviaVoo, VooManual, type Comando } from "../rendering/voo";
 import { diaDoVoo } from "../rendering/drone";
+import { NOME_LUZ, type Luz } from "../rendering/iluminacao";
 
 export function Viewport() {
   const host = useRef<HTMLDivElement>(null);
@@ -38,6 +39,7 @@ export function Viewport() {
     const fora = () => new Set(st().elementos.filter((e) => e.ifcType === "IfcGeographicElement").map((e) => e.guid));
     // material, classe e tipo de cada elemento, para os materiais realistas (ADR-21)
     const metas = () => new Map(st().elementos.map((e) => [e.guid, { material: e.material, ifcType: e.ifcType, objectType: e.objectType }]));
+    c.definirLuz(st().video.luz ?? "dia");
     c.definirAparencia(st().aparencia3d);
     const aplicar = () => {
       const s = st();
@@ -65,6 +67,7 @@ export function Viewport() {
       ) aplicar();
       if (s.planta !== a.planta) c.definirPlanta(s.planta, urlDaPlantaAtual());
       if (s.aparencia3d !== a.aparencia3d) c.definirAparencia(s.aparencia3d);
+      if (s.video.luz !== a.video.luz) c.definirLuz(s.video.luz ?? "dia");
     });
     c.definirPlanta(st().planta, urlDaPlantaAtual());
     const sairPlanta = aoMudarImagemPlanta(() => c.definirPlanta(st().planta, urlDaPlantaAtual()));
@@ -196,6 +199,7 @@ export function Viewport() {
           Voo automático
         </button>
         <SeletorAparencia />
+        <SeletorLuz />
         {temCronograma && <SeletorVisao />}
       </div>
       <div
@@ -279,6 +283,27 @@ function SeletorAparencia() {
       {opcoes.map((o) => (
         <button key={o.id} type="button" role="tab" className="seg" aria-selected={a === o.id} data-testid={`aparencia-${o.id}`} data-tip={o.dica} onClick={() => useProjeto.getState().definirAparencia3d(o.id)}>
           {o.rotulo}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/** Luz da cena (ADR-24): só no realista. */
+function SeletorLuz() {
+  const realista = useProjeto((s) => s.aparencia3d === "realista");
+  const luz = useProjeto((s) => s.video.luz ?? "dia");
+  if (!realista) return null;
+  const opcoes: { id: Luz; dica: string }[] = [
+    { id: "dia", dica: "Sol alto, da frente e da direita, com sombras." },
+    { id: "entardecer", dica: "Sol baixo e dourado, céu quente e as luzes da casa começando a acender (obra pronta)." },
+    { id: "noite", dica: "Hora azul, luar e as luminárias da casa acesas em luz quente (2.700 K), no meio de cada cômodo (obra pronta)." },
+  ];
+  return (
+    <div className="segmentos visao3d luz3d" role="tablist" aria-label="Luz">
+      {opcoes.map((o) => (
+        <button key={o.id} type="button" role="tab" className="seg" aria-selected={luz === o.id} data-testid={`luz-${o.id}`} data-tip={`${o.dica}\nVale também para o vídeo e o relatório.`} onClick={() => useProjeto.getState().definirVideo({ luz: o.id })}>
+          {NOME_LUZ[o.id]}
         </button>
       ))}
     </div>

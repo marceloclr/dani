@@ -13,6 +13,7 @@ export type TipoTextura =
   | "terra"
   | "grama"
   | "folhagem"
+  | "pedra"
   | "liso";
 
 /** Gerador pseudoaleatório simples (mulberry32). */
@@ -40,12 +41,13 @@ export const ESCALA_M: Record<TipoTextura, [number, number]> = {
   terra: [3, 3],
   grama: [2, 2],
   folhagem: [1.5, 1.5],
+  pedra: [2, 2],
   liso: [1, 1],
 };
 
 const SEMENTE: Record<TipoTextura, number> = {
   tijolo: 11, reboco: 23, pintura: 29, concreto: 37, "telha-ceramica": 41, "telha-metalica": 43,
-  madeira: 53, porcelanato: 59, terra: 61, grama: 67, folhagem: 71, liso: 73,
+  madeira: 53, porcelanato: 59, terra: 61, grama: 67, folhagem: 71, pedra: 79, liso: 73,
 };
 
 const hex = (r: number, g: number, b: number) => `rgb(${r | 0},${g | 0},${b | 0})`;
@@ -188,6 +190,27 @@ export function desenharTextura(tipo: TipoTextura, tamanho = 512, cor: [number, 
         ctx.fill();
       }
       granulado(ctx, s * 12, s, s, rnd, 0.25);
+      break;
+    }
+    case "pedra": {
+      // pedra em cacos (ADR-24): polígonos irregulares claros sobre argamassa escura
+      ctx.fillStyle = "#6f675c";
+      ctx.fillRect(0, 0, s, s);
+      const n = 7, passo = s / n;
+      for (let i = -1; i <= n; i++) for (let j = -1; j <= n; j++) {
+        const cx = (i + 0.5 + (rnd() - 0.5) * 0.4) * passo, cy = (j + 0.5 + (rnd() - 0.5) * 0.4) * passo;
+        const v = 0.8 + rnd() * 0.3, lados = 5 + Math.floor(rnd() * 3);
+        ctx.fillStyle = hex(176 * v, 166 * v, 150 * v);
+        ctx.beginPath();
+        for (let k = 0; k < lados; k++) {
+          const a = (k / lados) * Math.PI * 2 + rnd() * 0.5, r = passo * (0.38 + rnd() * 0.12);
+          if (k === 0) ctx.moveTo(cx + Math.cos(a) * r, cy + Math.sin(a) * r);
+          else ctx.lineTo(cx + Math.cos(a) * r, cy + Math.sin(a) * r);
+        }
+        ctx.closePath();
+        ctx.fill();
+      }
+      granulado(ctx, s * 8, s, s, rnd, 0.2);
       break;
     }
     case "grama":

@@ -4,6 +4,7 @@ import type { AcaoTarefa, Cronograma, ElementoMeta, Excecao, ModoAnimacao, Polit
 import type { PontoRoteiro } from "../rendering/cameras";
 import type { ParametrosCasa } from "../bim/parametrico";
 import type { Aparencia3D } from "../rendering/aparencia";
+import type { Luz } from "../rendering/iluminacao";
 import type { FotoObra, PlantaSobreposta, Tarefa, Visao } from "../types";
 import type { Problema } from "../importers/cronograma";
 import { aplicarMapeamento, regrasPadrao } from "../fourd/regras";
@@ -32,6 +33,10 @@ export interface ConfigVideo {
   camera?: "roteiro" | "drone";
   /** Nome e slogan da marca no canto do vídeo (padrão: ligado). */
   assinatura?: boolean;
+  /** Luz da cena no realista (ADR-24): dia (padrão), entardecer ou noite. Vale para a viewport também. */
+  luz?: Luz;
+  /** Qualidade do vídeo (ADR-24): máxima renderiza a 1,5× e reduz (mais lento). */
+  qualidade?: "normal" | "maxima";
 }
 
 /** Tarefa em edição, com datas absolutas (dia civil). */

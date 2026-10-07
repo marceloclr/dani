@@ -99,6 +99,8 @@ export interface PedidoVideo {
   quadroLivre?(t: number): QuadroCamera;
   /** Dia da obra no quadro i de n; sem ele, a obra vai do primeiro ao último dia no vídeo inteiro. */
   diaNoQuadro?(i: number, n: number): number;
+  /** Qualidade máxima (ADR-24): renderiza a 1,5× e reduz, com sombra e oclusão mais finas. */
+  maxima?: boolean;
   /** Nome e slogan da marca no canto do vídeo; ausente = sem assinatura. */
   assinatura?: { nome: string; slogan: string };
   sinal: AbortSignal;
@@ -130,12 +132,21 @@ export async function gerarVideo(cena: Cena, pedido: PedidoVideo): Promise<Arqui
   const canvas = document.createElement("canvas");
   canvas.width = p.largura;
   canvas.height = p.altura;
-  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, preserveDrawingBuffer: true });
+  // qualidade máxima: desenha num canvas 1,5× maior e reduz para o do vídeo (supersampling, ADR-24)
+  const escala = p.maxima ? 1.5 : 1;
+  const tela = escala > 1 ? document.createElement("canvas") : canvas;
+  const lr = Math.round(p.largura * escala), ar = Math.round(p.altura * escala);
+  tela.width = lr;
+  tela.height = ar;
+  const reducao = escala > 1 ? canvas.getContext("2d")! : null;
+  if (reducao) reducao.imageSmoothingQuality = "high";
+  const renderer = new THREE.WebGLRenderer({ canvas: tela, antialias: true, preserveDrawingBuffer: true });
   renderer.setPixelRatio(1);
-  renderer.setSize(p.largura, p.altura, false);
-  const desenhista = cena.criarDesenhista(renderer, p.largura, p.altura); // mesma aparência da viewport (ADR-21)
+  renderer.setSize(lr, ar, false);
+  cena.sombraMaxima(!!p.maxima);
+  const desenhista = cena.criarDesenhista(renderer, lr, ar, { maxima: p.maxima }); // mesma aparência da viewport (ADR-21)
   const camera = new THREE.PerspectiveCamera(45, p.largura / p.altura, 0.05, 4000);
-  const marca = p.assinatura ? criarAssinatura(p.largura, p.altura, p.assinatura.nome, p.assinatura.slogan) : null;
+  const marca = p.assinatura ? criarAssinatura(lr, ar, p.assinatura.nome, p.assinatura.slogan) : null;
   p.aoCriarCanvas?.(canvas);
 
   const total = totalDeQuadros(p.segundos, p.fps);
@@ -145,12 +156,13 @@ export async function gerarVideo(cena: Cena, pedido: PedidoVideo): Promise<Arqui
     if (p.quadroLivre) {
       cena.posicionarLivre(camera, p.quadroLivre(i / p.fps));
     } else cena.posicionar(camera, p.poseNoTempo(i / p.fps));
-    desenhista.desenhar(camera);
+    desenhista.desenhar(camera, i);
     if (marca) {
       renderer.autoClear = false;
       renderer.render(marca.cena, marca.camera);
       renderer.autoClear = true;
     }
+    reducao?.drawImage(tela, 0, 0, p.largura, p.altura);
   };
   const progredir = (i: number) => {
     const feito = i + 1;
@@ -170,6 +182,7 @@ export async function gerarVideo(cena: Cena, pedido: PedidoVideo): Promise<Arqui
     return await comoWebCodecs(p, canvas, total, desenhar, progredir, conferir);
   } finally {
     cena.silencioso = false;
+    cena.sombraMaxima(false);
     if (p.quadroLivre) cena.atualizarPortas(null);
     desenhista.dispose();
     marca?.dispose();

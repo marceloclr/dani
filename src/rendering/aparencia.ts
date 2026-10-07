@@ -36,13 +36,15 @@ export function materialRealista(material: string | null, ifcType: string, acaba
   if (/tela de tv|monitor/.test(n)) return M("liso", 0.25, 0, 0, { usarCorIfc: true });
   if (/inox/.test(n)) return M("liso", 0.35, 0.85, 0, { usarCorIfc: true });
   if (/terracota/.test(n)) return M("liso", 0.9, 0, 0, { usarCorIfc: true });
+  if (/pedra|stone|rocha|moledo|canjiquinha|cacos/.test(n)) return M("pedra", 0.9, 0, 0.03);
+  if (/quartzo|bancada|silestone|corian/.test(n)) return M("liso", 0.2, 0, 0, { usarCorIfc: true });
   if (/vidro|glass/.test(n)) return M("liso", 0.05, 0, 0, { opacidade: 0.32, usarCorIfc: true });
   if (/telha metal|metalica|aco|steel|zinco|aluminio/.test(n)) return M("telha-metalica", 0.45, 0.6, 0.01);
   if (/telha|ceramica de cobertura|roof tile/.test(n)) return M("telha-ceramica", 0.8, 0, 0.03);
   if (/manta|impermeab/.test(n)) return M("concreto", 0.7, 0, 0.01);
   if (/bloco|tijolo|ceramic|alvenaria|brick|masonry/.test(n)) return M("tijolo", 0.92, 0, 0.03);
   if (/concreto|concrete|cimento/.test(n)) return M("concreto", 0.9, 0, 0.02);
-  if (/madeira|wood|timber/.test(n)) return M("madeira", 0.7, 0, 0.01);
+  if (/madeira|wood|timber|ripado|freijo/.test(n)) return M("madeira", 0.7, 0, 0.01);
   if (/porcelanato|ceramica|piso|tile|granito|marmore/.test(n)) return M("porcelanato", 0.35, 0, 0.005);
   if (/louca|porcelain|sanit/.test(n)) return M("liso", 0.15, 0, 0, { usarCorIfc: true });
   if (/grama|grass|gramado/.test(n)) return M("grama", 1, 0, 0.03);

@@ -7,6 +7,7 @@ import { NOME_MARCA, SLOGAN } from "../app/marca";
 import { Cancelado, DESCRICAO_SAIDA, NOME_SAIDA, capacidades, dimensoesDaSaida, dispositivoLimitado, estimarZipMB, gerarVideo, type ArquivoGerado, type Capacidades, type Saida } from "../rendering/VideoRenderer";
 import { RESOLUCOES, useProjeto, type ConfigVideo, type FormatoVideo } from "../state/projectStore";
 import { baixar } from "../utils/baixar";
+import { NOME_LUZ, type Luz } from "../rendering/iluminacao";
 
 const FPS: ConfigVideo["fps"][] = [24, 30];
 const DURACOES: ConfigVideo["segundos"][] = [15, 30, 60, 90, 120];
@@ -25,6 +26,7 @@ interface Progresso {
 export function PainelVideo() {
   const cronograma = useProjeto((s) => s.cronograma);
   const video = useProjeto((s) => s.video);
+  const realista = useProjeto((s) => s.aparencia3d === "realista");
   const gerando = useProjeto((s) => s.gerandoVideo);
   const st = useProjeto.getState;
   const { largura, altura } = RESOLUCOES[video.formato];
@@ -113,6 +115,7 @@ export function PainelVideo() {
         diasDeObra: dias,
         nomeBase: `obra-4d-${video.formato}-${video.segundos}s`,
         aplicarDia: (d) => cena.aplicar(camadasPara(st(), cena, d, true)),
+        maxima: video.qualidade === "maxima" && st().aparencia3d === "realista",
         ...(video.assinatura !== false ? { assinatura: { nome: NOME_MARCA, slogan: SLOGAN } } : {}),
         poseNoTempo: (t) => poseNoTempo(r, e, t, video.segundos),
         ...(voo
@@ -267,6 +270,31 @@ export function PainelVideo() {
           </button>
         </div>
         )}
+
+        <h4>Imagem</h4>
+        <div className="linha-campos">
+          <label className="campo" data-tip={"A luz da cena (também no seletor da viewport). No entardecer e à noite, as luminárias da casa acendem com a obra pronta."}>
+            <span>Luz</span>
+            <select data-testid="video-luz" value={video.luz ?? "dia"} onChange={(e) => st().definirVideo({ luz: e.target.value as Luz })} disabled={!realista}>
+              {(Object.keys(NOME_LUZ) as Luz[]).map((l) => (
+                <option key={l} value={l}>
+                  {NOME_LUZ[l]}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label
+            className="campo"
+            data-tip={"Máxima: cada quadro é desenhado com 1,5 × 1,5 = 2,25 vezes os pixels e reduzido (bordas mais limpas), com sombra de 4.096 px e oclusão de ambiente com o dobro de amostras.\nLeva cerca de 2,5 vezes o tempo da normal."}
+          >
+            <span>Qualidade</span>
+            <select data-testid="video-qualidade" value={video.qualidade ?? "normal"} onChange={(e) => st().definirVideo({ qualidade: e.target.value as "normal" | "maxima" })} disabled={!realista}>
+              <option value="normal">Normal</option>
+              <option value="maxima">Máxima (mais lenta)</option>
+            </select>
+          </label>
+        </div>
+        {!realista && <p className="tenue pequeno">Luz e qualidade valem na aparência Realista.</p>}
 
         <label className="marcar" data-tip={`Faixa discreta no canto inferior esquerdo:\n${NOME_MARCA}\n${SLOGAN}`}>
           <input type="checkbox" checked={video.assinatura !== false} onChange={(e) => st().definirVideo({ assinatura: e.target.checked })} data-testid="video-assinatura" />

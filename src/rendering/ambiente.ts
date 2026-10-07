@@ -3,17 +3,48 @@
 import * as THREE from "three";
 import { Sky } from "three/addons/objects/Sky.js";
 import { aleatorio } from "./texturas";
+import { LUZES, type Luz } from "./iluminacao";
 import type { P2, P3 } from "./navegacao";
 
-export type Foto = "grama" | "terra";
-const ARQUIVO: Record<Foto, string> = { grama: "sparse_grass", terra: "grass_path_2" };
-/** Metros cobertos por uma repetição da foto. */
-export const ESCALA_FOTO: Record<Foto, number> = { grama: 2.5, terra: 3 };
+export type Foto = "grama" | "terra" | "tijolo" | "reboco" | "concreto" | "telha-ceramica" | "telha-metalica" | "madeira" | "porcelanato" | "pedra";
+const ARQUIVO: Record<Foto, string> = {
+  grama: "sparse_grass",
+  terra: "grass_path_2",
+  // materiais da obra (ADR-24)
+  tijolo: "large_red_bricks",
+  reboco: "plastered_wall_04",
+  concreto: "concrete_wall_008",
+  "telha-ceramica": "clay_roof_tiles_02",
+  "telha-metalica": "corrugated_iron_02",
+  madeira: "oak_veneer_01",
+  porcelanato: "marble_01",
+  pedra: "coral_stone_wall",
+};
+/** Metros cobertos por uma repetição da foto (dimensões informadas pelo Poly Haven). */
+export const ESCALA_FOTO: Record<Foto, number> = {
+  grama: 2.5, terra: 3, tijolo: 2, reboco: 3.2, concreto: 2.7, "telha-ceramica": 2.5, "telha-metalica": 2.7, madeira: 1.83, porcelanato: 1.5, pedra: 2,
+};
+/** Cor média de cada foto (sRGB 0–255), para tingir a foto até a cor desejada (`tingir`). */
+export const MEDIA_FOTO: Record<Foto, [number, number, number]> = {
+  grama: [79, 61, 21], terra: [141, 129, 99], tijolo: [169, 116, 82], reboco: [142, 138, 136], concreto: [141, 134, 112],
+  "telha-ceramica": [145, 80, 43], "telha-metalica": [89, 88, 81], madeira: [161, 126, 88], porcelanato: [178, 157, 122], pedra: [144, 131, 114],
+};
 
-/** Direção do sol: da frente e da direita, alto (≈ 43° de elevação), igual à luz da cena. */
-export const DIRECAO_SOL = new THREE.Vector3(0.65, 0.7, 0.35).normalize();
-/** Cor do horizonte enevoado, para a neblina casar com o céu. */
-const COR_NEBLINA = new THREE.Color("#c6d3de");
+const linear = (c: number) => {
+  const v = c / 255;
+  return v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
+};
+/**
+ * Cor do material que leva a média da foto até `alvo` (sRGB 0–255). O material multiplica a textura
+ * no espaço linear, então a razão é calculada lá; pode passar de 1 (clareia a foto).
+ */
+export function tingir(foto: Foto, alvo: [number, number, number]): [number, number, number] {
+  const m = MEDIA_FOTO[foto];
+  return [0, 1, 2].map((i) => linear(alvo[i]) / Math.max(linear(m[i]), 1e-4)) as [number, number, number];
+}
+
+/** Cor do horizonte enevoado em cada luz, para a neblina casar com o céu. */
+const COR_NEBLINA: Record<Luz, string> = { dia: "#c6d3de", entardecer: "#d6b08c", noite: "#28324a" };
 
 export interface MapasFoto {
   map: THREE.Texture;
@@ -28,16 +59,52 @@ export interface Fundo {
 }
 
 /** Céu de Preetham com nuvens procedurais (determinísticas: o vídeo sai igual a cada geração). */
-function cenaDoCeu(): THREE.Scene {
+/**
+ * Céu da noite (hora azul): o de Preetham fica preto com o sol abaixo do horizonte, então a noite usa
+ * um degradê do azul-marinho no alto ao azul do horizonte, com estrelas fixas (determinísticas).
+ */
+function ceuNoturno(): THREE.Mesh {
+  const mat = new THREE.ShaderMaterial({
+    side: THREE.BackSide,
+    depthWrite: false,
+    vertexShader: /* glsl */ `
+      varying vec3 vDir;
+      void main() { vDir = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+    fragmentShader: /* glsl */ `
+      varying vec3 vDir;
+      float h(vec3 p) { return fract(sin(dot(p, vec3(127.1, 311.7, 74.7))) * 43758.5453); }
+      void main() {
+        float y = clamp(vDir.y, -1.0, 1.0);
+        vec3 zenite = vec3(0.012, 0.022, 0.06), horizonte = vec3(0.07, 0.11, 0.22), brilho = vec3(0.16, 0.14, 0.2);
+        vec3 c = mix(horizonte, zenite, smoothstep(0.0, 0.6, y));
+        c = mix(c, brilho, exp(-max(y, 0.0) * 18.0) * 0.6); // claridade da cidade no horizonte
+        if (y < 0.0) c = horizonte * 0.6;
+        vec3 cel = floor(vDir * 380.0);
+        float e = step(0.9975, h(cel)) * smoothstep(0.08, 0.3, y);
+        c += e * (0.5 + 0.5 * h(cel + 1.0)) * 0.9;
+        gl_FragColor = vec4(c, 1.0);
+      }`,
+  });
+  const m = new THREE.Mesh(new THREE.SphereGeometry(1000, 48, 24), mat);
+  return m;
+}
+
+function cenaDoCeu(luz: Luz): THREE.Scene {
+  const p = LUZES[luz];
+  if (luz === "noite") {
+    const s = new THREE.Scene();
+    s.add(ceuNoturno());
+    return s;
+  }
   const s = new THREE.Scene();
   const ceu = new Sky();
   ceu.scale.setScalar(1000);
   const u = ceu.material.uniforms;
-  u.turbidity.value = 4.5;
-  u.rayleigh.value = 1.2;
+  u.turbidity.value = p.turbidez;
+  u.rayleigh.value = p.rayleigh;
   u.mieCoefficient.value = 0.004;
   u.mieDirectionalG.value = 0.8;
-  u.sunPosition.value.copy(DIRECAO_SOL);
+  u.sunPosition.value.set(...p.sol);
   if (u.cloudCoverage) {
     u.cloudCoverage.value = 0.42;
     u.cloudDensity.value = 0.55;
@@ -53,8 +120,8 @@ function cenaDoCeu(): THREE.Scene {
  * Fundo e reflexos de um renderizador: o céu desenhado num cubo (fundo) e pré-filtrado (PMREM) para
  * a luz de ambiente. É alvo de renderização, então cada renderizador (viewport, vídeo, relatório) gera o seu.
  */
-export function criarFundo(renderer: THREE.WebGLRenderer): Fundo {
-  const cena = cenaDoCeu();
+export function criarFundo(renderer: THREE.WebGLRenderer, luz: Luz = "dia"): Fundo {
+  const cena = cenaDoCeu(luz);
   const alvo = new THREE.WebGLCubeRenderTarget(1024, { type: THREE.HalfFloatType });
   const cubo = new THREE.CubeCamera(0.1, 5000, alvo);
   const tom = renderer.toneMapping;
@@ -64,7 +131,9 @@ export function criarFundo(renderer: THREE.WebGLRenderer): Fundo {
   const ambiente = pmrem.fromScene(cena, 0, 0.1, 5000);
   renderer.toneMapping = tom;
   pmrem.dispose();
-  (cena.children[0] as Sky).material.dispose();
+  const ceu = cena.children[0] as THREE.Mesh;
+  (ceu.material as THREE.Material).dispose();
+  ceu.geometry.dispose();
   return {
     background: alvo.texture,
     environment: ambiente.texture,
@@ -89,11 +158,18 @@ export function carregarFotos(): Promise<Map<Foto, MapasFoto>> {
       return t;
     };
     const out = new Map<Foto, MapasFoto>();
-    for (const f of ["grama", "terra"] as Foto[]) {
-      const [map, normalMap, roughnessMap] = await Promise.all([um(`${ARQUIVO[f]}_cor`, true), um(`${ARQUIVO[f]}_normal`, false), um(`${ARQUIVO[f]}_rugosidade`, false)]);
-      for (const t of [map, normalMap, roughnessMap]) t.repeat.set(1 / ESCALA_FOTO[f], 1 / ESCALA_FOTO[f]);
-      out.set(f, { map, normalMap, roughnessMap });
-    }
+    // cada foto que falhar fica de fora: o material volta à textura procedural (funciona sem rede)
+    await Promise.all(
+      (Object.keys(ARQUIVO) as Foto[]).map(async (f) => {
+        try {
+          const [map, normalMap, roughnessMap] = await Promise.all([um(`${ARQUIVO[f]}_cor`, true), um(`${ARQUIVO[f]}_normal`, false), um(`${ARQUIVO[f]}_rugosidade`, false)]);
+          for (const t of [map, normalMap, roughnessMap]) t.repeat.set(1 / ESCALA_FOTO[f], 1 / ESCALA_FOTO[f]);
+          out.set(f, { map, normalMap, roughnessMap });
+        } catch {
+          /* fica a procedural */
+        }
+      }),
+    );
     return out;
   })().catch(() => new Map());
   return fotos;
@@ -186,7 +262,7 @@ export function montarChao(f: Map<Foto, MapasFoto>, buraco: { x0: number; x1: nu
 }
 
 /** Neblina leve que funde o chão com o horizonte do céu. */
-export const neblina = (raio: number) => new THREE.Fog(COR_NEBLINA, Math.max(raio * 6, 60), Math.max(raio * 45, 450));
+export const neblina = (raio: number, luz: Luz = "dia") => new THREE.Fog(COR_NEBLINA[luz], Math.max(raio * 6, 60), Math.max(raio * 45, 450));
 
 // ------------------------------------------------------------------ árvores
 

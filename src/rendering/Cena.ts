@@ -6,22 +6,33 @@ import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
 import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { GTAOPass } from "three/addons/postprocessing/GTAOPass.js";
 import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
+import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
+import { passoAcabamento } from "./acabamento";
 import { materialRealista, uvsPorProjecao, type Aparencia3D } from "./aparencia";
 import { ESCALA_M, desenharTextura, type TipoTextura } from "./texturas";
 import type { MalhaElemento } from "../bim/parseIfc";
 import { parametros, type PosicaoElemento, type PosicaoFila } from "../fourd/animacao";
 import type { Desvio, EstadoElemento, ModoAnimacao, PlantaSobreposta } from "../types";
 import { distanciaDeEnquadramento, poseDaPosicao, poseDoPreset, posicaoDaPose, type Enquadramento, type Pose, type Preset } from "./cameras";
-import { arvore, carregarFotos, criarFundo, montarChao, neblina, pessoa, semRepeticao, type Foto, type MapasFoto } from "./ambiente";
+import { arvore, carregarFotos, criarFundo, montarChao, neblina, pessoa, semRepeticao, tingir, type Foto, type MapasFoto } from "./ambiente";
 import { aberturaDaPorta, anguloDaPorta, montarVoo, type EstadoPorta, type QuadroCamera, type Voo } from "./drone";
 import type { Solido } from "./navegacao";
 import { CLASSES_HUMANIZACAO } from "../fourd/regras";
+import { LUZES, luminarias, type Luz } from "./iluminacao";
 
 const ehArvore = (m: MetaVisual | undefined) => !!m && m.ifcType === "IfcGeographicElement" && /copa|arvore|árvore|tree/i.test((m.material ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, ""));
 /** Cores de aparência por acabamento concluído; "base" usa a cor do IFC. */
 const APARENCIAS: Record<string, string> = { reboco: "#cfc9bd", pintura: "#f1ede4" };
 const COR_EM_EXECUCAO = new THREE.Color("#c4a45e"); // --latao (escuro), legível nos dois temas
 const COR_SELECAO = new THREE.Color("#3f5c78"); // --ardosia
+/** Tom de referência (sRGB) a que cada foto é levada; ausente = a cor da própria foto. */
+const TOM_FOTO: Partial<Record<Foto, [number, number, number]>> = {
+  reboco: [206, 199, 186],
+  madeira: [140, 104, 74],
+  concreto: [150, 149, 143],
+  "telha-metalica": [160, 166, 172],
+  porcelanato: [222, 214, 198],
+};
 const COR_FANTASMA = new THREE.Color("#8d949d");
 const COR_ATRASADO = new THREE.Color("#b54a4a"); // carmim
 const COR_ADIANTADO = new THREE.Color("#4f7aa8"); // ardósia
@@ -52,7 +63,8 @@ export interface MetaVisual {
 
 /** Desenha a cena num renderizador qualquer (viewport, vídeo, relatório) com a aparência atual. */
 export interface Desenhista {
-  desenhar(camera: THREE.PerspectiveCamera): void;
+  /** `quadro` muda a semente da granulação (vídeo); sem ele, a granulação fica parada. */
+  desenhar(camera: THREE.PerspectiveCamera, quadro?: number): void;
   redimensionar(largura: number, altura: number): void;
   dispose(): void;
 }
@@ -93,6 +105,10 @@ export class Cena {
   private desenhista: Desenhista;
   // ambiente realista e humanização (ADR-23)
   private fotos: Map<Foto, MapasFoto> | null = null;
+  /** Luz da cena (ADR-24): dia, entardecer ou noite com as luzes da casa acesas. */
+  private luz: Luz = "dia";
+  /** Luminárias da obra pronta (acendem no entardecer e à noite). */
+  private readonly lampadas = new THREE.Group();
   private readonly prontoFotos: Promise<void>;
   private ambiente = new THREE.Group();
   private arvores = new Map<string, THREE.Group>();
@@ -117,13 +133,13 @@ export class Cena {
 
     this.observador = new ResizeObserver(() => this.redimensionar());
     this.observador.observe(host);
-    this.scene.add(this.ambiente, this.pessoas);
+    this.scene.add(this.ambiente, this.pessoas, this.lampadas);
     this.atualizarTema();
     this.definirAparencia(this.aparencia);
     this.redimensionar();
     this.prontoFotos = carregarFotos().then((f) => {
       this.fotos = f;
-      for (const [k, m] of this.materiais) if (k.startsWith("real|terra") || k.startsWith("real|grama")) (m.dispose(), this.materiais.delete(k));
+      for (const [k, m] of this.materiais) if (k.startsWith("real|")) (m.dispose(), this.materiais.delete(k));
       this.montarAmbiente();
       if (this.ultimasCamadas) this.aplicar(this.ultimasCamadas);
     });
@@ -157,16 +173,19 @@ export class Cena {
     this.aparencia = a;
     const real = a === "realista";
     this.scene.background = real ? this.texturaCeu() : this.corPapel;
-    this.scene.fog = real && !this.caixa.isEmpty() ? neblina(this.enquadramento().raio) : null;
+    this.scene.fog = real && !this.caixa.isEmpty() ? neblina(this.enquadramento().raio, this.luz) : null;
     this.ambiente.visible = real;
-    this.hemi.color.set(real ? 0xdde8f4 : 0xffffff);
-    this.hemi.groundColor.set(real ? 0x6e5c46 : 0x8a8170);
-    this.hemi.intensity = real ? 1.1 : 1.6;
-    this.sol.color.set(real ? 0xfff0dc : 0xffffff);
-    this.sol.intensity = real ? 2.8 : 1.6;
-    this.sol.castShadow = real;
-    this.contraluz.intensity = real ? 0.25 : 0.5;
-    this.scene.environmentIntensity = 0.45;
+    // a luz escolhida (dia, entardecer, noite) só vale no realista; a técnica fica sempre clara
+    const p = LUZES[real ? this.luz : "dia"];
+    this.hemi.color.set(real ? p.corCeu : 0xffffff);
+    this.hemi.groundColor.set(real ? p.corChao : 0x8a8170);
+    this.hemi.intensity = real ? p.intensidadeCeu : 1.6;
+    this.sol.color.set(real ? p.corSol : 0xffffff);
+    this.sol.intensity = real ? p.intensidadeSol : 1.6;
+    this.sol.castShadow = real && p.sol[1] > 0;
+    this.contraluz.intensity = real ? 0.25 * p.intensidadeCeu : 0.5;
+    this.scene.environmentIntensity = p.intensidadeAmbiente;
+    this.ajustarSol();
     for (const m of this.malhas.values()) {
       const vidro = m.userData.opacidadeBase < 0.99;
       m.castShadow = real && !vidro && !m.userData.terreno;
@@ -178,13 +197,59 @@ export class Cena {
     else this.pedirQuadro();
   }
 
+  /** Sombra do sol em 4.096 px (vídeo em qualidade máxima) ou 2.048 px (padrão). */
+  sombraMaxima(sim: boolean): void {
+    const n = sim ? 4096 : 2048;
+    if (this.sol.shadow.mapSize.x === n) return;
+    this.sol.shadow.mapSize.set(n, n);
+    this.sol.shadow.map?.dispose();
+    this.sol.shadow.map = null;
+  }
+
+  /** Troca a luz da cena (ADR-24); vale para a viewport, o vídeo e o relatório. */
+  definirLuz(luz: Luz): void {
+    if (luz === this.luz) return;
+    this.luz = luz;
+    this.definirAparencia(this.aparencia);
+  }
+
+  get luzAtual(): Luz {
+    return this.luz;
+  }
+
+  /** Luminárias: luz pontual quente (2.700 K) e o disco aceso do spot no teto, no meio de cada cômodo. */
+  private montarLampadas(): void {
+    for (const o of this.lampadas.children) if (o instanceof THREE.Mesh) o.geometry.dispose();
+    this.lampadas.clear();
+    if (this.caixa.isEmpty()) return;
+    const disco = new THREE.MeshBasicMaterial({ color: new THREE.Color(1, 0.8, 0.58).multiplyScalar(6) });
+    for (const l of luminarias(this.solidos())) {
+      const luz = new THREE.PointLight(0xffc48a, 0, Math.max(6, l.folga * 4.5), 2);
+      luz.position.set(...l.pos);
+      luz.userData.base = 6 + l.folga * 4; // cômodos maiores, luz mais forte
+      const spot = new THREE.Mesh(new THREE.CircleGeometry(0.07, 20), disco);
+      spot.rotation.x = Math.PI / 2;
+      spot.position.set(l.pos[0], l.pos[1] + 0.05, l.pos[2]);
+      this.lampadas.add(luz, spot);
+    }
+  }
+
+  /** Acende as luminárias conforme a luz e a obra pronta. */
+  private atualizarLampadas(concluida: boolean): void {
+    const k = this.aparencia === "realista" && concluida ? LUZES[this.luz].luminarias : 0;
+    this.lampadas.visible = k > 0;
+    for (const o of this.lampadas.children) if (o instanceof THREE.PointLight) o.intensity = o.userData.base * k;
+  }
+
   /** Ajusta a câmera de sombra do sol à casa (e um pouco além). */
   private ajustarSol(): void {
     if (this.caixa.isEmpty()) return;
     const c = this.caixa.getCenter(new THREE.Vector3());
     const r = this.caixa.getBoundingSphere(new THREE.Sphere()).radius + 6;
     // sol da frente e da direita: fachadas da frente iluminadas e sombras para trás e para a esquerda, à vista da câmera isométrica
-    this.sol.position.copy(c).add(new THREE.Vector3(0.65, 0.7, 0.35).normalize().multiplyScalar(r * 2));
+    const d = LUZES[this.luz].sol;
+    // à noite o "sol" é a lua, do mesmo lado, acima do horizonte
+    this.sol.position.copy(c).add(new THREE.Vector3(d[0], Math.max(d[1], 0.5), d[2]).normalize().multiplyScalar(r * 2));
     this.sol.target.position.copy(c);
     const cam = this.sol.shadow.camera;
     cam.left = cam.bottom = -r;
@@ -192,7 +257,7 @@ export class Cena {
     cam.near = 0.5;
     cam.far = r * 4;
     cam.updateProjectionMatrix();
-    this.sol.shadow.mapSize.set(2048, 2048);
+    if (this.sol.shadow.mapSize.x < 2048) this.sol.shadow.mapSize.set(2048, 2048);
     this.sol.shadow.bias = -0.0004;
     this.sol.shadow.normalBias = 0.03;
     this.sol.shadow.radius = 3;
@@ -202,37 +267,48 @@ export class Cena {
    * Prepara um renderizador (o da viewport ou um dedicado, do vídeo e do relatório) para desenhar a cena
    * com a aparência atual: mapeamento de tons, sombras, reflexos de ambiente e oclusão de ambiente (GTAO).
    */
-  criarDesenhista(renderer: THREE.WebGLRenderer, largura: number, altura: number): Desenhista {
+  criarDesenhista(renderer: THREE.WebGLRenderer, largura: number, altura: number, opcoes: { maxima?: boolean } = {}): Desenhista {
     const real = this.aparencia === "realista";
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.toneMapping = real ? THREE.ACESFilmicToneMapping : THREE.NoToneMapping;
-    renderer.toneMappingExposure = 1.0;
+    renderer.toneMappingExposure = real ? LUZES[this.luz].exposicao : 1.0;
     renderer.shadowMap.enabled = real;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     if (!real) {
       return { desenhar: (cam) => renderer.render(this.scene, cam), redimensionar: () => {}, dispose: () => {} };
     }
     // céu e reflexos: alvos de renderização, então cada renderizador gera os seus
-    const fundo = criarFundo(renderer);
+    const fundo = criarFundo(renderer, this.luz);
     const camBase = new THREE.PerspectiveCamera();
-    const composer = new EffectComposer(renderer);
+    // alvo com multiamostragem (MSAA): o composer, sem isso, perde o antialias do renderizador (ADR-24)
+    const alvo = new THREE.WebGLRenderTarget(largura, altura, { type: THREE.HalfFloatType, samples: 4 });
+    const composer = new EffectComposer(renderer, alvo);
     const passoCena = new RenderPass(this.scene, camBase);
     const gtao = new GTAOPass(this.scene, camBase, largura, altura);
-    gtao.updateGtaoMaterial({ radius: 0.5, distanceExponent: 1.5, thickness: 1, scale: 1.1, samples: 12 });
-    gtao.updatePdMaterial({ lumaPhi: 10, depthPhi: 2, normalPhi: 3, radius: 6, rings: 2, samples: 12 });
+    const amostras = opcoes.maxima ? 24 : 12;
+    gtao.updateGtaoMaterial({ radius: 0.5, distanceExponent: 1.5, thickness: 1, scale: 1.1, samples: amostras });
+    gtao.updatePdMaterial({ lumaPhi: 10, depthPhi: 2, normalPhi: 3, radius: 6, rings: 2, samples: amostras });
     gtao.blendIntensity = 0.9;
+    // brilho só nas fontes de luz (LED e lâmpadas, emissivas e intensas): o limiar fica acima de uma
+    // fachada branca ao sol (≈ 2,5 em luz linear), para o dia não estourar
+    const brilho = new UnrealBloomPass(new THREE.Vector2(largura, altura), 0.18, 0.3, 4);
+    brilho.enabled = this.luz !== "dia"; // de dia, o céu claro passaria do limiar e enevoaria a imagem
+    const acabamento = passoAcabamento();
     composer.addPass(passoCena);
     composer.addPass(gtao);
+    composer.addPass(brilho);
     composer.addPass(new OutputPass());
+    composer.addPass(acabamento);
     composer.setPixelRatio(renderer.getPixelRatio());
     composer.setSize(largura, altura);
     return {
-      desenhar: (cam) => {
+      desenhar: (cam, quadro) => {
         const anterior = this.scene.environment, ceu = this.scene.background;
         this.scene.environment = fundo.environment;
         this.scene.background = fundo.background;
         passoCena.camera = cam;
         gtao.camera = cam;
+        acabamento.definirQuadro(quadro ?? 0);
         composer.render();
         this.scene.environment = anterior;
         this.scene.background = ceu;
@@ -241,6 +317,9 @@ export class Cena {
       dispose: () => {
         composer.dispose();
         gtao.dispose();
+        brilho.dispose();
+        acabamento.dispose();
+        alvo.dispose();
         fundo.dispose();
       },
     };
@@ -309,7 +388,7 @@ export class Cena {
     if (this.caixa.isEmpty()) for (const m of this.malhas.values()) this.caixa.union(m.geometry.boundingBox!);
     this.ajustarSol();
     this.vooCache = null;
-    this.scene.fog = this.aparencia === "realista" && !this.caixa.isEmpty() ? neblina(this.enquadramento().raio) : null;
+    this.scene.fog = this.aparencia === "realista" && !this.caixa.isEmpty() ? neblina(this.enquadramento().raio, this.luz) : null;
     this.montarAmbiente();
     this.vista("isometrica");
   }
@@ -341,6 +420,7 @@ export class Cena {
     this.ambiente.clear();
     this.pessoas.clear();
     this.arvores.clear();
+    this.montarLampadas();
     if (this.caixa.isEmpty() || !this.fotos) return;
     // lote do IFC (terreno e paisagismo) ou, sem ele, a casa com folga
     const lote = new THREE.Box3();
@@ -484,34 +564,10 @@ export class Cena {
     const r = materialRealista(meta.material, meta.ifcType, acabamento, meta.objectType);
     const cor = r.usarCorIfc ? this.corBase.get(guid)! : null;
     const op = Math.round((r.opacidade ?? opacidade) * 20) / 20;
-    const chave = `real|${r.textura}|${cor?.getHexString() ?? ""}|${op}|${selecionado ? 1 : 0}`;
+    const chave = `real|${r.textura}|${cor?.getHexString() ?? ""}|${op}|${r.rugosidade}|${r.metalico}|${selecionado ? 1 : 0}`;
     let m = this.materiais.get(chave);
-    const foto = (r.textura === "terra" || r.textura === "grama") && this.fotos?.get(r.textura);
-    if (!m && foto) {
-      m = semRepeticao(new THREE.MeshStandardMaterial({ map: foto.map, normalMap: foto.normalMap, roughnessMap: foto.roughnessMap, roughness: 1, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1 }));
-      if (r.textura === "grama") m.color.set("#b9d79a");
-      if (selecionado) {
-        m.emissive = COR_SELECAO;
-        m.emissiveIntensity = 0.55;
-      }
-      this.materiais.set(chave, m);
-    }
     if (!m) {
-      const mapa = this.textura(r.textura, r.textura === "liso" || r.textura === "pintura" ? (cor ?? new THREE.Color(0.95, 0.94, 0.91)) : null);
-      m = new THREE.MeshStandardMaterial({
-        map: mapa,
-        roughness: r.rugosidade,
-        metalness: r.metalico,
-        bumpMap: r.relevo > 0 ? mapa : null,
-        bumpScale: r.relevo,
-        transparent: op < 0.99,
-        opacity: op,
-        depthWrite: op >= 0.99,
-        side: THREE.DoubleSide,
-        polygonOffset: true,
-        polygonOffsetFactor: 1,
-        polygonOffsetUnits: 1,
-      });
+      m = this.criarMaterialReal(r.textura, r.rugosidade, r.metalico, r.relevo, cor, op);
       if (selecionado) {
         m.emissive = COR_SELECAO;
         m.emissiveIntensity = 0.55;
@@ -519,6 +575,42 @@ export class Cena {
       this.materiais.set(chave, m);
     }
     return m;
+  }
+
+  /**
+   * Material realista (ADR-24): foto PBR (cor, relevo e rugosidade) quando ela carregou, tingida até o
+   * tom de referência do material; sem foto, a textura procedural do ADR-21. Pintura usa a cor da tinta
+   * com o relevo da foto do reboco. Vidro e piso são materiais físicos (reflexo e verniz).
+   */
+  private criarMaterialReal(tipo: TipoTextura, rugosidade: number, metalico: number, relevo: number, cor: THREE.Color | null, op: number): THREE.MeshStandardMaterial {
+    const comuns = { side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1, transparent: op < 0.99, opacity: op, depthWrite: op >= 0.99 };
+    const fotoDe = (t: TipoTextura) => (t === "pintura" ? this.fotos?.get("reboco") : t === "liso" || t === "folhagem" ? undefined : this.fotos?.get(t as Foto));
+    const foto = fotoDe(tipo);
+    if (tipo === "liso" && op < 0.99) {
+      // vidro: reflexo do céu e transparência
+      return new THREE.MeshPhysicalMaterial({ ...comuns, color: cor ?? new THREE.Color(0.8, 0.88, 0.9), roughness: 0.04, metalness: 0, ior: 1.5, specularIntensity: 1, envMapIntensity: 1.6 });
+    }
+    if (foto && tipo === "pintura") {
+      const mapa = this.textura("pintura", cor ?? new THREE.Color(0.95, 0.94, 0.91));
+      const m = new THREE.MeshStandardMaterial({ ...comuns, map: mapa, normalMap: foto.normalMap, roughnessMap: foto.roughnessMap, roughness: 1, metalness: 0 });
+      m.normalScale.set(0.35, 0.35);
+      return m;
+    }
+    if (foto) {
+      const Classe = tipo === "porcelanato" ? THREE.MeshPhysicalMaterial : THREE.MeshStandardMaterial;
+      const m = new Classe({ ...comuns, map: foto.map, normalMap: foto.normalMap, roughnessMap: foto.roughnessMap, roughness: Math.min(1, rugosidade + 0.15), metalness: metalico });
+      const alvo = TOM_FOTO[tipo as Foto];
+      if (alvo) m.color.setRGB(...tingir(tipo as Foto, alvo));
+      if (tipo === "grama") m.color.set("#b9d79a");
+      if (m instanceof THREE.MeshPhysicalMaterial) {
+        m.clearcoat = 0.35;
+        m.clearcoatRoughness = 0.12;
+      }
+      m.normalScale.set(0.9, 0.9);
+      return tipo === "reboco" || tipo === "concreto" || tipo === "terra" || tipo === "grama" ? semRepeticao(m) : m;
+    }
+    const mapa = this.textura(tipo, tipo === "liso" || tipo === "pintura" ? (cor ?? new THREE.Color(0.95, 0.94, 0.91)) : null);
+    return new THREE.MeshStandardMaterial({ ...comuns, map: mapa, roughness: rugosidade, metalness: metalico, bumpMap: relevo > 0 ? mapa : null, bumpScale: relevo });
   }
 
   /** Aplica as camadas: estado 4D (com o modo de animação) < ocultos pelo usuário < isolamento (ADR-02). */
@@ -589,6 +681,7 @@ export class Cena {
       }
     }
     this.pessoas.visible = real && (c.concluida ?? true) && !c.isolados;
+    this.atualizarLampadas((c.concluida ?? true) && !c.isolados);
     this.aplicarPortas();
     this.pedirQuadro();
   }
