@@ -1,11 +1,15 @@
 import { useEffect, useMemo, useState } from "react";
 import { obterCena } from "../app/estadoCena";
 import { FORMULA_PRAZO, NOME_ESTRUTURA, estimarCronograma, pavimentosDoModelo, prazoSugerido, type TipoEstrutura } from "../fourd/estimativa";
+import { ANO_FINAL, FORMULA_DIAS_UTEIS, MUNICIPIOS, NOME_OUTRO, OUTRO_MUNICIPIO, anoCoberto, contarDiasUteis, diaDaSemana, nomeMunicipio, type Feriado } from "../fourd/feriados";
+import { feriadosDoMunicipio } from "../storage/IndexedDb";
 import { formatarBR, formatarISO, lerData } from "../fourd/tempo";
 import { useProjeto } from "../state/projectStore";
 import { Modal } from "./Modal";
 
 const hoje = () => lerData(new Date().toLocaleDateString("sv-SE"))!;
+const SEMANA = ["dom", "seg", "ter", "qua", "qui", "sex", "sáb"];
+const ESFERA = { nacional: "nacional", estadual: "estadual", municipal: "municipal", facultativo: "ponto facultativo" } as const;
 
 /** Área e pavimentos a partir do modelo carregado (paramétrico: exatos; IFC: estimados). */
 function doModelo() {
@@ -35,6 +39,8 @@ export function ModalEstimativa({ aberto, aoFechar }: { aberto: boolean; aoFecha
   const [prazo, setPrazo] = useState(150);
   const [prazoEditado, setPrazoEditado] = useState(false);
   const [confirmar, setConfirmar] = useState(false);
+  const [municipio, setMunicipio] = useState("fortaleza");
+  const [feriados, setFeriados] = useState<Feriado[]>([]);
 
   useEffect(() => {
     if (!aberto) return;
@@ -42,6 +48,7 @@ export function ModalEstimativa({ aberto, aoFechar }: { aberto: boolean; aoFecha
     setArea(m.area);
     setPavimentos(m.pavimentos);
     setOrigem(m.origem);
+    setMunicipio(useProjeto.getState().cronograma?.municipio ?? "fortaleza");
     setPrazoEditado(false);
     setConfirmar(false);
   }, [aberto]);
@@ -52,7 +59,23 @@ export function ModalEstimativa({ aberto, aoFechar }: { aberto: boolean; aoFecha
   }, [sugerido, prazoEditado]);
 
   const ini = lerData(inicio);
-  const previa = useMemo(() => (ini === null ? null : estimarCronograma({ area, pavimentos, estrutura, inicio: ini, prazo })), [area, pavimentos, estrutura, ini, prazo]);
+  const previa = useMemo(() => (ini === null ? null : estimarCronograma({ area, pavimentos, estrutura, inicio: ini, prazo, municipio })), [area, pavimentos, estrutura, ini, prazo, municipio]);
+
+  // feriados do município no período da obra, lidos do banco local (ADR-22)
+  const fimObra = previa ? previa.inicio + Math.max(...previa.tarefas.map((t) => t.fim)) : null;
+  useEffect(() => {
+    if (!previa || fimObra === null) return;
+    let vivo = true;
+    feriadosDoMunicipio(municipio, previa.inicio, fimObra).then((f) => vivo && setFeriados(f));
+    return () => {
+      vivo = false;
+    };
+  }, [previa, fimObra, municipio]);
+  const diasFeriado = useMemo(() => feriados.map((f) => f.dia), [feriados]);
+  const uteis = (a: number, b: number) => contarDiasUteis(a, b, diasFeriado);
+  const emDiaDeSemana = feriados.filter((f) => diaDaSemana(f.dia) !== 0 && diaDaSemana(f.dia) !== 6);
+  const listaFeriados = emDiaDeSemana.map((f) => `${formatarBR(f.dia)} (${SEMANA[diaDaSemana(f.dia)]}) ${f.nome} · ${ESFERA[f.esfera]}${f.confirmado ? "" : " · a confirmar"}`).join("\n");
+  const foraDaBase = fimObra !== null && !anoCoberto(fimObra);
 
   const aplicar = () => {
     if (!previa) return;
@@ -104,6 +127,19 @@ export function ModalEstimativa({ aberto, aoFechar }: { aberto: boolean; aoFecha
             ))}
           </select>
         </label>
+        <label className="campo" data-tip="Define os feriados descontados dos dias úteis: nacionais, Data Magna do Ceará (25/3), Carnaval e os municipais. As datas das tarefas continuam em dias corridos.">
+          <span>Município da obra</span>
+          <select value={municipio} onChange={(e) => setMunicipio(e.target.value)} data-testid="est-municipio">
+            <optgroup label="Região Metropolitana de Fortaleza">
+              {MUNICIPIOS.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.nome}
+                </option>
+              ))}
+            </optgroup>
+            <option value={OUTRO_MUNICIPIO}>{NOME_OUTRO}</option>
+          </select>
+        </label>
         <div className="linha-campos">
           <label className="campo">
             <span>Início da obra</span>
@@ -146,7 +182,8 @@ export function ModalEstimativa({ aberto, aoFechar }: { aberto: boolean; aoFecha
                 <th>Pavimento</th>
                 <th className="n">Início</th>
                 <th className="n">Fim</th>
-                <th className="n">Dias</th>
+                <th className="n">Dias corridos</th>
+                <th className="n">Dias úteis</th>
               </tr>
             </thead>
             <tbody>
@@ -157,11 +194,34 @@ export function ModalEstimativa({ aberto, aoFechar }: { aberto: boolean; aoFecha
                   <td className="n">{formatarBR(previa.inicio + t.ini)}</td>
                   <td className="n">{formatarBR(previa.inicio + t.fim)}</td>
                   <td className="n">{t.fim - t.ini + 1}</td>
+                  <td className="n calc" tabIndex={0} data-tip={`${FORMULA_DIAS_UTEIS}\n${formatarBR(previa.inicio + t.ini)} a ${formatarBR(previa.inicio + t.fim)}: ${t.fim - t.ini + 1} corridos → ${uteis(previa.inicio + t.ini, previa.inicio + t.fim)} úteis`}>
+                    {uteis(previa.inicio + t.ini, previa.inicio + t.fim)}
+                  </td>
                 </tr>
               ))}
             </tbody>
+            {fimObra !== null && (
+              <tfoot>
+                <tr data-testid="est-total">
+                  <th colSpan={2}>Obra inteira</th>
+                  <td className="n">{formatarBR(previa.inicio)}</td>
+                  <td className="n">{formatarBR(fimObra)}</td>
+                  <td className="n">{fimObra - previa.inicio + 1}</td>
+                  <td className="n calc" tabIndex={0} data-testid="est-uteis" data-tip={`${FORMULA_DIAS_UTEIS}\n${fimObra - previa.inicio + 1} corridos → ${uteis(previa.inicio, fimObra)} úteis`}>
+                    {uteis(previa.inicio, fimObra)}
+                  </td>
+                </tr>
+              </tfoot>
+            )}
           </table>
         </div>
+      )}
+
+      {previa && (
+        <p className="relacao calc" tabIndex={0} data-testid="est-feriados" data-tip={listaFeriados || "Nenhum feriado cai em dia de semana neste período."}>
+          {emDiaDeSemana.length} {emDiaDeSemana.length === 1 ? "feriado" : "feriados"} em dia de semana no período · calendário de {nomeMunicipio(municipio)} · dia útil: segunda a sexta
+          {foraDaBase && ` · depois de ${ANO_FINAL} só fins de semana são descontados`}
+        </p>
       )}
 
       {confirmar && (

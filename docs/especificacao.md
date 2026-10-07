@@ -67,7 +67,8 @@ interface Tarefa {
 - `[INC-3]` Importar XLSX (§12).
 - `[INC-3]` Criar e editar tarefas manualmente (§12).
 - `[INC-6]` Gerar cronograma estimado, sempre identificado como estimativa (§13; ADR-18), com tarefas por pavimento (ADR-19).
-- `[FUTURO]` Predecessoras, dias úteis, MS Project XML, `IfcWorkSchedule`/`IfcTask`.
+- `[INC-8]` Dias úteis na estimativa, ao lado dos dias corridos, pelo calendário oficial do Ceará e do município da obra (Região Metropolitana de Fortaleza), com os feriados de 2026 a 2030 no banco local (ADR-22).
+- `[FUTURO]` Predecessoras, agendamento em dias úteis, MS Project XML, `IfcWorkSchedule`/`IfcTask`.
 
 ### Mapeamento 4D
 - `[INC-1]` Regras automáticas por classe, `PredefinedType` e pavimento, já aplicadas ao carregar (ADR-02; antes era §42, "posteriormente").

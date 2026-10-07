@@ -67,6 +67,8 @@ export interface Cronograma {
   tarefas: Tarefa[];
   /** Gerado pelo estimador automático (§13, ADR-18): não é cronograma executivo. */
   estimado?: boolean;
+  /** Município da obra (ADR-22): define os feriados da contagem de dias úteis. */
+  municipio?: string;
 }
 
 export type AcaoTarefa = "construct" | "finish" | "install" | "temporary" | "remove";

@@ -6,6 +6,7 @@ import { ModalTarefa } from "../components/ModalTarefa";
 import { ModalFoto } from "../components/ModalFoto";
 import { ModalModelos } from "../components/ModalModelos";
 import { ModalEstimativa } from "../components/ModalEstimativa";
+import { carregarFeriados } from "../storage/IndexedDb";
 import { PainelLateral } from "../components/PainelLateral";
 import { SeletorArquivo } from "../components/SeletorArquivo";
 import { TelaInicial } from "../components/TelaInicial";
@@ -57,6 +58,11 @@ export function App() {
   useEffect(() => {
     document.documentElement.dataset.tema = tema;
   }, [tema]);
+
+  // feriados de 2026 a 2030 no banco local (ADR-22); sem banco, a estimativa usa a base em memória
+  useEffect(() => {
+    carregarFeriados().catch(() => undefined);
+  }, []);
 
   const salvo = projetoId ? (salvoEm ? `salvo às ${new Date(salvoEm).toLocaleTimeString("pt-BR", { timeStyle: "short" })}` : "salvando…") : "não salvo";
   const situacao = !temModelo ? "Modelo IFC + cronograma = obra no tempo" : `${nomeProjeto ?? "Projeto"} · ${nElementos} elementos · ${salvo}`;

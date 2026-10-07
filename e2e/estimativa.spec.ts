@@ -34,11 +34,37 @@ test("sobrado paramétrico: estimativa por pavimento", async ({ page }) => {
   await page.getByTestId("est-inicio").fill("2026-02-02");
   await expect(page.getByTestId("est-previa")).toContainText("Alvenaria, térreo");
   await expect(page.getByTestId("est-previa")).toContainText("Alvenaria, pavimento superior");
+
+  // dias úteis pelo calendário do município (ADR-22); as datas seguem em dias corridos
+  await expect(page.getByTestId("est-municipio")).toHaveValue("fortaleza");
+  await expect(page.getByTestId("est-previa").locator("thead")).toContainText("Dias corridos");
+  await expect(page.getByTestId("est-previa").locator("thead")).toContainText("Dias úteis");
+  await expect(page.getByTestId("est-total")).toContainText(String(sugerido));
+  await expect(page.getByTestId("est-feriados")).toContainText("calendário de Fortaleza");
+  const uteisFortaleza = Number(await page.getByTestId("est-uteis").textContent());
+  expect(uteisFortaleza).toBeLessThan(sugerido * (5 / 7));
+  await page.getByTestId("est-municipio").selectOption("outro-ce"); // sem São José, Corpus Christi e 15/8
+  await expect(page.getByTestId("est-uteis")).not.toHaveText(String(uteisFortaleza));
+  expect(Number(await page.getByTestId("est-uteis").textContent())).toBeGreaterThan(uteisFortaleza);
+  await page.getByTestId("est-municipio").selectOption("caucaia");
+  const banco = await page.evaluate(
+    () =>
+      new Promise<number>((ok, erro) => {
+        const r = indexedDB.open("c4d");
+        r.onerror = () => erro(r.error);
+        r.onsuccess = () => {
+          const q = r.result.transaction("feriados").objectStore("feriados").count();
+          q.onsuccess = () => ok(q.result);
+        };
+      }),
+  );
+  expect(banco).toBe(276); // 2026 a 2030: 13 nacionais, estaduais e de Carnaval + 42 municipais por ano, e o tricentenário de 2026
   await page.screenshot({ path: "e2e/resultados/14-estimativa.png" });
   await page.getByTestId("est-gerar").click();
   await expect(page.getByTestId("modal-estimativa")).not.toBeVisible();
   await expect(page.getByTestId("selo-estimativa")).toBeVisible();
   await expect(page.locator(".gantt .linha")).toHaveCount(18); // 12 etapas + 3 por pavimento
+  expect(await page.evaluate(() => (window as unknown as { __projeto: { getState(): { cronograma: { municipio?: string } } } }).__projeto.getState().cronograma.municipio)).toBe("caucaia");
 
   // no meio da alvenaria do térreo, nenhuma parede de cima
   const meio = await page.evaluate(() => {

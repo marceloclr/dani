@@ -18,6 +18,7 @@ export interface ParametrosEstimativa {
   estrutura: TipoEstrutura;
   inicio: number; // dia civil
   prazo: number; // dias corridos
+  municipio?: string; // id em fourd/feriados.ts; só entra na contagem de dias úteis
 }
 
 /** Prazo sugerido em dias: (60 + 0,9 × área) × 1,15 por pavimento adicional × fator da estrutura. */
@@ -92,7 +93,9 @@ export function estimarCronograma(p: ParametrosEstimativa): Cronograma {
     if (e.pavimento) t.pavimento = e.pavimento;
     return t;
   });
-  return { inicio: p.inicio, tarefas, estimado: true };
+  const c: Cronograma = { inicio: p.inicio, tarefas, estimado: true };
+  if (p.municipio) c.municipio = p.municipio;
+  return c;
 }
 
 /** Pavimentos do modelo que têm paredes, de baixo para cima (para o bloco estrutural). */

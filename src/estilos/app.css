@@ -260,6 +260,7 @@ button.link { appearance: none; border: 0; background: none; padding: 0; font: i
 .botoes.duas-colunas { display: grid; grid-template-columns: 1fr 1fr; margin-bottom: 8px; }
 .botoes.duas-colunas .btn { justify-content: center; }
 .previa-estimativa { max-height: 280px; overflow: auto; }
+.previa-estimativa tfoot th, .previa-estimativa tfoot td { position: sticky; bottom: 0; background: var(--carta-2); font-weight: 600; border-top: 1px solid var(--linha-forte, var(--linha)); }
 
 .aparencia3d { margin-left: auto; }
 .aparencia3d + .visao3d { margin-left: 6px; }

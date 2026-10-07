@@ -1,5 +1,6 @@
-// Persistência local (§37, ADR-06, ADR-11, ADR-14): banco "c4d" com projetos, modelos IFC e anexos (Blobs).
+// Persistência local (§37, ADR-06, ADR-11, ADR-14, ADR-22): banco "c4d" com projetos, modelos IFC, anexos (Blobs) e feriados.
 import { openDB, type DBSchema, type IDBPDatabase } from "idb";
+import { VERSAO_FERIADOS, baseDeFeriados, filtrarFeriados, type Feriado } from "../fourd/feriados";
 import type { RegistroProjeto } from "./projeto";
 
 interface Esquema extends DBSchema {
@@ -7,12 +8,16 @@ interface Esquema extends DBSchema {
   modelos: { key: string; value: { id: string; ifc: Blob } };
   /** chave: "<projeto>/foto/<id>" ou "<projeto>/planta" */
   anexos: { key: string; value: { chave: string; projetoId: string; blob: Blob }; indexes: { projetoId: string } };
+  /** chave: "<abrangência>|<dia>|<nome>"; abrangência "CE" ou o id do município */
+  feriados: { key: string; value: Feriado & { chave: string }; indexes: { abrangencia: string } };
+  /** versão da base de feriados gravada */
+  meta: { key: string; value: { chave: string; valor: number } };
 }
 
 let banco: Promise<IDBPDatabase<Esquema>> | null = null;
 
 function abrir() {
-  banco ??= openDB<Esquema>("c4d", 2, {
+  banco ??= openDB<Esquema>("c4d", 3, {
     upgrade(db, versaoAntiga) {
       if (versaoAntiga < 1) {
         const p = db.createObjectStore("projetos", { keyPath: "id" });
@@ -22,6 +27,10 @@ function abrir() {
       if (versaoAntiga < 2) {
         const a = db.createObjectStore("anexos", { keyPath: "chave" });
         a.createIndex("projetoId", "projetoId");
+      }
+      if (versaoAntiga < 3) {
+        db.createObjectStore("feriados", { keyPath: "chave" }).createIndex("abrangencia", "abrangencia");
+        db.createObjectStore("meta", { keyPath: "chave" });
       }
     },
   });
@@ -77,5 +86,32 @@ export async function pedirPersistencia(): Promise<boolean | null> {
     return (await navigator.storage.persisted()) || (await navigator.storage.persist());
   } catch {
     return null;
+  }
+}
+
+/** Grava no banco os feriados de 2026 a 2030 (ADR-22), só quando a versão da base mudou. */
+export async function carregarFeriados(): Promise<number> {
+  const db = await abrir();
+  if ((await db.get("meta", "feriados"))?.valor === VERSAO_FERIADOS) return db.count("feriados");
+  const base = baseDeFeriados();
+  const tx = db.transaction(["feriados", "meta"], "readwrite");
+  await tx.objectStore("feriados").clear();
+  for (const x of base) await tx.objectStore("feriados").put({ ...x, chave: `${x.abrangencia}|${x.dia}|${x.nome}` });
+  await tx.objectStore("meta").put({ chave: "feriados", valor: VERSAO_FERIADOS });
+  await tx.done;
+  return base.length;
+}
+
+/** Feriados do município no intervalo, lidos do banco; sem banco (aba privada, Node), da base em memória. */
+export async function feriadosDoMunicipio(municipio: string, ini: number, fim: number): Promise<Feriado[]> {
+  try {
+    await carregarFeriados();
+    const db = await abrir();
+    const lidos = [...(await db.getAllFromIndex("feriados", "abrangencia", "CE")), ...(await db.getAllFromIndex("feriados", "abrangencia", municipio))];
+    return filtrarFeriados(lidos, municipio, ini, fim)
+      .map(({ chave: _, ...x }) => x)
+      .sort((a, b) => a.dia - b.dia);
+  } catch {
+    return filtrarFeriados(baseDeFeriados(), municipio, ini, fim);
   }
 }

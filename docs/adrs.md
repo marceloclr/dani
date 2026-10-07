@@ -313,3 +313,17 @@ Testes: lógica, parsing de CSV e de IFC no Vitest (Node). Exportação de víde
 - A aparência é gravada no projeto (`settings.json` do `.4dstudio`).
 - **Limite honesto:** é renderização em tempo real (rasterização), não fotografia. Para um quadro fotorrealista, com luz indireta e reflexos verdadeiros, seria preciso um traçador de caminhos (path tracer), mais lento; ele fica como possível passo seguinte.
 
+## ADR-22 — Dias úteis pelo calendário oficial do Ceará
+
+- A estimativa (ADR-18) mostra, para cada etapa e para a obra inteira, **dias corridos** e **dias úteis**. As datas das tarefas continuam em dias corridos (ADR-05); os dias úteis são só contagem.
+- **Dia útil:** segunda a sexta, fora os feriados que valem no município da obra:
+  - nacionais (Leis 662/1949, 6.802/1980, 9.093/1995 e 14.759/2023), com a Sexta-feira Santa calculada pela Páscoa;
+  - estadual: Data Magna do Ceará, 25 de março (Constituição do Ceará, art. 18, parágrafo único, EC 73/2011);
+  - segunda e terça de Carnaval: ponto facultativo federal, mas a obra para;
+  - municipais (Lei 9.093/1995): aniversário do município e até quatro religiosos. São José (19/3) **não** é feriado estadual; só conta onde a lei municipal o adota.
+- **Municípios:** os 19 da Região Metropolitana de Fortaleza. Os demais municípios do Ceará usam só nacionais, estaduais e Carnaval.
+- **Fontes dos municipais:** lei municipal quando encontrada (Fortaleza: Lei 8.796/2003), calendário 2026 do TRT-CE, Sintracondce e os agregadores iFeriados e feriados.inf.br. Quando as fontes divergem, entram todas as datas: os dias úteis ficam do lado seguro. Datas só de agregador ficam marcadas "a confirmar". Tabela completa em `docs/feriados.md`.
+- **Banco:** as regras ficam em `src/fourd/feriados.ts` (função pura, testada no Node). Ao abrir o app, a base de 2026 a 2030 (276 registros) é gravada no IndexedDB, no armazenamento `feriados`, versão 3 do banco `c4d`. Ela só é regravada quando `VERSAO_FERIADOS` muda. Sem IndexedDB (aba privada), a estimativa usa a mesma base em memória.
+- O município escolhido fica no cronograma (`municipio`, em `schedule.json`).
+- Depois de 2030, a contagem desconta só sábados e domingos, e a tela avisa. Para estender, acrescentar os anos e subir `VERSAO_FERIADOS`.
+

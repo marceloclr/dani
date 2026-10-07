@@ -126,7 +126,8 @@ Depois de gerar, o painel mostra a pré-visualização, o botão Baixar e:
 - O vídeo não tem áudio nem legendas; vídeos longos em 1080p ficam na memória até o download (≈ 10 MB por 15 s em VP9).
 - O projeto não é salvo: ao recarregar a página, o modelo, o cronograma e as exceções se perdem (IndexedDB no incremento 3).
 - XLSX e edição de tarefas na tela ainda não existem; edite o CSV e carregue de novo.
-- Calendário corrido (sem dias úteis nem feriados) e sem predecessoras.
+- As datas das tarefas são em dias corridos; os dias úteis aparecem na estimativa (segunda a sexta, fora feriados do Ceará e do município, de 2026 a 2030), mas não reprogramam as tarefas. Sem predecessoras.
+- Feriados municipais só para os 19 municípios da Região Metropolitana de Fortaleza; parte deles vem de agregadores e está marcada "a confirmar" (docs/feriados.md).
 - Modelos grandes (milhares de elementos) funcionam, mas sem LOD nem instancing (ADR-01).
 
 ## Navegadores
