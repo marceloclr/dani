@@ -33,6 +33,8 @@ export interface ConfigVideo {
   camera?: "roteiro" | "drone";
   /** Nome e slogan da marca no canto do vídeo (padrão: ligado). */
   assinatura?: boolean;
+  /** Vinheta de abertura e encerramento com a marca (padrão: ligada, ADR-24). */
+  vinheta?: boolean;
   /** Luz da cena no realista (ADR-24): dia (padrão), entardecer ou noite. Vale para a viewport também. */
   luz?: Luz;
   /** Qualidade do vídeo (ADR-24): máxima renderiza a 1,5× e reduz (mais lento). */

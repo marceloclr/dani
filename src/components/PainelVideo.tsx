@@ -3,7 +3,7 @@ import { camadasPara, obterCena } from "../app/estadoCena";
 import { duracaoObra } from "../fourd/simulacao";
 import { PRESETS, diaDoQuadro, poseNoTempo, roteiroPadrao, totalDeQuadros, type PontoRoteiro, type Preset } from "../rendering/cameras";
 import { FRACAO_CONSTRUCAO, diaDoVoo } from "../rendering/drone";
-import { NOME_MARCA, SLOGAN } from "../app/marca";
+import { CLIENTE, NOME_MARCA, SLOGAN } from "../app/marca";
 import { Cancelado, DESCRICAO_SAIDA, NOME_SAIDA, capacidades, dimensoesDaSaida, dispositivoLimitado, estimarZipMB, gerarVideo, type ArquivoGerado, type Capacidades, type Saida } from "../rendering/VideoRenderer";
 import { RESOLUCOES, useProjeto, type ConfigVideo, type FormatoVideo } from "../state/projectStore";
 import { baixar } from "../utils/baixar";
@@ -116,7 +116,8 @@ export function PainelVideo() {
         nomeBase: `obra-4d-${video.formato}-${video.segundos}s`,
         aplicarDia: (d) => cena.aplicar(camadasPara(st(), cena, d, true)),
         maxima: video.qualidade === "maxima" && st().aparencia3d === "realista",
-        ...(video.assinatura !== false ? { assinatura: { nome: NOME_MARCA, slogan: SLOGAN } } : {}),
+        ...(video.assinatura !== false ? { assinatura: { nome: CLIENTE.nome, slogan: CLIENTE.slogan, secundario: SLOGAN } } : {}),
+        ...(video.vinheta !== false && video.segundos >= 6 ? { vinheta: { nome: CLIENTE.nome, slogan: CLIENTE.slogan, secundario: `${NOME_MARCA} · ${SLOGAN}` } } : {}),
         poseNoTempo: (t) => poseNoTempo(r, e, t, video.segundos),
         ...(voo
           ? {
@@ -296,9 +297,13 @@ export function PainelVideo() {
         </div>
         {!realista && <p className="tenue pequeno">Luz e qualidade valem na aparência Realista.</p>}
 
-        <label className="marcar" data-tip={`Faixa discreta no canto inferior esquerdo:\n${NOME_MARCA}\n${SLOGAN}`}>
+        <label className="marcar" data-tip={`Faixa grafite e dourada no canto inferior esquerdo, com o monograma:\n${CLIENTE.nome.toUpperCase()}\n${CLIENTE.slogan.toUpperCase()}\n${SLOGAN}`}>
           <input type="checkbox" checked={video.assinatura !== false} onChange={(e) => st().definirVideo({ assinatura: e.target.checked })} data-testid="video-assinatura" />
           Assinatura da marca no vídeo
+        </label>
+        <label className="marcar" data-tip={"Tela de ardósia com o monograma, o nome e o slogan: cheia no primeiro 1,2 s, some até 2 s; volta nos 2 s finais.\nOcupa o próprio tempo do vídeo (a duração não muda)."}>
+          <input type="checkbox" checked={video.vinheta !== false} onChange={(e) => st().definirVideo({ vinheta: e.target.checked })} data-testid="video-vinheta" />
+          Vinheta de abertura e encerramento
         </label>
 
         <h4>Saída</h4>

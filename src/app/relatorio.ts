@@ -1,6 +1,6 @@
 // Relatório PDF da obra numa data (§59, ADR-15): imagem, avanço, etapas, desvios e fotos.
 import { blobDaFoto } from "./anexos";
-import { SLOGAN } from "./marca";
+import { CLIENTE, SLOGAN } from "./marca";
 import { camadasPara } from "./estadoCena";
 import { avancoPlanejado, avancoReal, desviosDasTarefas, temDadosReais } from "../fourd/real";
 import { duracaoObra } from "../fourd/simulacao";
@@ -163,7 +163,8 @@ export async function gerarRelatorio(cena: Cena): Promise<Blob> {
     doc.setFont("helvetica", "normal");
     doc.setFontSize(7.5);
     doc.setTextColor(115, 122, 131);
-    doc.text(`Construction 4D Studio · ${SLOGAN} · gerado em ${agora} · página ${p} de ${n}`, M, 297 - 9);
+    doc.text(`${CLIENTE.empresa} · ${CLIENTE.slogan} · Construction 4D Studio`, M, 297 - 12.5);
+    doc.text(`${SLOGAN} · gerado em ${agora} · página ${p} de ${n}`, M, 297 - 9);
     if (avisos) doc.text(avisos, M, 297 - 5.5);
   }
   return doc.output("blob");

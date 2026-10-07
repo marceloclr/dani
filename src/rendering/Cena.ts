@@ -33,6 +33,8 @@ const TOM_FOTO: Partial<Record<Foto, [number, number, number]>> = {
   "telha-metalica": [160, 166, 172],
   porcelanato: [222, 214, 198],
 };
+/** Tinta branca do realista: um tom abaixo do branco puro, para o relevo do reboco aparecer ao sol. */
+const TINTA_BRANCA = new THREE.Color(0.87, 0.85, 0.81);
 const COR_FANTASMA = new THREE.Color("#8d949d");
 const COR_ATRASADO = new THREE.Color("#b54a4a"); // carmim
 const COR_ADIANTADO = new THREE.Color("#4f7aa8"); // ardósia
@@ -591,7 +593,7 @@ export class Cena {
       return new THREE.MeshPhysicalMaterial({ ...comuns, color: cor ?? new THREE.Color(0.8, 0.88, 0.9), roughness: 0.04, metalness: 0, ior: 1.5, specularIntensity: 1, envMapIntensity: 1.6 });
     }
     if (foto && tipo === "pintura") {
-      const mapa = this.textura("pintura", cor ?? new THREE.Color(0.95, 0.94, 0.91));
+      const mapa = this.textura("pintura", cor ?? TINTA_BRANCA);
       const m = new THREE.MeshStandardMaterial({ ...comuns, map: mapa, normalMap: foto.normalMap, roughnessMap: foto.roughnessMap, roughness: 1, metalness: 0 });
       m.normalScale.set(0.35, 0.35);
       return m;
@@ -609,7 +611,7 @@ export class Cena {
       m.normalScale.set(0.9, 0.9);
       return tipo === "reboco" || tipo === "concreto" || tipo === "terra" || tipo === "grama" ? semRepeticao(m) : m;
     }
-    const mapa = this.textura(tipo, tipo === "liso" || tipo === "pintura" ? (cor ?? new THREE.Color(0.95, 0.94, 0.91)) : null);
+    const mapa = this.textura(tipo, tipo === "liso" || tipo === "pintura" ? (cor ?? TINTA_BRANCA) : null);
     return new THREE.MeshStandardMaterial({ ...comuns, map: mapa, roughness: rugosidade, metalness: metalico, bumpMap: relevo > 0 ? mapa : null, bumpScale: relevo });
   }
 
