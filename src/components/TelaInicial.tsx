@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { abrirDemonstracao, demonstracaoDisponivel } from "../app/carregamento";
-import { CLIENTE, SLOGAN } from "../app/marca";
-import { Monograma } from "./Monograma";
+import { SLOGAN } from "../app/marca";
 import { useProjeto } from "../state/projectStore";
 import { useUi } from "../state/uiStore";
 import { SeletorArquivo } from "./SeletorArquivo";
@@ -23,14 +22,6 @@ export function TelaInicial() {
   return (
     <div className="inicial">
       <div className="inicial-in">
-        <div className="marca-cliente" data-testid="marca-cliente">
-          <Monograma tamanho={44} titulo={`Monograma ${CLIENTE.empresa}`} />
-          <div>
-            <strong>{CLIENTE.nome.toLocaleUpperCase("pt-BR")}</strong>
-            <span>{CLIENTE.slogan.toLocaleUpperCase("pt-BR")}</span>
-          </div>
-        </div>
-        <p className="kicker">Simulação 4D de obras residenciais</p>
         <h1>Construction 4D Studio</h1>
         <p className="slogan-inicial" data-testid="slogan-inicial">{SLOGAN}</p>
         <p className="lede">Carregue o modelo IFC e o cronograma da obra para ver a casa sendo construída dia a dia. Tudo é processado e salvo neste navegador.</p>

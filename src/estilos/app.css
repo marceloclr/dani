@@ -44,11 +44,6 @@ html, body, #raiz { height: 100%; }
 .inicial-in { max-width: 980px; margin: 0 auto; }
 .inicial h1 { font-size: clamp(26px, 4.5vw, 38px); line-height: 1.15; }
 .kicker { color: var(--tinta-3); font-size: 13px; margin: 0 0 6px; }
-/* marca da cliente (ADR-24): monograma no dourado da marca; textos nos tokens, para o contraste */
-.marca-cliente { display: flex; align-items: center; gap: 12px; margin-bottom: 18px; }
-.marca-cliente .monograma { color: #b88848; flex: none; }
-.marca-cliente strong { display: block; font: 600 15px var(--fonte-corpo); letter-spacing: 0.16em; color: var(--tinta); }
-.marca-cliente span { display: block; font: 500 11px var(--fonte-corpo); letter-spacing: 0.24em; color: var(--latao); margin-top: 2px; }
 .slogan-inicial { font-family: var(--fonte-titulo); font-style: italic; color: var(--latao); font-size: 16px; margin: 4px 0 0; }
 .lede { font-family: var(--fonte-titulo); font-size: 17px; line-height: 1.55; color: var(--tinta-2); max-width: 60ch; margin: 10px 0 22px; }
 .passos { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
