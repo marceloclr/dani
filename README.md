@@ -28,6 +28,8 @@ npm run tudo                      # os três em sequência
 
 ## Publicar
 
+**No ar:** https://marceloclr.github.io/dani/ (publicado a cada push na `main` por `.github/workflows/pages.yml`, que roda os testes e o build).
+
 O build é estático. Para um subcaminho, como o GitHub Pages em `https://<usuário>.github.io/dani/`:
 
 ```bash
