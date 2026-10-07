@@ -12,7 +12,7 @@ Versões e licenças conferidas no registro npm em 2026-10-07.
 | 05 | Datas como índice de dia inteiro | Aceita |
 | 06 | Persistência em IndexedDB | Aceita (incremento 3) |
 | 07 | Ativos WASM servidos localmente | Aceita |
-| 08 | IFC de demonstração | **Pendente** |
+| 08 | IFC de demonstração próprio, gerado por script | Aceita |
 | 09 | Versões fixas e licenças | Aceita |
 
 ---
@@ -68,7 +68,14 @@ Regras-padrão, que o usuário pode editar:
 | Laje | `IfcSlab` com `PredefinedType = FLOOR` |
 | Cobertura | `IfcSlab` com `PredefinedType = ROOF`, partes de `IfcRoof`, `IfcCovering` com `ROOFING` |
 | Esquadrias | `IfcDoor`, `IfcWindow` (install) |
-| Revestimento / Pintura | `IfcWall` (finish), troca de aparência, sem mudar a visibilidade |
+| Instalações | `IfcPipeSegment`, `IfcTank`, `IfcElectricDistributionBoard` (install) |
+| Reboco / Pintura | `IfcWall` (finish), troca de aparência, sem mudar a visibilidade |
+| Revestimento de pisos | `IfcCovering` com `PredefinedType = FLOORING` (finish) |
+| Louças e metais | `IfcSanitaryTerminal` (install) |
+| Terreno | `IfcGeographicElement` com `PredefinedType = TERRAIN` |
+| Paisagismo | `IfcGeographicElement` com `ObjectType = PAISAGISMO` |
+
+As regras se ligam à tarefa pelo campo `categoria` do cronograma (`terreno`, `fundacao`, `estrutura`, `alvenaria`, `laje`, `cobertura`, `instalacoes`, `reboco`, `esquadrias`, `revestimento`, `pintura`, `loucas`, `paisagismo`). Categorias sem regra (como `limpeza` e `entrega`) geram o aviso de tarefa sem elementos (§41), o que é esperado.
 
 `IfcRoof` costuma ser só um agregado das lajes ROOF; a regra deve descer até as partes.
 
@@ -122,17 +129,20 @@ IndexedDB via `idb` (ISC). O IFC original fica guardado como Blob, com `navigato
 
 Os `.wasm` do web-ifc são copiados para `public/wasm/` no build e carregados com `import.meta.env.BASE_URL`, o que funciona no subcaminho do GitHub Pages. Nada vem de CDN em tempo de execução (§43, §46).
 
-## ADR-08 — IFC de demonstração (pendente)
+## ADR-08 — IFC de demonstração
 
-O §55 exige uma demo de casa térrea, mas o modo paramétrico só chega na fase 13. Opções:
+**Contexto.** O §55 exige uma demo de casa térrea, mas o modo paramétrico só chega na fase 13. A residência de teste clássica, AC20-FZK-Haus (KIT), não declara licença (o repositório buildingSMART/Sample-Test-Files responde `NOASSERTION`) e tem dois pavimentos.
 
-| Opção | Prós | Contras |
-|-------|------|---------|
-| **A. IFC próprio gerado por script (IfcOpenShell, só no desenvolvimento)** — recomendada | Licença nossa; casa térrea controlada, com `PredefinedType` corretos e 15 etapas casando com as regras | Exige escrever o script gerador |
-| B. AC20-FZK-Haus (KIT) | Residência de teste clássica, usada pelo próprio web-ifc | Licença não declarada (o repositório buildingSMART/Sample-Test-Files responde `NOASSERTION`); é casa de dois pavimentos |
-| C. Adiantar um gerador paramétrico mínimo | Já serve de base para o §27 | Não testa o caminho IFC, que é o fluxo obrigatório |
+**Decisão.** IFC próprio, gerado por `tools/gerar_demo_ifc.py` com IfcOpenShell 0.9.0 (LGPL, usado só no desenvolvimento; o app não depende dele). A casa se inspira na "Residência simétrica do nascente" do repositório **plantas**:
 
-Uma casa do repositório **plantas** (por exemplo, `casa-simetrica`) pode servir de base para a opção A.
+- térrea, 10,00 × 18,00 m, num lote de 13,30 × 30,00 m (recuos laterais de 1,65 m);
+- duas suítes com banho na frente, vestíbulo no eixo, **sala de 60 m² com pé-direito duplo** (5,40 m livres, platibanda a 6,00 m), cozinha, WC e serviço no fundo;
+- IFC4, unidades em metro, GUIDs determinísticos (o arquivo sai idêntico a cada execução);
+- 146 elementos com geometria: 35 `IfcFooting` (PAD e STRIP), 19 `IfcColumn`, 18 `IfcBeam`, 16 `IfcWall` com 23 vãos, 9 `IfcDoor`, 13 `IfcWindow`, `IfcSlab` BASESLAB, FLOOR (2) e ROOF (3, agregados num `IfcRoof`), 9 `IfcCovering` FLOORING, 8 `IfcSanitaryTerminal`, instalações (`IfcTank`, `IfcPipeSegment`, `IfcElectricDistributionBoard`), terreno escavado (`IfcGeographicElement` TERRAIN) e paisagismo (`IfcGeographicElement` USERDEFINED, `ObjectType = PAISAGISMO`).
+
+O cronograma `public/samples/demo-cronograma.csv` tem 15 etapas e 180 dias (05/01 a 03/07/2026). Conferido em 2026-10-07: validação de esquema sem erros no IfcOpenShell; web-ifc 0.0.78 no Node gera as 146 malhas; as regras do ADR-02 vinculam os 146 elementos. `tools/previa_demo.py` desenha a simulação em seis datas (`docs/demo-etapas.png`).
+
+![Prévia da simulação](demo-etapas.png)
 
 ## ADR-09 — Versões e licenças
 

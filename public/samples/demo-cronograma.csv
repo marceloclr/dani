@@ -1,0 +1,16 @@
+id,nome,inicio,fim,categoria
+PRE-01,Serviços preliminares e locação,2026-01-05,2026-01-14,terreno
+FUN-01,Fundação (sapatas e baldrames),2026-01-15,2026-02-03,fundacao
+EST-01,Estrutura (pilares e vigas),2026-02-04,2026-02-28,estrutura
+ALV-01,Alvenaria,2026-03-01,2026-03-30,alvenaria
+LAJ-01,Laje de forro,2026-03-31,2026-04-14,laje
+COB-01,Cobertura,2026-04-15,2026-05-04,cobertura
+INS-01,Instalações hidráulicas e elétricas,2026-04-20,2026-05-14,instalacoes
+REB-01,Chapisco e reboco,2026-05-05,2026-05-24,reboco
+ESQ-01,Esquadrias,2026-05-25,2026-06-08,esquadrias
+PIS-01,Revestimento de pisos,2026-05-25,2026-06-13,revestimento
+PIN-01,Pintura,2026-06-09,2026-06-23,pintura
+LOU-01,Louças e metais,2026-06-14,2026-06-23,loucas
+PAI-01,Paisagismo,2026-06-15,2026-06-27,paisagismo
+LIM-01,Limpeza final,2026-06-24,2026-06-28,limpeza
+ENT-01,Vistoria e entrega,2026-06-29,2026-07-03,entrega

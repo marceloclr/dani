@@ -10,6 +10,8 @@ Este repositório ainda **não tem código**: guarda o prompt original, a avalia
 | [docs/avaliacao.md](docs/avaliacao.md) | Avaliação do prompt: entendimento, méritos, críticas e sugestões |
 | [docs/especificacao.md](docs/especificacao.md) | Especificação enxuta, cada requisito etiquetado por incremento |
 | [docs/adrs.md](docs/adrs.md) | Decisões técnicas fixadas, com versões e licenças conferidas em 2026-10-07 |
+| [public/samples/](public/samples/) | Casa de demonstração (`demo.ifc`) e cronograma de 180 dias |
+| [tools/](tools/) | Gerador do IFC de demonstração e prévia estática da simulação |
 | [prompts/incremento-1.md](prompts/incremento-1.md) | Prompt fechado para o 1º incremento: IFC → 3D → cronograma → mapeamento → simulação 4D |
 
 ## Incrementos
@@ -20,6 +22,17 @@ Este repositório ainda **não tem código**: guarda o prompt original, a avalia
 
 ## Pendências antes de implementar
 
-- Decidir a fonte do IFC de demonstração (ADR-08). A recomendação é gerar um IFC próprio de casa térrea.
 - Trazer o `design-system.md` para este repositório, para a especificação poder referenciá-lo.
 - Escrever os prompts dos incrementos 2 e 3 depois que o 1 for aceito.
+
+## Casa de demonstração
+
+Casa térrea de 10 × 18 m com sala de pé-direito duplo, gerada por script (ADR-08). Para regenerar:
+
+```bash
+python -m venv .venv && .venv/bin/pip install ifcopenshell==0.9.0 matplotlib
+.venv/bin/python tools/gerar_demo_ifc.py   # public/samples/demo.ifc
+.venv/bin/python tools/previa_demo.py      # docs/demo-etapas.png
+```
+
+![Prévia da simulação](docs/demo-etapas.png)
