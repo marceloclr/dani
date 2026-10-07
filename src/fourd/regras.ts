@@ -28,10 +28,10 @@ export const REGRAS_PADRAO: Record<string, ModeloRegra[]> = {
       descricao: "Tubos, caixa d'água e quadros (IfcPipeSegment, IfcTank, IfcElectricDistributionBoard…)",
     },
   ],
-  reboco: [{ acao: "finish", onde: { ifcType: ["IfcWall", "IfcWallStandardCase"] }, descricao: "Acabamento das paredes (IfcWall)" }],
+  reboco: [{ acao: "finish", onde: { ifcType: ["IfcWall", "IfcWallStandardCase", "IfcColumn", "IfcBeam"] }, descricao: "Reboco das paredes, pilares e vigas (IfcWall, IfcColumn, IfcBeam)" }],
   esquadrias: [{ acao: "install", onde: { ifcType: ["IfcDoor", "IfcWindow"] }, descricao: "Portas e janelas (IfcDoor, IfcWindow)" }],
   revestimento: [{ acao: "construct", onde: { ifcType: ["IfcCovering"], predefinedType: ["FLOORING"] }, descricao: "Pisos (IfcCovering FLOORING)" }],
-  pintura: [{ acao: "finish", onde: { ifcType: ["IfcWall", "IfcWallStandardCase"] }, descricao: "Pintura das paredes (IfcWall)" }],
+  pintura: [{ acao: "finish", onde: { ifcType: ["IfcWall", "IfcWallStandardCase", "IfcColumn", "IfcBeam"] }, descricao: "Pintura das paredes, pilares e vigas (IfcWall, IfcColumn, IfcBeam)" }],
   loucas: [{ acao: "install", onde: { ifcType: ["IfcSanitaryTerminal"] }, descricao: "Louças e metais (IfcSanitaryTerminal)" }],
   paisagismo: [{ acao: "construct", onde: { ifcType: ["IfcGeographicElement"], objectType: ["PAISAGISMO"] }, descricao: "Paisagismo (IfcGeographicElement PAISAGISMO)" }],
 };

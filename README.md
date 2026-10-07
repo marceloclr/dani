@@ -8,7 +8,8 @@ Aplicação web estática que transforma um modelo de residência (IFC) e o cron
 - projetos salvos no navegador, arquivo `.4dstudio`, cronograma em XLSX, edição de tarefas e modo paramétrico;
 - acompanhamento da obra: planejado × real, fotos na timeline e na simulação, planta sobreposta, relatório PDF e modelos de arquivo para download;
 - revelação progressiva da obra (padrão) e vídeo pronto para compartilhar: MP4 para WhatsApp, MP4 1080p, WebM, GIF e quadros PNG;
-- cronograma estimado automaticamente (§13) e tarefas por pavimento.
+- cronograma estimado automaticamente (§13) e tarefas por pavimento;
+- aparência realista (padrão) na tela, no vídeo e no relatório: texturas de tijolo, reboco, pintura, concreto, telha, madeira, porcelanato, vidro, terra e grama, sol com sombras, céu, reflexos e sombreamento nos cantos (GTAO).
 
 Ficam para depois (`[FUTURO]` na [especificação](docs/especificacao.md)): IA e multiusuário. PWA foi descartado.
 
@@ -49,7 +50,7 @@ e publique a pasta `dist/` (GitHub Pages, Cloudflare Pages, Netlify ou Vercel). 
 
 ## Como usar
 
-1. **Carregar IFC**, **Criar modelo paramétrico** (sem IFC: terreno, área, 1 ou 2 pavimentos, pé-direito e cobertura) ou **Abrir demonstração** (casa térrea com sala de pé-direito duplo e cronograma de 180 dias).
+1. **Carregar IFC**, **Criar modelo paramétrico** (sem IFC: terreno, área, 1 ou 2 pavimentos, pé-direito e cobertura), **Abrir demonstração** (casa térrea com sala de pé-direito duplo e cronograma de 180 dias) ou **Abrir sobrado de exemplo** (dois pavimentos, escada, telhado de duas águas e cronograma de 270 dias por pavimento).
 2. **Carregar cronograma** (CSV, XLSX ou JSON), **Criar cronograma** na tela ou **Gerar estimativa**. A estimativa sugere etapas e datas pela área, pelos pavimentos, pela estrutura e pelo prazo, e repete estrutura, alvenaria e laje por pavimento. Ela fica marcada com o selo ESTIMATIVA: não é cronograma executivo. Os elementos são ligados às tarefas automaticamente, pela coluna `categoria`. Tarefas podem ser incluídas, editadas e excluídas na aba Tarefas.
 3. Use a timeline: ▶ reproduz, o cursor pode ser arrastado e a data pode ser digitada.
 4. Para corrigir o mapeamento, clique num elemento (modo **Selecionar**) e use **Excluir** ou **Incluir** na aba Elemento.
@@ -60,7 +61,7 @@ e publique a pasta `dist/` (GitHub Pages, Cloudflare Pages, Netlify ou Vercel). 
 7. **Projetos**, no alto: o projeto é salvo sozinho neste navegador (a demonstração só com "Salvar cópia"). Dali se abre, duplica, exporta e importa `.4dstudio`, e se exportam o cronograma (JSON ou CSV para o Excel) e o mapeamento (JSON).
 8. Aba **Obra**: avanço planejado e real com fórmula, fotos da obra (com data do EXIF ou de um `fotos.csv`), planta sobreposta em PNG, JPG ou PDF, e o **relatório PDF** da data da simulação. Na viewport, alterne entre **Planejado**, **Real** e **Comparar**: no modo Comparar, o carmim marca o que está atrasado e a ardósia, o que está adiantado.
 
-Na cena, os elementos em execução aparecem em latão; os concluídos, com a cor do material; os que nenhuma tarefa faz surgir ficam translúcidos ("fantasma"). Paredes mudam de cor quando o reboco e a pintura terminam.
+A viewport tem duas aparências: **Realista** (padrão) e **Técnica**. Na Realista, os materiais têm textura e a cena tem sol, sombras e céu. Na Técnica, os elementos em execução aparecem em latão; os concluídos, com a cor do material; os que nenhuma tarefa faz surgir ficam translúcidos ("fantasma"). Paredes mudam de cor quando o reboco e a pintura terminam.
 
 ## Modelos de arquivo
 
@@ -72,7 +73,9 @@ Na tela inicial ("Baixar modelos preenchidos") ou em Projetos → Modelos de arq
 | [cronograma-modelo.csv](public/modelos/cronograma-modelo.csv) | O mesmo em CSV (`;`, `dd/mm/aaaa`, UTF-8 com BOM) |
 | [cronograma-modelo.json](public/modelos/cronograma-modelo.json) | O mesmo em JSON |
 | [fotos-modelo.csv](public/modelos/fotos-modelo.csv) | Dados das fotos: `arquivo;data;local;descricao;etapa` |
-| [casa-exemplo.ifc](public/modelos/casa-exemplo.ifc) | Modelo IFC da casa de exemplo |
+| [casa-exemplo.ifc](public/modelos/casa-exemplo.ifc) | Modelo IFC: casa térrea de 10 × 18 m com sala de pé-direito duplo |
+| [sobrado-exemplo.ifc](public/modelos/sobrado-exemplo.ifc) | Modelo IFC: sobrado de 8 × 12 m em dois pavimentos, com escada e telhado de duas águas |
+| [cronograma-sobrado.csv](public/modelos/cronograma-sobrado.csv) | Cronograma do sobrado, com tarefas por pavimento |
 | [exemplo.4dstudio](public/modelos/exemplo.4dstudio) | Projeto completo: casa, cronograma planejado e real até 20/04/2026 e quatro imagens da simulação no lugar de fotos |
 
 Os testes importam cada modelo, para eles nunca saírem do formato aceito.
@@ -116,6 +119,7 @@ Depois de gerar, o painel mostra a pré-visualização, o botão Baixar e:
 - O modo paramétrico tem uma planta-tipo fixa (dois cômodos na frente, sala e cozinha no fundo, escada na lateral) e não tem instalações nem louças; é para animar, não é projeto (ADR-12).
 - Simulação real: tarefa sem início real conta como não iniciada; com início e sem fim real, segue em execução indefinidamente (ADR-13).
 - O relatório PDF usa a fonte Helvetica do próprio PDF, não a IBM Plex (ADR-15).
+- A aparência realista é renderização em tempo real, não fotografia: sem luz indireta verdadeira; a geometria vem do IFC (árvores do exemplo são caixas). Um quadro fotorrealista exigiria um traçador de caminhos, mais lento (ADR-21).
 - A planta é só uma imagem de referência: não vira modelo BIM.
 - Fotos e plantas ocupam o armazenamento do navegador; em obras com muitas fotos, exporte o `.4dstudio` periodicamente.
 - Os projetos ficam no navegador em que foram criados; para levar a outro computador, exporte o `.4dstudio`.
@@ -143,6 +147,7 @@ Chrome, Edge ou Brave atualizados (testado no Chromium 153 do Playwright). Firef
 | [prompts/incremento-4.md](prompts/incremento-4.md) | Prompt do incremento 4 |
 | [prompts/incremento-5.md](prompts/incremento-5.md) | Prompt do incremento 5 |
 | [prompts/incremento-6.md](prompts/incremento-6.md) | Prompt do incremento 6 |
+| [prompts/incremento-7.md](prompts/incremento-7.md) | Prompt do incremento 7 |
 | [public/modelos/](public/modelos/) | Modelos de arquivo para download |
 | [public/samples/](public/samples/) | Casa de demonstração e cronograma |
 | [tools/](tools/) | Gerador do IFC de demonstração, prévia estática, modelos de arquivo e cópia dos ativos locais (wasm, fontes do pdf.js, codificador H.264) |
@@ -158,7 +163,7 @@ src/
 ├── fourd/        tempo, regras, simulacao (avaliar), animacao, real (planejado × real), estimativa, validacao
 ├── importers/    CSV, XLSX e JSON do cronograma, fotos (EXIF e fotos.csv), texto
 ├── storage/      IndexedDB (projetos, modelos e anexos) e arquivo .4dstudio
-├── rendering/    Cena (Three.js, seleção, camadas), cameras (presets e roteiro, puro), VideoRenderer
+├── rendering/    Cena (Three.js, seleção, camadas, aparência), cameras, aparencia e texturas (realista), VideoRenderer
 ├── components/   tela inicial, viewport, timeline, painel lateral, painel de vídeo, erros
 ├── state/        projectStore e uiStore (Zustand)
 ├── estilos/      tokens do design system e layout
@@ -169,12 +174,13 @@ e2e/              Playwright (aceitação dos incrementos 1 a 4) e gerador do ex
 
 `src/fourd/` não importa Three.js nem o DOM e roda no Node.
 
-## Casa de demonstração
+## Modelos IFC de exemplo
 
-Gerada por script (ADR-08). Para regenerar:
+Gerados por script (ADR-08). Para regenerar:
 
 ```bash
 python -m venv .venv && .venv/bin/pip install ifcopenshell==0.9.0 matplotlib
-.venv/bin/python tools/gerar_demo_ifc.py   # public/samples/demo.ifc
+.venv/bin/python tools/gerar_demo_ifc.py      # public/samples/demo.ifc (casa térrea)
+.venv/bin/python tools/gerar_sobrado_ifc.py   # public/modelos/sobrado-exemplo.ifc
 .venv/bin/python tools/previa_demo.py      # docs/demo-etapas.png
 ```

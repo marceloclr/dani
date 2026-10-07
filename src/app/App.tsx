@@ -18,14 +18,25 @@ import { iniciarGravacaoAutomatica } from "./projetos";
 
 type Tema = "claro" | "escuro";
 
+/** Chave gravada só quando o usuário escolhe o tema no botão (a antiga, "c4d-tema", guardava a preferência do sistema). */
+const CHAVE_TEMA = "c4d-tema-escolhido";
+
+/** Claro por padrão, qualquer que seja a preferência do sistema; o escuro vale só se o usuário o escolheu. */
 function temaInicial(): Tema {
   try {
-    const salvo = localStorage.getItem("c4d-tema");
-    if (salvo === "claro" || salvo === "escuro") return salvo;
+    if (localStorage.getItem(CHAVE_TEMA) === "escuro") return "escuro";
   } catch {
     /* armazenamento indisponível */
   }
-  return window.matchMedia("(prefers-color-scheme: dark)").matches ? "escuro" : "claro";
+  return "claro";
+}
+
+function escolherTema(t: Tema): void {
+  try {
+    localStorage.setItem(CHAVE_TEMA, t);
+  } catch {
+    /* armazenamento indisponível */
+  }
 }
 
 export function App() {
@@ -45,11 +56,6 @@ export function App() {
 
   useEffect(() => {
     document.documentElement.dataset.tema = tema;
-    try {
-      localStorage.setItem("c4d-tema", tema);
-    } catch {
-      /* armazenamento indisponível */
-    }
   }, [tema]);
 
   const salvo = projetoId ? (salvoEm ? `salvo às ${new Date(salvoEm).toLocaleTimeString("pt-BR", { timeStyle: "short" })}` : "salvando…") : "não salvo";
@@ -95,7 +101,12 @@ export function App() {
                 <SeletorArquivo aceitar={ACEITA_CRONO} rotulo="Cronograma" dica={DICA_CRONO} aoEscolher={abrirCronograma} />
               </>
             )}
-            <button type="button" className="btn" aria-label={`Mudar para tema ${tema === "claro" ? "escuro" : "claro"}`} data-tip="Alterna entre os temas claro e escuro." onClick={() => setTema(tema === "claro" ? "escuro" : "claro")}>
+            <button type="button" className="btn" aria-label={`Mudar para tema ${tema === "claro" ? "escuro" : "claro"}`} data-tip="Alterna entre os temas claro e escuro." onClick={() => {
+                const novo = tema === "claro" ? "escuro" : "claro";
+                escolherTema(novo);
+                setTema(novo);
+              }}
+            >
               {tema === "claro" ? "☾" : "☀"}
             </button>
           </div>

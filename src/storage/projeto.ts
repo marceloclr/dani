@@ -2,6 +2,7 @@
 import { strFromU8, strToU8, unzipSync, zipSync } from "fflate";
 import type { ParametrosCasa } from "../bim/parametrico";
 import type { ConfigVideo } from "../state/projectStore";
+import type { Aparencia3D } from "../rendering/aparencia";
 import type { Cronograma, Excecao, FotoObra, ModoAnimacao, PlantaSobreposta, PoliticaSemTarefa } from "../types";
 
 export const VERSAO_FORMATO = 2;
@@ -22,6 +23,8 @@ export interface RegistroProjeto {
   /** Anexos (ADR-14): só os dados; os arquivos vão à parte. */
   fotos?: FotoObra[];
   planta?: PlantaSobreposta | null;
+  /** Aparência da cena (ADR-21); ausente em projetos antigos = realista. */
+  aparencia3d?: Aparencia3D;
 }
 
 /** Arquivos dos anexos: fotos por id e a imagem da planta. */
@@ -52,7 +55,7 @@ export function exportar4dstudio(r: RegistroProjeto, ifc: Uint8Array | null, ane
     }),
     "schedule.json": json({ arquivo: r.arquivoCronograma, cronograma: r.cronograma }),
     "mappings.json": json({ excecoes: r.excecoes, politica: r.politica }),
-    "settings.json": json({ modoAnimacao: r.modoAnimacao, video: r.video }),
+    "settings.json": json({ modoAnimacao: r.modoAnimacao, video: r.video, aparencia3d: r.aparencia3d ?? "realista" }),
     "attachments.json": json({ fotos: (r.fotos ?? []).map((f) => ({ ...f, caminho: caminhoFoto(f) })), planta: r.planta ?? null }),
   };
   for (const f of r.fotos ?? []) {
@@ -90,7 +93,7 @@ export function importar4dstudio(bytes: Uint8Array): { registro: Omit<RegistroPr
   if ((proj.versao ?? 0) > VERSAO_FORMATO) throw new ErroProjeto("Este projeto foi salvo por uma versão mais nova do Construction 4D Studio.", `Versão ${proj.versao}.`);
   const sch = lerJson<{ arquivo?: string | null; cronograma?: Cronograma | null }>(arquivos, "schedule.json");
   const map = lerJson<{ excecoes?: Excecao[]; politica?: PoliticaSemTarefa }>(arquivos, "mappings.json");
-  const set = lerJson<{ modoAnimacao?: ModoAnimacao; video?: ConfigVideo }>(arquivos, "settings.json");
+  const set = lerJson<{ modoAnimacao?: ModoAnimacao; video?: ConfigVideo; aparencia3d?: Aparencia3D }>(arquivos, "settings.json");
   const ifc = arquivos["assets/modelo.ifc"] ?? null;
   if (proj.modelo.tipo === "IFC" && !ifc) throw new ErroProjeto("O arquivo .4dstudio está incompleto.", "Falta assets/modelo.ifc.");
   if (proj.modelo.tipo !== "IFC" && proj.modelo.tipo !== "PARAMETRICO") throw new ErroProjeto("Tipo de modelo desconhecido no .4dstudio.", JSON.stringify(proj.modelo));
@@ -133,6 +136,7 @@ export function importar4dstudio(bytes: Uint8Array): { registro: Omit<RegistroPr
       demo: !!proj.projeto.demo,
       fotos,
       planta,
+      aparencia3d: set.aparencia3d === "tecnica" ? "tecnica" : "realista",
     },
     ifc,
     anexos,

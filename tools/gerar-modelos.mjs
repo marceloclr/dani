@@ -99,7 +99,34 @@ const fotos = [
 ];
 writeFileSync(`${DIR}/fotos-modelo.csv`, "﻿" + fotos.map((l) => l.join(";")).join("\r\n") + "\r\n");
 
-// 5) IFC de exemplo: a casa da demonstração
+// 5) cronograma do sobrado: tarefas por pavimento (ADR-19), 270 dias a partir de 02/03/2026
+const SOBRADO = [
+  // id, nome, início, fim, categoria, pavimento
+  ["PRE-01", "Serviços preliminares e locação", "2026-03-02", "2026-03-13", "terreno", ""],
+  ["FUN-01", "Fundação (sapatas, baldrames e contrapiso)", "2026-03-14", "2026-04-12", "fundacao", ""],
+  ["EST-T", "Estrutura do térreo e escada", "2026-04-13", "2026-05-05", "estrutura", "Térreo"],
+  ["ALV-T", "Alvenaria do térreo", "2026-04-29", "2026-05-24", "alvenaria", "Térreo"],
+  ["LAJ-T", "Laje do pavimento superior", "2026-05-20", "2026-06-05", "laje", "Térreo"],
+  ["EST-S", "Estrutura do pavimento superior", "2026-06-06", "2026-06-24", "estrutura", "Pavimento superior"],
+  ["ALV-S", "Alvenaria do pavimento superior", "2026-06-20", "2026-07-15", "alvenaria", "Pavimento superior"],
+  ["LAJ-S", "Laje de forro", "2026-07-12", "2026-07-26", "laje", "Pavimento superior"],
+  ["COB-01", "Telhado e oitões", "2026-07-27", "2026-08-20", "cobertura", ""],
+  ["INS-01", "Instalações hidráulicas e elétricas", "2026-07-01", "2026-09-05", "instalacoes", ""],
+  ["REB-01", "Chapisco e reboco", "2026-08-21", "2026-09-20", "reboco", ""],
+  ["ESQ-01", "Esquadrias", "2026-09-21", "2026-10-10", "esquadrias", ""],
+  ["PIS-01", "Revestimento de pisos", "2026-09-15", "2026-10-12", "revestimento", ""],
+  ["PIN-01", "Pintura", "2026-10-11", "2026-11-05", "pintura", ""],
+  ["LOU-01", "Louças e metais", "2026-10-25", "2026-11-08", "loucas", ""],
+  ["PAI-01", "Paisagismo", "2026-11-01", "2026-11-18", "paisagismo", ""],
+  ["LIM-01", "Limpeza final", "2026-11-19", "2026-11-23", "limpeza", ""],
+  ["ENT-01", "Vistoria e entrega", "2026-11-24", "2026-11-26", "entrega", ""],
+];
+writeFileSync(
+  `${DIR}/cronograma-sobrado.csv`,
+  "\ufeff" + ["id;nome;inicio;fim;categoria;pavimento", ...SOBRADO.map(([id, nome, i, f, cat, pav]) => [id, nome, br(i), br(f), cat, pav].join(";"))].join("\r\n") + "\r\n",
+);
+
+// 6) IFC de exemplo: a casa da demonstração
 copyFileSync("public/samples/demo.ifc", `${DIR}/casa-exemplo.ifc`);
 
 console.log(`modelos gravados em ${DIR}/`);

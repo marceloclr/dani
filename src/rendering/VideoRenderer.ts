@@ -125,7 +125,7 @@ export async function gerarVideo(cena: Cena, pedido: PedidoVideo): Promise<Arqui
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, preserveDrawingBuffer: true });
   renderer.setPixelRatio(1);
   renderer.setSize(p.largura, p.altura, false);
-  renderer.outputColorSpace = THREE.SRGBColorSpace;
+  const desenhista = cena.criarDesenhista(renderer, p.largura, p.altura); // mesma aparência da viewport (ADR-21)
   const camera = new THREE.PerspectiveCamera(45, p.largura / p.altura, 0.05, 4000);
   p.aoCriarCanvas?.(canvas);
 
@@ -134,7 +134,7 @@ export async function gerarVideo(cena: Cena, pedido: PedidoVideo): Promise<Arqui
   const desenhar = (i: number) => {
     p.aplicarDia(diaDoQuadro(i, total, p.diasDeObra));
     cena.posicionar(camera, p.poseNoTempo(i / p.fps));
-    renderer.render(cena.scene, camera);
+    desenhista.desenhar(camera);
   };
   const progredir = (i: number) => {
     const feito = i + 1;
@@ -154,6 +154,7 @@ export async function gerarVideo(cena: Cena, pedido: PedidoVideo): Promise<Arqui
     return await comoWebCodecs(p, canvas, total, desenhar, progredir, conferir);
   } finally {
     cena.silencioso = false;
+    desenhista.dispose();
     renderer.dispose();
     renderer.forceContextLoss();
   }

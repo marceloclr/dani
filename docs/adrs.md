@@ -25,6 +25,7 @@ Versões e licenças conferidas no registro npm em 2026-10-07.
 | 18 | Cronograma estimado (§13) | Aceita |
 | 19 | Tarefa por pavimento | Aceita |
 | 20 | WhatsApp no computador | Aceita |
+| 21 | Aparência realista | Aceita |
 
 ---
 
@@ -80,7 +81,7 @@ Regras-padrão, que o usuário pode editar:
 | Cobertura | `IfcSlab` com `PredefinedType = ROOF`, partes de `IfcRoof`, `IfcCovering` com `ROOFING` |
 | Esquadrias | `IfcDoor`, `IfcWindow` (install) |
 | Instalações | `IfcPipeSegment`, `IfcTank`, `IfcElectricDistributionBoard` (install) |
-| Reboco / Pintura | `IfcWall` (finish), troca de aparência, sem mudar a visibilidade |
+| Reboco / Pintura | `IfcWall`, `IfcColumn`, `IfcBeam` (finish): troca de aparência, sem mudar a visibilidade (pilares e vigas incluídos em 2026-10-07, ADR-21) |
 | Revestimento de pisos | `IfcCovering` com `PredefinedType = FLOORING` (construct: o piso é um elemento próprio, construído nessa tarefa) |
 | Louças e metais | `IfcSanitaryTerminal` (install) |
 | Terreno | `IfcGeographicElement` com `PredefinedType = TERRAIN` |
@@ -293,4 +294,22 @@ Testes: lógica, parsing de CSV e de IFC no Vitest (Node). Exportação de víde
 - Quando o aparelho não compartilha arquivos (`navigator.canShare` falso), o painel Vídeo mostra **Enviar pelo WhatsApp**: baixa o arquivo e abre `https://web.whatsapp.com/` numa aba nova, com a instrução de arrastar o arquivo baixado para a conversa.
 - Nada é enviado pelo app: é só um atalho, dito com clareza (§43).
 - Com Web Share disponível, o botão Compartilhar continua sendo o caminho.
+
+
+## ADR-21 — Aparência realista
+
+- A viewport, o vídeo e o relatório passam a ter duas aparências: **Realista** (padrão) e **Técnica**, que mantém as cores lisas de antes.
+- **Materiais no modo Realista:**
+  - texturas procedurais desenhadas no próprio navegador, sem baixar imagens: tijolo cerâmico, reboco, pintura, concreto, telha cerâmica, telha metálica, madeira, porcelanato, louça, vidro, terra, grama e folhagem;
+  - as texturas ficam em escala real (metros) graças a coordenadas de textura projetadas pela normal de cada face (projeção em caixa);
+  - o gerador é determinístico (semente fixa), para o vídeo sair igual a cada geração;
+  - o material vem do nome do material IFC; quando ele não diz, da classe IFC e, por último, da cor do IFC.
+- **Luz:** sol com sombras suaves (mapa de sombras ajustado à casa), céu em degradê, luz de ambiente do céu, reflexos de ambiente (RoomEnvironment) e mapeamento de tons ACES.
+- **Oclusão de ambiente** (GTAO) por pós-processamento na viewport, no relatório e no vídeo, que escurece os cantos e os encontros de paredes e lajes.
+- No Realista, o que está em execução não ganha a cor de latão: a revelação progressiva já mostra o avanço. O modo Comparar e o fantasma continuam técnicos, porque precisam destacar.
+- Reboco e pintura alcançam também pilares e vigas (regras do ADR-02), para a estrutura não aparecer como faixas cinzentas nas fachadas acabadas.
+- O sol vem da frente e da direita, para as fachadas da frente ficarem iluminadas e as sombras caírem à vista da câmera isométrica.
+- O ambiente de reflexos é um alvo de renderização: cada renderizador (viewport, vídeo, relatório) gera o seu.
+- A aparência é gravada no projeto (`settings.json` do `.4dstudio`).
+- **Limite honesto:** é renderização em tempo real (rasterização), não fotografia. Para um quadro fotorrealista, com luz indireta e reflexos verdadeiros, seria preciso um traçador de caminhos (path tracer), mais lento; ele fica como possível passo seguinte.
 

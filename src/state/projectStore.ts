@@ -3,6 +3,7 @@ import { create } from "zustand";
 import type { AcaoTarefa, Cronograma, ElementoMeta, Excecao, ModoAnimacao, PoliticaSemTarefa, Regra, Vinculo } from "../types";
 import type { PontoRoteiro } from "../rendering/cameras";
 import type { ParametrosCasa } from "../bim/parametrico";
+import type { Aparencia3D } from "../rendering/aparencia";
 import type { FotoObra, PlantaSobreposta, Tarefa, Visao } from "../types";
 import type { Problema } from "../importers/cronograma";
 import { aplicarMapeamento, regrasPadrao } from "../fourd/regras";
@@ -93,6 +94,8 @@ export interface Estado {
   gerandoVideo: boolean;
   // acompanhamento (ADR-13, ADR-14)
   visao: Visao;
+  /** Aparência da cena, do vídeo e do relatório (ADR-21). */
+  aparencia3d: Aparencia3D;
   fotos: FotoObra[];
   mostrarFotos: boolean;
   planta: PlantaSobreposta | null;
@@ -100,7 +103,7 @@ export interface Estado {
   definirModelo(elementos: ElementoMeta[], arquivo: string, demo: boolean, tipo?: "IFC" | "PARAMETRICO", parametros?: ParametrosCasa | null): void;
   definirProjeto(p: Partial<Pick<Estado, "projetoId" | "nomeProjeto" | "salvoEm" | "persistencia">>): void;
   /** Restaura cronograma, exceções e preferências de um projeto salvo. */
-  restaurar(r: Pick<Estado, "cronograma" | "arquivoCronograma" | "excecoes" | "politica" | "modoAnimacao" | "video" | "demoCronograma" | "fotos" | "planta">): void;
+  restaurar(r: Pick<Estado, "cronograma" | "arquivoCronograma" | "excecoes" | "politica" | "modoAnimacao" | "video" | "demoCronograma" | "fotos" | "planta"> & { aparencia3d?: Aparencia3D }): void;
   /** Inclui ou altera uma tarefa; devolve a mensagem de erro, se houver. */
   salvarTarefa(t: TarefaEditada, idOriginal: string | null): string | null;
   excluirTarefa(id: string): void;
@@ -126,6 +129,7 @@ export interface Estado {
   definirVideo(v: Partial<ConfigVideo>): void;
   definirGerandoVideo(g: boolean): void;
   definirVisao(v: Visao): void;
+  definirAparencia3d(a: Aparencia3D): void;
   adicionarFotos(f: FotoObra[]): void;
   atualizarFoto(id: string, p: Partial<FotoObra>): void;
   removerFoto(id: string): void;
@@ -143,7 +147,7 @@ function INICIAL_COMPLETO(): Partial<Estado> {
     regras: [], excecoes: [], politica: "fantasma", dia: 0, tocando: false,
     selecionado: null, ocultosUsuario: new Set(), tarefaIsolada: null, painel: "tarefas", erro: null,
     modoAnimacao: "progressivo", video: { formato: "horizontal", fps: 30, segundos: 30, roteiro: null }, gerandoVideo: false,
-    visao: "planejado", fotos: [], mostrarFotos: true, planta: null,
+    visao: "planejado", aparencia3d: "realista", fotos: [], mostrarFotos: true, planta: null,
   };
 }
 
@@ -220,6 +224,7 @@ export const useProjeto = create<Estado>((set, get) => {
     video: { formato: "horizontal", fps: 30, segundos: 30, roteiro: null },
     gerandoVideo: false,
     visao: "planejado",
+    aparencia3d: "realista",
     fotos: [],
     mostrarFotos: true,
     planta: null,
@@ -320,6 +325,7 @@ export const useProjeto = create<Estado>((set, get) => {
     definirVideo: (v) => set((s) => ({ video: { ...s.video, ...v } })),
     definirGerandoVideo: (gerandoVideo) => set({ gerandoVideo, ...(gerandoVideo ? { tocando: false } : {}) }),
     definirVisao: (visao) => set({ visao }),
+    definirAparencia3d: (aparencia3d) => set({ aparencia3d }),
     adicionarFotos: (f) => set((s) => ({ fotos: [...s.fotos, ...f].sort((a, b) => a.dia - b.dia || a.arquivo.localeCompare(b.arquivo)) })),
     atualizarFoto: (id, p) => set((s) => ({ fotos: s.fotos.map((f) => (f.id === id ? { ...f, ...p } : f)).sort((a, b) => a.dia - b.dia || a.arquivo.localeCompare(b.arquivo)) })),
     removerFoto: (id) => set((s) => ({ fotos: s.fotos.filter((f) => f.id !== id) })),

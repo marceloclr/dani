@@ -114,7 +114,7 @@ test("modelos de arquivo: diálogo e downloads idênticos", async ({ page }) => 
   await page.goto("/");
   await page.getByTestId("abrir-modelos").click();
   await expect(page.getByTestId("modal-modelos")).toContainText("inicio_real");
-  for (const nome of ["cronograma-modelo.xlsx", "cronograma-modelo.csv", "cronograma-modelo.json", "fotos-modelo.csv", "casa-exemplo.ifc", "exemplo.4dstudio"]) {
+  for (const nome of ["cronograma-modelo.xlsx", "cronograma-modelo.csv", "cronograma-modelo.json", "fotos-modelo.csv", "sobrado-exemplo.ifc", "cronograma-sobrado.csv", "casa-exemplo.ifc", "exemplo.4dstudio"]) {
     const [d] = await Promise.all([page.waitForEvent("download"), page.getByTestId(`baixar-${nome}`).click()]);
     expect(d.suggestedFilename()).toBe(nome);
     const caminho = `e2e/resultados/modelo-${nome}`;

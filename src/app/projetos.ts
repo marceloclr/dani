@@ -37,6 +37,7 @@ export function registroAtual(s: Estado = useProjeto.getState()): RegistroProjet
     demo: s.demoModelo || s.demoCronograma,
     fotos: s.fotos,
     planta: s.planta,
+    aparencia3d: s.aparencia3d,
   };
 }
 
@@ -76,7 +77,8 @@ export function iniciarGravacaoAutomatica(): () => void {
       s.nomeProjeto !== a.nomeProjeto ||
       s.demoCronograma !== a.demoCronograma ||
       s.fotos !== a.fotos ||
-      s.planta !== a.planta;
+      s.planta !== a.planta ||
+      s.aparencia3d !== a.aparencia3d;
     if (!mudou) return;
     if (temporizador) clearTimeout(temporizador);
     temporizador = setTimeout(() => {
@@ -164,6 +166,7 @@ export async function abrirProjeto(id: string): Promise<boolean> {
     demoCronograma: r.demo,
     fotos: (r.fotos ?? []).filter((f) => fotosDoProjeto.has(f.id)),
     planta: r.planta && lido.anexos.has(chavePlanta(r.id)) ? r.planta : null,
+    aparencia3d: r.aparencia3d ?? "realista",
   });
   criadoEm.set(r.id, r.criadoEm);
   st.definirProjeto({ projetoId: r.id, nomeProjeto: r.nome, salvoEm: r.atualizadoEm });

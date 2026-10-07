@@ -2,6 +2,13 @@
 // Renderiza sob demanda: só desenha quando a câmera ou o estado mudam.
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
+import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
+import { GTAOPass } from "three/addons/postprocessing/GTAOPass.js";
+import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
+import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
+import { materialRealista, uvsPorProjecao, type Aparencia3D } from "./aparencia";
+import { ESCALA_M, desenharTextura, type TipoTextura } from "./texturas";
 import type { MalhaElemento } from "../bim/parseIfc";
 import { parametros, type PosicaoElemento, type PosicaoFila } from "../fourd/animacao";
 import type { Desvio, EstadoElemento, ModoAnimacao, PlantaSobreposta } from "../types";
@@ -30,6 +37,20 @@ export interface Camadas {
   desvios?: Map<string, Desvio> | null;
 }
 
+/** Dados de um elemento usados para escolher o material realista. */
+export interface MetaVisual {
+  material: string | null;
+  ifcType: string;
+  objectType: string | null;
+}
+
+/** Desenha a cena num renderizador qualquer (viewport, vídeo, relatório) com a aparência atual. */
+export interface Desenhista {
+  desenhar(camera: THREE.PerspectiveCamera): void;
+  redimensionar(largura: number, altura: number): void;
+  dispose(): void;
+}
+
 export class Cena {
   readonly renderer: THREE.WebGLRenderer;
   readonly scene = new THREE.Scene();
@@ -53,34 +74,155 @@ export class Cena {
   private planta: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial> | null = null;
   private urlPlanta: string | null = null;
   private ultimoGiro = 0;
+  // aparência (ADR-21)
+  aparencia: Aparencia3D = "realista";
+  private metas = new Map<string, MetaVisual>();
+  private texturas = new Map<string, THREE.CanvasTexture>();
+  private ceu: THREE.CanvasTexture | null = null;
+  private corPapel = new THREE.Color("#f3f1ec");
+  private ultimasCamadas: Camadas | null = null;
+  private readonly hemi = new THREE.HemisphereLight(0xffffff, 0x8a8170, 1.6);
+  private readonly sol = new THREE.DirectionalLight(0xffffff, 1.6);
+  private readonly contraluz = new THREE.DirectionalLight(0xffffff, 0.5);
+  private desenhista: Desenhista;
 
   constructor(private readonly host: HTMLElement) {
     this.renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     host.appendChild(this.renderer.domElement);
     this.controls = new OrbitControls(this.camera, this.renderer.domElement);
     this.controls.addEventListener("change", () => this.pedirQuadro());
     this.controls.autoRotateSpeed = 1.5;
 
-    this.scene.add(new THREE.HemisphereLight(0xffffff, 0x8a8170, 1.6));
-    const sol = new THREE.DirectionalLight(0xffffff, 1.6);
-    sol.position.set(30, 50, 20);
-    this.scene.add(sol);
-    const contraluz = new THREE.DirectionalLight(0xffffff, 0.5);
-    contraluz.position.set(-30, 20, -40);
-    this.scene.add(contraluz);
+    this.sol.position.set(30, 50, 20);
+    this.contraluz.position.set(-30, 20, -40);
+    this.scene.add(this.hemi, this.sol, this.sol.target, this.contraluz);
+    this.desenhista = this.criarDesenhista(this.renderer, 1, 1);
 
     this.observador = new ResizeObserver(() => this.redimensionar());
     this.observador.observe(host);
     this.atualizarTema();
+    this.definirAparencia(this.aparencia);
     this.redimensionar();
   }
 
-  /** Lê --papel do tema atual para o fundo da cena. */
+  /** Céu em degradê (fundo do modo realista). */
+  private texturaCeu(): THREE.CanvasTexture {
+    if (this.ceu) return this.ceu;
+    const c = document.createElement("canvas");
+    c.width = 4;
+    c.height = 256;
+    const ctx = c.getContext("2d")!;
+    const g = ctx.createLinearGradient(0, 0, 0, 256);
+    g.addColorStop(0, "#7fa7d1");
+    g.addColorStop(0.55, "#c4d7e8");
+    g.addColorStop(1, "#eef1ee");
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, 4, 256);
+    this.ceu = new THREE.CanvasTexture(c);
+    this.ceu.colorSpace = THREE.SRGBColorSpace;
+    return this.ceu;
+  }
+
+  /** Troca entre Realista (texturas, sol com sombras, céu, oclusão de ambiente) e Técnica (cores lisas). */
+  definirAparencia(a: Aparencia3D): void {
+    this.aparencia = a;
+    const real = a === "realista";
+    this.scene.background = real ? this.texturaCeu() : this.corPapel;
+    this.hemi.color.set(real ? 0xdde8f4 : 0xffffff);
+    this.hemi.groundColor.set(real ? 0x6e5c46 : 0x8a8170);
+    this.hemi.intensity = real ? 1.1 : 1.6;
+    this.sol.color.set(real ? 0xfff0dc : 0xffffff);
+    this.sol.intensity = real ? 2.8 : 1.6;
+    this.sol.castShadow = real;
+    this.contraluz.intensity = real ? 0.25 : 0.5;
+    this.scene.environmentIntensity = 0.45;
+    for (const m of this.malhas.values()) {
+      const vidro = m.userData.opacidadeBase < 0.99;
+      m.castShadow = real && !vidro && !m.userData.terreno;
+      m.receiveShadow = real;
+    }
+    this.desenhista.dispose();
+    this.desenhista = this.criarDesenhista(this.renderer, this.renderer.domElement.width, this.renderer.domElement.height);
+    if (this.ultimasCamadas) this.aplicar(this.ultimasCamadas);
+    else this.pedirQuadro();
+  }
+
+  /** Ajusta a câmera de sombra do sol à casa (e um pouco além). */
+  private ajustarSol(): void {
+    if (this.caixa.isEmpty()) return;
+    const c = this.caixa.getCenter(new THREE.Vector3());
+    const r = this.caixa.getBoundingSphere(new THREE.Sphere()).radius + 6;
+    // sol da frente e da direita: fachadas da frente iluminadas e sombras para trás e para a esquerda, à vista da câmera isométrica
+    this.sol.position.copy(c).add(new THREE.Vector3(0.65, 0.7, 0.35).normalize().multiplyScalar(r * 2));
+    this.sol.target.position.copy(c);
+    const cam = this.sol.shadow.camera;
+    cam.left = cam.bottom = -r;
+    cam.right = cam.top = r;
+    cam.near = 0.5;
+    cam.far = r * 4;
+    cam.updateProjectionMatrix();
+    this.sol.shadow.mapSize.set(2048, 2048);
+    this.sol.shadow.bias = -0.0004;
+    this.sol.shadow.normalBias = 0.03;
+    this.sol.shadow.radius = 3;
+  }
+
+  /**
+   * Prepara um renderizador (o da viewport ou um dedicado, do vídeo e do relatório) para desenhar a cena
+   * com a aparência atual: mapeamento de tons, sombras, reflexos de ambiente e oclusão de ambiente (GTAO).
+   */
+  criarDesenhista(renderer: THREE.WebGLRenderer, largura: number, altura: number): Desenhista {
+    const real = this.aparencia === "realista";
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    renderer.toneMapping = real ? THREE.ACESFilmicToneMapping : THREE.NoToneMapping;
+    renderer.toneMappingExposure = 1.0;
+    renderer.shadowMap.enabled = real;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    if (!real) {
+      return { desenhar: (cam) => renderer.render(this.scene, cam), redimensionar: () => {}, dispose: () => {} };
+    }
+    // ambiente para reflexos: é um alvo de renderização, então cada renderizador gera o seu
+    const pmrem = new THREE.PMREMGenerator(renderer);
+    const sala = new RoomEnvironment();
+    const ambiente = pmrem.fromScene(sala, 0.04);
+    sala.dispose();
+    pmrem.dispose();
+    const camBase = new THREE.PerspectiveCamera();
+    const composer = new EffectComposer(renderer);
+    const passoCena = new RenderPass(this.scene, camBase);
+    const gtao = new GTAOPass(this.scene, camBase, largura, altura);
+    gtao.updateGtaoMaterial({ radius: 0.5, distanceExponent: 1.5, thickness: 1, scale: 1.1, samples: 12 });
+    gtao.updatePdMaterial({ lumaPhi: 10, depthPhi: 2, normalPhi: 3, radius: 6, rings: 2, samples: 12 });
+    gtao.blendIntensity = 0.9;
+    composer.addPass(passoCena);
+    composer.addPass(gtao);
+    composer.addPass(new OutputPass());
+    composer.setPixelRatio(renderer.getPixelRatio());
+    composer.setSize(largura, altura);
+    return {
+      desenhar: (cam) => {
+        const anterior = this.scene.environment;
+        this.scene.environment = ambiente.texture;
+        passoCena.camera = cam;
+        gtao.camera = cam;
+        composer.render();
+        this.scene.environment = anterior;
+      },
+      redimensionar: (w, h) => composer.setSize(w, h),
+      dispose: () => {
+        composer.dispose();
+        gtao.dispose();
+        ambiente.dispose();
+      },
+    };
+  }
+
+  /** Lê --papel do tema atual para o fundo da aparência técnica (a realista usa o céu). */
   atualizarTema(): void {
     const papel = getComputedStyle(document.documentElement).getPropertyValue("--papel").trim() || "#f3f1ec";
-    this.scene.background = new THREE.Color(papel);
+    this.corPapel = new THREE.Color(papel);
+    if (this.aparencia === "tecnica") this.scene.background = this.corPapel;
     this.pedirQuadro();
   }
 
@@ -92,6 +234,7 @@ export class Cena {
     this.renderer.domElement.style.height = "100%";
     this.camera.aspect = w / h;
     this.camera.updateProjectionMatrix();
+    this.desenhista?.redimensionar(this.renderer.domElement.width, this.renderer.domElement.height);
     this.pedirQuadro();
   }
 
@@ -100,17 +243,20 @@ export class Cena {
     this.pendente = true;
     requestAnimationFrame(() => {
       this.pendente = false;
-      if (!this.silencioso) this.renderer.render(this.scene, this.camera);
+      if (!this.silencioso) this.desenhista.desenhar(this.camera);
     });
   }
 
   /** `foraDoEnquadramento`: elementos que não entram na caixa de enquadramento (ex.: terreno e árvores). */
-  carregar(malhas: MalhaElemento[], foraDoEnquadramento: Set<string> = new Set()): void {
+  carregar(malhas: MalhaElemento[], foraDoEnquadramento: Set<string> = new Set(), metas: Map<string, MetaVisual> = new Map()): void {
     this.limpar();
+    this.metas = metas;
+    this.ultimasCamadas = null;
     for (const m of malhas) {
       const geo = new THREE.BufferGeometry();
       geo.setAttribute("position", new THREE.BufferAttribute(m.posicoes, 3));
       geo.setAttribute("normal", new THREE.BufferAttribute(m.normais, 3));
+      geo.setAttribute("uv", new THREE.BufferAttribute(uvsPorProjecao(m.posicoes, m.normais), 2));
       geo.setIndex(new THREE.BufferAttribute(m.indices, 1));
       geo.computeBoundingBox();
       geo.computeBoundingSphere();
@@ -118,6 +264,10 @@ export class Cena {
       const malha = new THREE.Mesh(geo, this.material(cor, m.cor[3], false));
       malha.userData.guid = m.guid;
       malha.userData.opacidadeBase = m.cor[3];
+      malha.userData.terreno = foraDoEnquadramento.has(m.guid);
+      const real = this.aparencia === "realista";
+      malha.castShadow = real && m.cor[3] >= 0.99 && !malha.userData.terreno;
+      malha.receiveShadow = real;
       this.malhas.set(m.guid, malha);
       this.corBase.set(m.guid, cor);
       const b = geo.boundingBox!;
@@ -128,6 +278,7 @@ export class Cena {
     this.caixa.makeEmpty();
     for (const [guid, m] of this.malhas) if (!foraDoEnquadramento.has(guid)) this.caixa.union(m.geometry.boundingBox!);
     if (this.caixa.isEmpty()) for (const m of this.malhas.values()) this.caixa.union(m.geometry.boundingBox!);
+    this.ajustarSol();
     this.vista("isometrica");
   }
 
@@ -175,8 +326,58 @@ export class Cena {
     return m;
   }
 
+  private textura(tipo: TipoTextura, cor: THREE.Color | null): THREE.CanvasTexture {
+    const chave = `${tipo}|${cor ? cor.getHexString() : ""}`;
+    let t = this.texturas.get(chave);
+    if (!t) {
+      t = new THREE.CanvasTexture(desenharTextura(tipo, 512, cor ? [cor.r, cor.g, cor.b] : undefined));
+      t.colorSpace = THREE.SRGBColorSpace;
+      t.wrapS = t.wrapT = THREE.RepeatWrapping;
+      const [eu, ev] = ESCALA_M[tipo];
+      t.repeat.set(1 / eu, 1 / ev);
+      t.anisotropy = Math.min(8, this.renderer.capabilities.getMaxAnisotropy());
+      this.texturas.set(chave, t);
+    }
+    return t;
+  }
+
+  /** Material realista de um elemento (ADR-21), compartilhado entre elementos iguais. */
+  private materialReal(guid: string, acabamento: string, opacidade: number, selecionado: boolean): THREE.MeshStandardMaterial {
+    const meta = this.metas.get(guid) ?? { material: null, ifcType: "", objectType: null };
+    const r = materialRealista(meta.material, meta.ifcType, acabamento, meta.objectType);
+    const cor = r.usarCorIfc ? this.corBase.get(guid)! : null;
+    const op = Math.round((r.opacidade ?? opacidade) * 20) / 20;
+    const chave = `real|${r.textura}|${cor?.getHexString() ?? ""}|${op}|${selecionado ? 1 : 0}`;
+    let m = this.materiais.get(chave);
+    if (!m) {
+      const mapa = this.textura(r.textura, r.textura === "liso" || r.textura === "pintura" ? (cor ?? new THREE.Color(0.95, 0.94, 0.91)) : null);
+      m = new THREE.MeshStandardMaterial({
+        map: mapa,
+        roughness: r.rugosidade,
+        metalness: r.metalico,
+        bumpMap: r.relevo > 0 ? mapa : null,
+        bumpScale: r.relevo,
+        transparent: op < 0.99,
+        opacity: op,
+        depthWrite: op >= 0.99,
+        side: THREE.DoubleSide,
+        polygonOffset: true,
+        polygonOffsetFactor: 1,
+        polygonOffsetUnits: 1,
+      });
+      if (selecionado) {
+        m.emissive = COR_SELECAO;
+        m.emissiveIntensity = 0.55;
+      }
+      this.materiais.set(chave, m);
+    }
+    return m;
+  }
+
   /** Aplica as camadas: estado 4D (com o modo de animação) < ocultos pelo usuário < isolamento (ADR-02). */
   aplicar(c: Camadas): void {
+    this.ultimasCamadas = c;
+    const real = this.aparencia === "realista";
     this.ultimosDesvios = { atrasado: 0, adiantado: 0 };
     for (const [guid, malha] of this.malhas) {
       const estado = c.estados?.get(guid);
@@ -213,6 +414,11 @@ export class Cena {
       if (desvio === "adiantado") {
         this.ultimosDesvios.adiantado++;
         malha.material = this.material(base.clone().lerp(COR_ADIANTADO, 0.7), opacidadeBase * p.opacidade, sel);
+        continue;
+      }
+      // realista: materiais com textura e sem a cor de "em execução" (a revelação progressiva já mostra o avanço)
+      if (real && (!estado || estado.fase === "concluido" || estado.fase === "em-execucao")) {
+        malha.material = this.materialReal(guid, estado?.aparencia ?? "base", opacidadeBase * p.opacidade, sel);
         continue;
       }
       // no Progressivo, o elemento que já se formou ganha a cor final sem esperar o fim da tarefa
@@ -278,15 +484,17 @@ export class Cena {
   async capturar(largura: number, altura: number, pose: Pose): Promise<Blob> {
     const canvas = document.createElement("canvas");
     const r = new THREE.WebGLRenderer({ canvas, antialias: true, preserveDrawingBuffer: true });
+    const d = this.criarDesenhista(r, largura, altura);
     try {
       r.setPixelRatio(1);
       r.setSize(largura, altura, false);
-      r.outputColorSpace = THREE.SRGBColorSpace;
+      d.redimensionar(largura, altura);
       const cam = new THREE.PerspectiveCamera(45, largura / altura, 0.05, 4000);
       this.posicionar(cam, pose);
-      r.render(this.scene, cam);
+      d.desenhar(cam);
       return await new Promise<Blob>((ok, falha) => canvas.toBlob((b) => (b ? ok(b) : falha(new Error("toBlob falhou"))), "image/jpeg", 0.9));
     } finally {
+      d.dispose();
       r.dispose();
       r.forceContextLoss();
     }
@@ -412,6 +620,9 @@ export class Cena {
   dispose(): void {
     this.pararGiro();
     this.definirPlanta(null, null);
+    this.desenhista.dispose();
+    for (const t of this.texturas.values()) t.dispose();
+    this.ceu?.dispose();
     this.limpar();
     this.observador.disconnect();
     this.controls.dispose();

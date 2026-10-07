@@ -8,12 +8,14 @@ import { ACEITA_CRONO, DICA_CRONO, DICA_IFC, abrirCronograma, abrirIfc } from ".
 /** Tela inicial em três passos (§32). */
 export function TelaInicial() {
   const [temDemo, setTemDemo] = useState(false);
+  const [temSobrado, setTemSobrado] = useState(false);
   const cronograma = useProjeto((s) => s.cronograma);
   const arquivoCronograma = useProjeto((s) => s.arquivoCronograma);
   const abrir = useUi((s) => s.abrir);
 
   useEffect(() => {
-    demonstracaoDisponivel().then(setTemDemo);
+    demonstracaoDisponivel("casa").then(setTemDemo);
+    demonstracaoDisponivel("sobrado").then(setTemSobrado);
   }, []);
 
   return (
@@ -75,9 +77,20 @@ export function TelaInicial() {
                 className="btn"
                 data-testid="abrir-demo"
                 data-tip={"Abre uma casa térrea de 10 × 18 m com sala de pé-direito duplo e um cronograma de 180 dias em 15 etapas.\nDados fictícios, marcados com o selo DEMONSTRAÇÃO."}
-                onClick={abrirDemonstracao}
+                onClick={() => abrirDemonstracao("casa")}
               >
                 Abrir demonstração
+              </button>
+            )}
+            {temSobrado && (
+              <button
+                type="button"
+                className="btn"
+                data-testid="abrir-sobrado"
+                data-tip={"Abre um sobrado de 8 × 12 m em dois pavimentos, com escada e telhado de duas águas, e um cronograma de 270 dias com tarefas por pavimento.\nDados fictícios, marcados com o selo DEMONSTRAÇÃO."}
+                onClick={() => abrirDemonstracao("sobrado")}
+              >
+                Abrir sobrado de exemplo
               </button>
             )}
           </li>

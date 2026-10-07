@@ -96,27 +96,39 @@ export async function carregarCronograma(nome: string, bytes: Uint8Array, demo =
 const base = () => new URL("samples/", document.baseURI);
 
 /** A demonstração só é oferecida se os arquivos existirem (nada de botão sem efeito). */
-export async function demonstracaoDisponivel(): Promise<boolean> {
+/** Exemplos embutidos: a casa térrea (demonstração) e o sobrado de dois pavimentos. */
+export type Exemplo = "casa" | "sobrado";
+const EXEMPLOS: Record<Exemplo, { ifc: string; csv: string; nome: string }> = {
+  casa: { ifc: "samples/demo.ifc", csv: "samples/demo-cronograma.csv", nome: "Demonstração" },
+  sobrado: { ifc: "modelos/sobrado-exemplo.ifc", csv: "modelos/cronograma-sobrado.csv", nome: "Sobrado de exemplo" },
+};
+const url = (caminho: string) => new URL(caminho, document.baseURI);
+
+/** A demonstração só é oferecida se os arquivos existirem (nada de botão sem efeito). */
+export async function demonstracaoDisponivel(exemplo: Exemplo = "casa"): Promise<boolean> {
   try {
-    const [a, b] = await Promise.all([fetch(new URL("demo.ifc", base()), { method: "HEAD" }), fetch(new URL("demo-cronograma.csv", base()), { method: "HEAD" })]);
+    const e = EXEMPLOS[exemplo];
+    const [a, b] = await Promise.all([fetch(url(e.ifc), { method: "HEAD" }), fetch(url(e.csv), { method: "HEAD" })]);
     return a.ok && b.ok;
   } catch {
     return false;
   }
 }
 
-export async function abrirDemonstracao(): Promise<void> {
+export async function abrirDemonstracao(exemplo: Exemplo = "casa"): Promise<void> {
   const st = useProjeto.getState();
+  const e = EXEMPLOS[exemplo];
   try {
-    const [ifc, csv] = await Promise.all([fetch(new URL("demo.ifc", base())), fetch(new URL("demo-cronograma.csv", base()))]);
+    const [ifc, csv] = await Promise.all([fetch(url(e.ifc)), fetch(url(e.csv))]);
     if (!ifc.ok || !csv.ok) throw new Error(`HTTP ${ifc.status}/${csv.status}`);
     const [bi, bc] = await Promise.all([ifc.arrayBuffer(), csv.arrayBuffer()]);
-    useProjeto.getState().definirProjeto({ projetoId: null, nomeProjeto: "Demonstração", salvoEm: null });
+    useProjeto.getState().definirProjeto({ projetoId: null, nomeProjeto: e.nome, salvoEm: null });
     (await import("./anexos")).limparAnexos();
     useProjeto.setState({ fotos: [], planta: null, visao: "planejado" });
-    if (await carregarIfc("demo.ifc", bi, true)) await carregarCronograma("demo-cronograma.csv", new Uint8Array(bc), true);
-  } catch (e) {
-    st.mostrarErro({ mensagem: "Não foi possível abrir a demonstração.", orientacao: "Recarregue a página e tente de novo.", detalhes: String(e) });
+    const nomeIfc = e.ifc.split("/").pop()!, nomeCsv = e.csv.split("/").pop()!;
+    if (await carregarIfc(nomeIfc, bi, true)) await carregarCronograma(nomeCsv, new Uint8Array(bc), true);
+  } catch (err) {
+    st.mostrarErro({ mensagem: "Não foi possível abrir o exemplo.", orientacao: "Recarregue a página e tente de novo.", detalhes: String(err) });
   }
 }
 

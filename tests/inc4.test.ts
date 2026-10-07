@@ -144,7 +144,7 @@ describe(".4dstudio versão 2", () => {
     expect(arquivos).toEqual(["assets/fotos/f1.jpg", "assets/planta.png", "attachments.json", "mappings.json", "project.json", "schedule.json", "settings.json"]);
     const r = importar4dstudio(zip);
     const { id: _i, ...semId } = base;
-    expect(r.registro).toEqual(semId);
+    expect(r.registro).toEqual({ ...semId, aparencia3d: "realista" });
     expect([...r.anexos.fotos.get("f1")!]).toEqual([1, 2, 3]);
     expect([...r.anexos.planta!]).toEqual([4, 5]);
   });

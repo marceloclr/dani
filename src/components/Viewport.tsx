@@ -31,15 +31,18 @@ export function Viewport() {
     definirCena(c);
     // terreno e paisagismo ficam fora do enquadramento: a câmera mira a casa
     const fora = () => new Set(st().elementos.filter((e) => e.ifcType === "IfcGeographicElement").map((e) => e.guid));
+    // material, classe e tipo de cada elemento, para os materiais realistas (ADR-21)
+    const metas = () => new Map(st().elementos.map((e) => [e.guid, { material: e.material, ifcType: e.ifcType, objectType: e.objectType }]));
+    c.definirAparencia(st().aparencia3d);
     const aplicar = () => {
       const s = st();
       if (!s.gerandoVideo) c.aplicar(camadasPara(s, c, s.dia));
     };
     const atuais = malhasAtuais();
-    if (atuais) c.carregar(atuais, fora());
+    if (atuais) c.carregar(atuais, fora(), metas());
     aplicar();
     const sairMalhas = aoCarregarMalhas((m) => {
-      c.carregar(m, fora());
+      c.carregar(m, fora(), metas());
       aplicar();
     });
     const sairEstado = useProjeto.subscribe((s, a) => {
@@ -56,6 +59,7 @@ export function Viewport() {
         (a.gerandoVideo && !s.gerandoVideo)
       ) aplicar();
       if (s.planta !== a.planta) c.definirPlanta(s.planta, urlDaPlantaAtual());
+      if (s.aparencia3d !== a.aparencia3d) c.definirAparencia(s.aparencia3d);
     });
     c.definirPlanta(st().planta, urlDaPlantaAtual());
     const sairPlanta = aoMudarImagemPlanta(() => c.definirPlanta(st().planta, urlDaPlantaAtual()));
@@ -128,6 +132,7 @@ export function Viewport() {
             {x.rotulo}
           </button>
         ))}
+        <SeletorAparencia />
         {temCronograma && <SeletorVisao />}
       </div>
       <div
@@ -155,6 +160,23 @@ const VISOES: { id: Visao; rotulo: string; dica: string }[] = [
   { id: "real", rotulo: "Real", dica: "A obra segundo as datas reais (início e fim real de cada tarefa). Tarefa sem início real ainda não começou." },
   { id: "comparar", rotulo: "Comparar", dica: "Mostra o real e marca os desvios: em carmim o que devia existir e ainda não existe; em ardósia o que está adiantado." },
 ];
+
+function SeletorAparencia() {
+  const a = useProjeto((s) => s.aparencia3d);
+  const opcoes: { id: "realista" | "tecnica"; rotulo: string; dica: string }[] = [
+    { id: "realista", rotulo: "Realista", dica: "Tijolo, reboco, telha, madeira, vidro e grama com textura, sol com sombras, céu e sombreamento nos cantos. Vale também para o vídeo e o relatório." },
+    { id: "tecnica", rotulo: "Técnica", dica: "Cores lisas por material e o que está em execução em latão: mais leve e mais fácil de ler o andamento." },
+  ];
+  return (
+    <div className="segmentos visao3d aparencia3d" role="tablist" aria-label="Aparência">
+      {opcoes.map((o) => (
+        <button key={o.id} type="button" role="tab" className="seg" aria-selected={a === o.id} data-testid={`aparencia-${o.id}`} data-tip={o.dica} onClick={() => useProjeto.getState().definirAparencia3d(o.id)}>
+          {o.rotulo}
+        </button>
+      ))}
+    </div>
+  );
+}
 
 function SeletorVisao() {
   const visao = useProjeto((s) => s.visao);
@@ -201,6 +223,7 @@ function FotoFlutuante() {
 
 function Legenda() {
   const visao = useProjeto((s) => s.visao);
+  const realista = useProjeto((s) => s.aparencia3d === "realista");
   if (visao === "comparar") {
     return (
       <div className="legenda3d" aria-label="Legenda">
@@ -215,6 +238,17 @@ function Legenda() {
         <span>
           <i style={{ background: "linear-gradient(90deg, #b5653a 50%, #9e9e99 50%)" }} />
           Em dia
+        </span>
+      </div>
+    );
+  }
+  if (realista) {
+    return (
+      <div className="legenda3d" aria-label="Legenda">
+        <span>Aparência realista: a obra se forma conforme o cronograma</span>
+        <span>
+          <i style={{ background: "transparent", borderStyle: "dashed" }} />
+          Sem tarefa (fantasma)
         </span>
       </div>
     );

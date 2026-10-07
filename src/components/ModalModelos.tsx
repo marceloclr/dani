@@ -40,7 +40,17 @@ const MODELOS: Modelo[] = [
       ["etapa", "não", "ID da tarefa do cronograma (ex.: ALV-01)"],
     ],
   },
-  { arquivo: "casa-exemplo.ifc", titulo: "Modelo IFC de exemplo", descricao: "Casa térrea de 10 × 18 m com sala de pé-direito duplo (IFC4, metros), com as classes e os tipos predefinidos que as regras automáticas reconhecem." },
+  {
+    arquivo: "sobrado-exemplo.ifc",
+    titulo: "Modelo IFC: sobrado",
+    descricao: "Sobrado de 8 × 12 m em dois pavimentos (Térreo e Pavimento superior), com escada, laje com vão, telhado de duas águas e oitões. Use com o cronograma do sobrado.",
+  },
+  {
+    arquivo: "cronograma-sobrado.csv",
+    titulo: "Cronograma do sobrado",
+    descricao: "270 dias, com estrutura, alvenaria e laje separadas por pavimento (coluna pavimento): as paredes de cima só sobem depois da laje do térreo.",
+  },
+  { arquivo: "casa-exemplo.ifc", titulo: "Modelo IFC: casa térrea", descricao: "Casa térrea de 10 × 18 m com sala de pé-direito duplo (IFC4, metros), com as classes e os tipos predefinidos que as regras automáticas reconhecem." },
   {
     arquivo: "exemplo.4dstudio",
     titulo: "Projeto completo de exemplo",

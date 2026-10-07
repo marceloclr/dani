@@ -94,6 +94,7 @@ test("modelo paramétrico de 2 pavimentos com duas águas: simulação e vídeo"
   await expect(page.getByTestId("param-previa")).toContainText("100 m² por pavimento");
   await page.getByTestId("param-gerar").click();
   await expect(page.getByTestId("selo-parametrico")).toBeVisible();
+  await page.getByTestId("aparencia-tecnica").click(); // vídeo realista sem GPU leva ~0,7 s por quadro; ele é coberto pelo GIF de realista.spec.ts
   await expect(page.getByTestId("situacao")).toContainText(/Casa paramétrica .* salvo às/);
 
   await page.getByTestId("usar-cronograma-demo").click();

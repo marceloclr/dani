@@ -1,0 +1,19 @@
+﻿id;nome;inicio;fim;categoria;pavimento
+PRE-01;Serviços preliminares e locação;02/03/2026;13/03/2026;terreno;
+FUN-01;Fundação (sapatas, baldrames e contrapiso);14/03/2026;12/04/2026;fundacao;
+EST-T;Estrutura do térreo e escada;13/04/2026;05/05/2026;estrutura;Térreo
+ALV-T;Alvenaria do térreo;29/04/2026;24/05/2026;alvenaria;Térreo
+LAJ-T;Laje do pavimento superior;20/05/2026;05/06/2026;laje;Térreo
+EST-S;Estrutura do pavimento superior;06/06/2026;24/06/2026;estrutura;Pavimento superior
+ALV-S;Alvenaria do pavimento superior;20/06/2026;15/07/2026;alvenaria;Pavimento superior
+LAJ-S;Laje de forro;12/07/2026;26/07/2026;laje;Pavimento superior
+COB-01;Telhado e oitões;27/07/2026;20/08/2026;cobertura;
+INS-01;Instalações hidráulicas e elétricas;01/07/2026;05/09/2026;instalacoes;
+REB-01;Chapisco e reboco;21/08/2026;20/09/2026;reboco;
+ESQ-01;Esquadrias;21/09/2026;10/10/2026;esquadrias;
+PIS-01;Revestimento de pisos;15/09/2026;12/10/2026;revestimento;
+PIN-01;Pintura;11/10/2026;05/11/2026;pintura;
+LOU-01;Louças e metais;25/10/2026;08/11/2026;loucas;
+PAI-01;Paisagismo;01/11/2026;18/11/2026;paisagismo;
+LIM-01;Limpeza final;19/11/2026;23/11/2026;limpeza;
+ENT-01;Vistoria e entrega;24/11/2026;26/11/2026;entrega;

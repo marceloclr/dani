@@ -37,6 +37,7 @@ test("incremento 1 de ponta a ponta com a demonstração", async ({ page }) => {
   await expect(page.getByTestId("situacao")).toContainText("146 elementos");
   await expect(page.getByTestId("modo-animacao")).toHaveValue("progressivo"); // padrão desde o incremento 5
   await page.getByTestId("modo-animacao").selectOption("aparecimento"); // este roteiro confere a ordem das etapas
+  await page.getByTestId("aparencia-tecnica").click(); // quadros leves: no Chromium sem GPU o realista atrasa o clique de pausa
 
   // 3. cronograma na timeline; regras já vincularam os elementos
   await expect(page.locator(".gantt .linha")).toHaveCount(15);
@@ -69,9 +70,9 @@ test("incremento 1 de ponta a ponta com a demonstração", async ({ page }) => {
   expect(Object.values(v).reduce((a, b) => a + b, 0)).toBe(146);
   await page.screenshot({ path: "e2e/resultados/2-concluida.png" });
 
-  // PLAY a 8×: o dia avança e a casa cresce
+  // PLAY a 4×: o dia avança e a casa cresce
   await page.getByTestId("play").click(); // no último dia, volta ao início e toca
-  await page.getByLabel("Velocidade").selectOption("8");
+  await page.getByLabel("Velocidade").selectOption("4"); // 24 dias/s: a obra não termina antes da pausa
   await page.waitForTimeout(1500);
   const dia1 = await page.evaluate(() => (window as unknown as Janela).__projeto.getState().dia);
   const n1 = (await page.evaluate(() => (window as unknown as Janela).__cena.visiveis().length));
