@@ -30,8 +30,8 @@ const pct = (a) => (a === "" ? "" : `${Math.round(a * 100)}%`);
 
 // 1) CSV no padrão do Excel brasileiro: ponto e vírgula, dd/mm/aaaa, UTF-8 com BOM
 const csv = [
-  "id;nome;inicio;fim;categoria;inicio_real;fim_real;avanco",
-  ...TAREFAS.map(([id, nome, i, f, cat, ri, rf, av]) => [id, nome, br(i), br(f), cat, br(ri), br(rf), pct(av)].join(";")),
+  "id;nome;inicio;fim;categoria;pavimento;inicio_real;fim_real;avanco",
+  ...TAREFAS.map(([id, nome, i, f, cat, ri, rf, av]) => [id, nome, br(i), br(f), cat, "", br(ri), br(rf), pct(av)].join(";")),
 ];
 writeFileSync(`${DIR}/cronograma-modelo.csv`, "﻿" + csv.join("\r\n") + "\r\n");
 
@@ -50,19 +50,19 @@ writeFileSync(`${DIR}/cronograma-modelo.json`, JSON.stringify(json, null, 2) + "
 // datas como número de série do Excel (independe do fuso de quem gera): dias desde 1970 + 25569
 const data = (iso) => (iso ? Date.UTC(...iso.split("-").map((n, i) => (i === 1 ? +n - 1 : +n))) / 86_400_000 + 25569 : null);
 const linhas = [
-  ["id", "nome", "inicio", "fim", "categoria", "inicio_real", "fim_real", "avanco"],
-  ...TAREFAS.map(([id, nome, i, f, cat, ri, rf, av]) => [id, nome, data(i), data(f), cat, data(ri), data(rf), av === "" ? null : av]),
+  ["id", "nome", "inicio", "fim", "categoria", "pavimento", "inicio_real", "fim_real", "avanco"],
+  ...TAREFAS.map(([id, nome, i, f, cat, ri, rf, av]) => [id, nome, data(i), data(f), cat, null, data(ri), data(rf), av === "" ? null : av]),
 ];
 const ws = XLSX.utils.aoa_to_sheet(linhas);
 for (let r = 1; r < linhas.length; r++) {
-  for (const c of [2, 3, 5, 6]) {
+  for (const c of [2, 3, 6, 7]) {
     const cel = ws[XLSX.utils.encode_cell({ r, c })];
     if (cel) cel.z = "dd/mm/yyyy";
   }
-  const av = ws[XLSX.utils.encode_cell({ r, c: 7 })];
+  const av = ws[XLSX.utils.encode_cell({ r, c: 8 })];
   if (av) av.z = "0%";
 }
-ws["!cols"] = [{ wch: 9 }, { wch: 36 }, { wch: 12 }, { wch: 12 }, { wch: 13 }, { wch: 12 }, { wch: 12 }, { wch: 8 }];
+ws["!cols"] = [{ wch: 9 }, { wch: 36 }, { wch: 12 }, { wch: 12 }, { wch: 13 }, { wch: 18 }, { wch: 12 }, { wch: 12 }, { wch: 8 }];
 const instrucoes = XLSX.utils.aoa_to_sheet([
   ["Construction 4D Studio: modelo de cronograma"],
   [],
@@ -72,6 +72,7 @@ const instrucoes = XLSX.utils.aoa_to_sheet([
   ["inicio", "sim", "Data de início planejada (data do Excel, dd/mm/aaaa ou aaaa-mm-dd)"],
   ["fim", "sim", "Data de fim planejada, inclusive"],
   ["categoria", "não", "Liga os elementos do modelo à tarefa (ver lista abaixo); sem categoria, inclua os elementos à mão"],
+  ["pavimento", "não", "Limita a tarefa aos elementos de um pavimento (ex.: Térreo); em branco, vale para o prédio inteiro"],
   ["inicio_real", "não", "Data em que a tarefa começou de fato"],
   ["fim_real", "não", "Data em que terminou de fato (exige inicio_real)"],
   ["avanco", "não", "Avanço físico medido: 0% a 100%; vazio = deduzido das datas reais"],

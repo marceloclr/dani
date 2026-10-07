@@ -27,6 +27,7 @@ interface LinhaBruta {
   inicioReal?: string;
   fimReal?: string;
   avanco?: string;
+  pavimento?: string;
 }
 
 const ALIASES: Record<keyof LinhaBruta, string[]> = {
@@ -39,6 +40,7 @@ const ALIASES: Record<keyof LinhaBruta, string[]> = {
   inicioReal: ["inicio_real", "início_real", "inicioreal", "inícioreal", "realstart", "actualstart", "actual_start"],
   fimReal: ["fim_real", "fimreal", "termino_real", "término_real", "realend", "actualend", "actual_end"],
   avanco: ["avanco", "avanço", "avanco_fisico", "avanço_físico", "avanco_real", "percentcomplete"],
+  pavimento: ["pavimento", "andar", "storey", "nivel", "nível", "level"],
 };
 
 /** "45%", "0,45", "0.45" ou "45" → 0,45. Vazio → undefined; inválido → NaN. */
@@ -70,7 +72,7 @@ function normalizarLinha(obj: Record<string, unknown>): LinhaBruta {
 /** Converte linhas brutas em cronograma, acumulando os problemas encontrados (§41). */
 export function montarCronograma(linhas: LinhaBruta[], primeiraLinha = 2): { cronograma: Cronograma | null; problemas: Problema[] } {
   const problemas: Problema[] = [];
-  const brutas: { id: string; nome: string; categoria: string; ini: number; fim: number; progresso?: number; realIni?: number; realFim?: number; avanco?: number; linha: number }[] = [];
+  const brutas: { id: string; nome: string; categoria: string; ini: number; fim: number; progresso?: number; realIni?: number; realFim?: number; avanco?: number; pavimento?: string; linha: number }[] = [];
   const vistos = new Set<string>();
 
   linhas.forEach((l, i) => {
@@ -102,7 +104,8 @@ export function montarCronograma(linhas: LinhaBruta[], primeiraLinha = 2): { cro
     brutas.push({
       id, nome: l.nome || id, categoria: (l.categoria ?? "").toLowerCase(), ini, fim,
       progresso: Number.isFinite(progresso) ? progresso : undefined,
-      realIni: realIni ?? undefined, realFim: realFim ?? undefined, avanco: Number.isNaN(avanco) ? undefined : avanco, linha,
+      realIni: realIni ?? undefined, realFim: realFim ?? undefined, avanco: Number.isNaN(avanco) ? undefined : avanco,
+      pavimento: l.pavimento?.trim() || undefined, linha,
     });
   });
 
@@ -119,6 +122,7 @@ export function montarCronograma(linhas: LinhaBruta[], primeiraLinha = 2): { cro
     if (b.realIni !== undefined) t.realIni = b.realIni - inicio;
     if (b.realFim !== undefined) t.realFim = b.realFim - inicio;
     if (b.avanco !== undefined) t.avanco = b.avanco;
+    if (b.pavimento) t.pavimento = b.pavimento;
     return t;
   });
   return { cronograma: { inicio, tarefas }, problemas };

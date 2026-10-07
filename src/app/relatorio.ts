@@ -155,7 +155,7 @@ export async function gerarRelatorio(cena: Cena): Promise<Blob> {
 
   // rodapé em todas as páginas
   const n = doc.getNumberOfPages();
-  const avisos = [s.demoModelo || s.demoCronograma ? "DADOS DE DEMONSTRAÇÃO (fictícios)" : "", s.tipoModelo === "PARAMETRICO" ? "Modelo paramétrico: representação simplificada, não é projeto executivo" : ""].filter(Boolean).join(" · ");
+  const avisos = [s.demoModelo || s.demoCronograma ? "DADOS DE DEMONSTRAÇÃO (fictícios)" : "", s.tipoModelo === "PARAMETRICO" ? "Modelo paramétrico: representação simplificada, não é projeto executivo" : "", c.estimado ? "Cronograma estimado automaticamente, não é cronograma executivo" : ""].filter(Boolean).join(" · ");
   const agora = new Date().toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" });
   for (let p = 1; p <= n; p++) {
     doc.setPage(p);

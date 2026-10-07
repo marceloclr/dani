@@ -59,6 +59,9 @@ export function TelaInicial() {
               <button type="button" className="btn" data-testid="criar-cronograma-inicial" onClick={() => abrir({ tarefa: "" })}>
                 Criar cronograma
               </button>
+              <button type="button" className="btn" data-testid="estimar-inicial" data-tip="Sugere etapas e datas a partir da área, dos pavimentos, da estrutura e do prazo. É uma estimativa, não cronograma executivo." onClick={() => abrir({ estimativa: true })}>
+                Gerar estimativa
+              </button>
             </div>
           </li>
           <li className="bloco" style={{ ["--acento" as string]: "var(--latao)" }}>

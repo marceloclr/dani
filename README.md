@@ -7,9 +7,10 @@ Aplicação web estática que transforma um modelo de residência (IFC) e o cron
 - quatro modos de animação, presets e roteiro de câmera, e geração de vídeo real;
 - projetos salvos no navegador, arquivo `.4dstudio`, cronograma em XLSX, edição de tarefas e modo paramétrico;
 - acompanhamento da obra: planejado × real, fotos na timeline e na simulação, planta sobreposta, relatório PDF e modelos de arquivo para download;
-- revelação progressiva da obra (padrão) e vídeo pronto para compartilhar: MP4 para WhatsApp, MP4 1080p, WebM, GIF e quadros PNG.
+- revelação progressiva da obra (padrão) e vídeo pronto para compartilhar: MP4 para WhatsApp, MP4 1080p, WebM, GIF e quadros PNG;
+- cronograma estimado automaticamente (§13) e tarefas por pavimento.
 
-Ficam para depois (`[FUTURO]` na [especificação](docs/especificacao.md)): IA, cronograma automático e multiusuário. PWA foi descartado.
+Ficam para depois (`[FUTURO]` na [especificação](docs/especificacao.md)): IA e multiusuário. PWA foi descartado.
 
 ![Prévia da simulação](docs/demo-etapas.png)
 
@@ -49,7 +50,7 @@ e publique a pasta `dist/` (GitHub Pages, Cloudflare Pages, Netlify ou Vercel). 
 ## Como usar
 
 1. **Carregar IFC**, **Criar modelo paramétrico** (sem IFC: terreno, área, 1 ou 2 pavimentos, pé-direito e cobertura) ou **Abrir demonstração** (casa térrea com sala de pé-direito duplo e cronograma de 180 dias).
-2. **Carregar cronograma** (CSV, XLSX ou JSON) ou **Criar cronograma** na tela. Os elementos são ligados às tarefas automaticamente, pela coluna `categoria`. Tarefas podem ser incluídas, editadas e excluídas na aba Tarefas.
+2. **Carregar cronograma** (CSV, XLSX ou JSON), **Criar cronograma** na tela ou **Gerar estimativa**. A estimativa sugere etapas e datas pela área, pelos pavimentos, pela estrutura e pelo prazo, e repete estrutura, alvenaria e laje por pavimento. Ela fica marcada com o selo ESTIMATIVA: não é cronograma executivo. Os elementos são ligados às tarefas automaticamente, pela coluna `categoria`. Tarefas podem ser incluídas, editadas e excluídas na aba Tarefas.
 3. Use a timeline: ▶ reproduz, o cursor pode ser arrastado e a data pode ser digitada.
 4. Para corrigir o mapeamento, clique num elemento (modo **Selecionar**) e use **Excluir** ou **Incluir** na aba Elemento.
 5. Escolha a **Animação** na timeline:
@@ -84,6 +85,7 @@ Os testes importam cada modelo, para eles nunca saírem do formato aceito.
 | Cronograma | `.csv` com colunas `id, nome, inicio, fim, categoria` (e `progresso` opcional); separador `,` `;` ou tabulação; UTF-8 (com ou sem BOM) ou Windows-1252; datas `aaaa-mm-dd` ou `dd/mm/aaaa`; fim inclusivo |
 | Cronograma | `.xlsx`: primeira planilha, mesmas colunas; datas do Excel ou em texto (SheetJS 0.20.3) |
 | Cronograma real | Colunas opcionais `inicio_real`, `fim_real` e `avanco` (45%, 0,45 ou 45) em CSV, XLSX e JSON |
+| Pavimento | Coluna opcional `pavimento` (ex.: Térreo): limita a tarefa aos elementos daquele pavimento |
 | Fotos | JPEG, PNG ou WebP; data do EXIF ou de um `fotos.csv` enviado junto |
 | Planta | PNG, JPG ou PDF (primeira página) |
 | Projeto | `.4dstudio` (versão 2): ZIP com `project.json`, `schedule.json`, `mappings.json`, `settings.json`, `attachments.json`, `assets/modelo.ifc`, `assets/fotos/*` e `assets/planta.*`; a versão 1 continua sendo lida |
@@ -102,12 +104,15 @@ Categorias com regra automática: `terreno`, `fundacao`, `estrutura`, `alvenaria
 | GIF animado | E-mail, apresentações, mensageiros | 480 px, 10 fps |
 | Quadros PNG em ZIP | Edição em outro programa | LEIAME com o comando do ffmpeg |
 
-Depois de gerar, o painel mostra a pré-visualização, o botão Baixar e, no celular, **Compartilhar…**, que abre direto o WhatsApp.
+Depois de gerar, o painel mostra a pré-visualização, o botão Baixar e:
+- **Compartilhar… (WhatsApp e outros)**, no celular, no Windows, no ChromeOS e no Safari do Mac, que abre o seletor do sistema;
+- **Enviar pelo WhatsApp**, nos demais computadores (Linux, por exemplo), onde nenhum site pode anexar arquivo em outro app: o botão baixa o vídeo e abre o WhatsApp Web numa aba nova, onde é só arrastar o arquivo para a conversa. Nada é enviado pelo app.
 
 ## Limitações conhecidas
 
 - O MP4 para WhatsApp é conferido nos testes com o ffprobe (H.264 Baseline, yuv420p, 720 × 1280, quadros e duração); o envio pelo WhatsApp em si não é automatizável. O MP4 1080p depende do codificador do navegador e não roda no Chromium dos testes.
-- O cronograma é por categoria: uma tarefa de alvenaria levanta as paredes de todos os pavimentos ao mesmo tempo. Para separar pavimentos, use exceções (aba Elemento) ou tarefas com categoria "Outra".
+- Uma tarefa sem pavimento vale para o prédio inteiro. Para separar pavimentos, preencha a coluna `pavimento` (ou o campo no editor), ou gere a estimativa, que já separa.
+- A estimativa usa proporções típicas de obra residencial e calendário corrido; serve para começar a simular, não substitui o cronograma da obra.
 - O modo paramétrico tem uma planta-tipo fixa (dois cômodos na frente, sala e cozinha no fundo, escada na lateral) e não tem instalações nem louças; é para animar, não é projeto (ADR-12).
 - Simulação real: tarefa sem início real conta como não iniciada; com início e sem fim real, segue em execução indefinidamente (ADR-13).
 - O relatório PDF usa a fonte Helvetica do próprio PDF, não a IBM Plex (ADR-15).
@@ -137,6 +142,7 @@ Chrome, Edge ou Brave atualizados (testado no Chromium 153 do Playwright). Firef
 | [prompts/incremento-3.md](prompts/incremento-3.md) | Prompt do incremento 3 |
 | [prompts/incremento-4.md](prompts/incremento-4.md) | Prompt do incremento 4 |
 | [prompts/incremento-5.md](prompts/incremento-5.md) | Prompt do incremento 5 |
+| [prompts/incremento-6.md](prompts/incremento-6.md) | Prompt do incremento 6 |
 | [public/modelos/](public/modelos/) | Modelos de arquivo para download |
 | [public/samples/](public/samples/) | Casa de demonstração e cronograma |
 | [tools/](tools/) | Gerador do IFC de demonstração, prévia estática, modelos de arquivo e cópia dos ativos locais (wasm, fontes do pdf.js, codificador H.264) |
@@ -149,7 +155,7 @@ Interface no padrão [Papel e Tinta](https://github.com/marceloclr/design-system
 src/
 ├── app/          App, carga, projetos, anexos (fotos e planta), relatorio (PDF), estadoCena
 ├── bim/          parseIfc (web-ifc → metadados e malhas), Web Worker, ModelAdapter, parametrico
-├── fourd/        tempo, regras, simulacao (avaliar), animacao, real (planejado × real), validacao
+├── fourd/        tempo, regras, simulacao (avaliar), animacao, real (planejado × real), estimativa, validacao
 ├── importers/    CSV, XLSX e JSON do cronograma, fotos (EXIF e fotos.csv), texto
 ├── storage/      IndexedDB (projetos, modelos e anexos) e arquivo .4dstudio
 ├── rendering/    Cena (Three.js, seleção, camadas), cameras (presets e roteiro, puro), VideoRenderer

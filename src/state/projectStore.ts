@@ -40,6 +40,7 @@ export interface TarefaEditada {
   inicioReal?: number;
   fimReal?: number;
   avanco?: number;
+  pavimento?: string;
 }
 
 /** Tarefas com datas absolutas (dia civil), inclusive as reais. */
@@ -158,6 +159,7 @@ function reconstruir(lista: (Omit<Tarefa, "realIni" | "realFim"> & { realIni?: n
     if (x.realIni !== undefined) t.realIni = x.realIni - inicio;
     if (x.realFim !== undefined) t.realFim = x.realFim - inicio;
     if (x.avanco !== undefined) t.avanco = x.avanco;
+    if (x.pavimento) t.pavimento = x.pavimento;
     return t;
   });
   const ids = new Set(tarefas.map((x) => x.id));
@@ -165,7 +167,8 @@ function reconstruir(lista: (Omit<Tarefa, "realIni" | "realFim"> & { realIni?: n
     .map((x) => (renomeada && x.taskId === renomeada[0] ? { ...x, taskId: renomeada[1] } : x))
     .filter((x) => ids.has(x.taskId));
   const regras = regrasPadrao(tarefas);
-  const cronograma = { inicio, tarefas };
+  // editar uma estimativa não a transforma em cronograma executivo (ADR-18)
+  const cronograma = s.cronograma?.estimado ? { inicio, tarefas, estimado: true } : { inicio, tarefas };
   const fim = Math.max(...tarefas.map((x) => x.fim));
   return {
     cronograma,
@@ -251,7 +254,7 @@ export const useProjeto = create<Estado>((set, get) => {
       if (t.avanco !== undefined && !(t.avanco >= 0 && t.avanco <= 1)) return "O avanço físico deve ficar entre 0 e 100%.";
       const atuais = s.cronograma ? absolutas(s.cronograma) : [];
       if (atuais.some((x) => x.id === id && x.id !== idOriginal)) return `Já existe uma tarefa com o ID "${id}".`;
-      const nova = { id, nome, categoria: t.categoria.trim().toLowerCase(), ini: t.inicio, fim: t.fim, realIni: t.inicioReal, realFim: t.fimReal, avanco: t.avanco };
+      const nova = { id, nome, categoria: t.categoria.trim().toLowerCase(), ini: t.inicio, fim: t.fim, realIni: t.inicioReal, realFim: t.fimReal, avanco: t.avanco, pavimento: t.pavimento?.trim() || undefined };
       const lista = idOriginal ? atuais.map((x) => (x.id === idOriginal ? { ...x, ...nova } : x)) : [...atuais, nova];
       set(reconstruir(lista, s, idOriginal && idOriginal !== id ? [idOriginal, id] : null));
       return null;

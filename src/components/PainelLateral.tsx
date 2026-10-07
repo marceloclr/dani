@@ -80,9 +80,14 @@ function PainelTarefas() {
           <option value="visivel">Sempre visíveis</option>
         </select>
       </label>
-      <button type="button" className="btn largo-topo" data-testid="nova-tarefa" onClick={() => useUi.getState().abrir({ tarefa: "" })}>
-        + Nova tarefa
-      </button>
+      <div className="botoes duas-colunas">
+        <button type="button" className="btn" data-testid="nova-tarefa" onClick={() => useUi.getState().abrir({ tarefa: "" })}>
+          + Nova tarefa
+        </button>
+        <button type="button" className="btn" data-testid="estimar-tarefas" data-tip="Substitui o cronograma por uma estimativa automática (pede confirmação)." onClick={() => useUi.getState().abrir({ estimativa: true })}>
+          Gerar estimativa
+        </button>
+      </div>
       <ul className="lista-tarefas" data-testid="lista-tarefas">
         {cronograma.tarefas.map((t) => {
           const n = contagem.get(t.id) ?? 0;
@@ -94,6 +99,7 @@ function PainelTarefas() {
             <li key={t.id} className={`cartao${tarefaIsolada === t.id ? " destaque" : ""}`} data-testid={`tarefa-${t.id}`}>
               <div className="rotulo">
                 {t.id} · {t.categoria || "sem categoria"}
+                {t.pavimento ? ` · ${t.pavimento}` : ""}
               </div>
               <div className="tarefa-nome">{t.nome}</div>
               <div

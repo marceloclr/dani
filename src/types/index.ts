@@ -30,6 +30,8 @@ export interface Tarefa {
   realIni?: number;
   realFim?: number;
   avanco?: number;
+  /** Pavimento a que a tarefa se limita (ADR-19); sem ele, vale para o prédio inteiro. */
+  pavimento?: string;
 }
 
 /** Foto da obra (ADR-14). O arquivo (Blob) fica fora do estado, por id. */
@@ -63,6 +65,8 @@ export interface Cronograma {
   /** Início da obra como dia civil (dias desde 1970-01-01, sem fuso). */
   inicio: number;
   tarefas: Tarefa[];
+  /** Gerado pelo estimador automático (§13, ADR-18): não é cronograma executivo. */
+  estimado?: boolean;
 }
 
 export type AcaoTarefa = "construct" | "finish" | "install" | "temporary" | "remove";

@@ -260,8 +260,14 @@ export function exportarCronogramaJson(): void {
   const s = useProjeto.getState();
   if (!s.cronograma) return;
   const c = s.cronograma;
-  const tarefas = c.tarefas.map((t) => ({ id: t.id, nome: t.nome, categoria: t.categoria, inicio: formatarISO(c.inicio + t.ini), fim: formatarISO(c.inicio + t.fim) }));
-  baixar(new Blob([JSON.stringify({ tarefas }, null, 2)], { type: "application/json" }), `${nomeSeguro(s.nomeProjeto ?? "cronograma")}-cronograma.json`);
+  const tarefas = c.tarefas.map((t) => ({
+    id: t.id, nome: t.nome, categoria: t.categoria, ...(t.pavimento ? { pavimento: t.pavimento } : {}),
+    inicio: formatarISO(c.inicio + t.ini), fim: formatarISO(c.inicio + t.fim),
+    ...(t.realIni !== undefined ? { inicio_real: formatarISO(c.inicio + t.realIni) } : {}),
+    ...(t.realFim !== undefined ? { fim_real: formatarISO(c.inicio + t.realFim) } : {}),
+    ...(t.avanco !== undefined ? { avanco: t.avanco } : {}),
+  }));
+  baixar(new Blob([JSON.stringify({ ...(c.estimado ? { estimativa: "gerado automaticamente; não é cronograma executivo" } : {}), tarefas }, null, 2)], { type: "application/json" }), `${nomeSeguro(s.nomeProjeto ?? "cronograma")}-cronograma.json`);
 }
 
 /** CSV com ponto e vírgula e BOM, para abrir direto no Excel brasileiro. */
@@ -270,7 +276,11 @@ export function exportarCronogramaCsv(): void {
   if (!s.cronograma) return;
   const c = s.cronograma;
   const campo = (v: string) => (/[;"\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v);
-  const linhas = ["id;nome;inicio;fim;categoria", ...c.tarefas.map((t) => [t.id, t.nome, formatarISO(c.inicio + t.ini), formatarISO(c.inicio + t.fim), t.categoria].map(campo).join(";"))];
+  const d = (x?: number) => (x === undefined ? "" : formatarISO(c.inicio + x));
+  const linhas = [
+    "id;nome;inicio;fim;categoria;pavimento;inicio_real;fim_real;avanco",
+    ...c.tarefas.map((t) => [t.id, t.nome, d(t.ini), d(t.fim), t.categoria, t.pavimento ?? "", d(t.realIni), d(t.realFim), t.avanco === undefined ? "" : `${Math.round(t.avanco * 100)}%`].map(campo).join(";")),
+  ];
   baixar(new Blob(["﻿" + linhas.join("\r\n") + "\r\n"], { type: "text/csv;charset=utf-8" }), `${nomeSeguro(s.nomeProjeto ?? "cronograma")}-cronograma.csv`);
 }
 

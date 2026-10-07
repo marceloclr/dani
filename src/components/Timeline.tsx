@@ -81,6 +81,9 @@ export function Timeline() {
         <button type="button" className="btn" data-testid="criar-cronograma" onClick={() => useUi.getState().abrir({ tarefa: "" })}>
           Criar cronograma
         </button>
+        <button type="button" className="btn" data-testid="estimar-cronograma" data-tip="Sugere etapas e datas pela área, pavimentos, estrutura e prazo (estimativa, não cronograma executivo)." onClick={() => useUi.getState().abrir({ estimativa: true })}>
+          Gerar estimativa
+        </button>
         <button
           type="button"
           className="btn"

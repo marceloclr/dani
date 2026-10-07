@@ -253,3 +253,10 @@ table.meta td, table.meta th { padding: 5px 6px; font-size: 12.5px; }
 button.link { appearance: none; border: 0; background: none; padding: 0; font: inherit; color: var(--link); text-decoration: underline; cursor: pointer; }
 
 .descricao-saida { margin: 0; color: var(--tinta-2); }
+
+.selo-estimativa { flex: none; font-weight: 600; letter-spacing: .04em; color: var(--alerta); border-color: var(--alerta); }
+.selo-estimativa .curto { display: none; }
+@media (max-width: 560px) { .selo-estimativa .longo { display: none; } .selo-estimativa .curto { display: inline; } .selo-estimativa { padding: 3px 8px; font-size: 10.5px; } }
+.botoes.duas-colunas { display: grid; grid-template-columns: 1fr 1fr; margin-bottom: 8px; }
+.botoes.duas-colunas .btn { justify-content: center; }
+.previa-estimativa { max-height: 280px; overflow: auto; }

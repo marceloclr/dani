@@ -5,6 +5,7 @@ import { ModalProjetos } from "../components/ModalProjetos";
 import { ModalTarefa } from "../components/ModalTarefa";
 import { ModalFoto } from "../components/ModalFoto";
 import { ModalModelos } from "../components/ModalModelos";
+import { ModalEstimativa } from "../components/ModalEstimativa";
 import { PainelLateral } from "../components/PainelLateral";
 import { SeletorArquivo } from "../components/SeletorArquivo";
 import { TelaInicial } from "../components/TelaInicial";
@@ -35,6 +36,7 @@ export function App() {
   const salvoEm = useProjeto((s) => s.salvoEm);
   const demo = useProjeto((s) => s.demoModelo || s.demoCronograma);
   const parametrico = useProjeto((s) => s.tipoModelo === "PARAMETRICO");
+  const estimado = useProjeto((s) => !!s.cronograma?.estimado);
   const nElementos = useProjeto((s) => s.elementos.length);
   const ui = useUi();
   const [tema, setTema] = useState<Tema>(temaInicial);
@@ -76,6 +78,13 @@ export function App() {
               <span className="curto" aria-hidden>PARAM.</span>
             </span>
           )}
+          {estimado && (
+            <span className="selo selo-estimativa" data-testid="selo-estimativa" role="status" aria-label="Cronograma estimado" style={{ ["--cor" as string]: "var(--ocre)" }} data-tip="Cronograma gerado automaticamente (§13): estimativa para simular, não é cronograma executivo.">
+              <span className="pt" />
+              <span className="longo" aria-hidden>ESTIMATIVA</span>
+              <span className="curto" aria-hidden>EST.</span>
+            </span>
+          )}
           <div className="topo-acoes">
             <button type="button" className="btn" data-testid="abrir-projetos" data-tip="Projetos salvos neste navegador: abrir, duplicar, exportar, importar e excluir." onClick={() => ui.abrir({ projetos: true })}>
               Projetos
@@ -110,6 +119,7 @@ export function App() {
       <ModalTarefa tarefaId={ui.tarefa} aoFechar={() => ui.abrir({ tarefa: null })} />
       <ModalFoto />
       <ModalModelos aberto={ui.modelos} aoFechar={() => ui.abrir({ modelos: false })} />
+      <ModalEstimativa aberto={ui.estimativa} aoFechar={() => ui.abrir({ estimativa: false })} />
 
       {carga && (
         <div className="carga" role="status" aria-live="polite" data-testid="carga">

@@ -9,7 +9,8 @@ interface Ui {
   /** id da foto aberta no visualizador */
   foto: string | null;
   modelos: boolean;
-  abrir(p: Partial<Pick<Ui, "projetos" | "parametrico" | "tarefa" | "foto" | "modelos">>): void;
+  estimativa: boolean;
+  abrir(p: Partial<Pick<Ui, "projetos" | "parametrico" | "tarefa" | "foto" | "modelos" | "estimativa">>): void;
 }
 
 export const useUi = create<Ui>((set) => ({
@@ -18,5 +19,6 @@ export const useUi = create<Ui>((set) => ({
   tarefa: null,
   foto: null,
   modelos: false,
+  estimativa: false,
   abrir: (p) => set(p),
 }));

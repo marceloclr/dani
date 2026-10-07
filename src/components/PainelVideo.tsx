@@ -4,6 +4,7 @@ import { duracaoObra } from "../fourd/simulacao";
 import { PRESETS, diaDoQuadro, poseNoTempo, roteiroPadrao, totalDeQuadros, type PontoRoteiro, type Preset } from "../rendering/cameras";
 import { Cancelado, DESCRICAO_SAIDA, NOME_SAIDA, capacidades, dimensoesDaSaida, dispositivoLimitado, estimarZipMB, gerarVideo, type ArquivoGerado, type Capacidades, type Saida } from "../rendering/VideoRenderer";
 import { RESOLUCOES, useProjeto, type ConfigVideo, type FormatoVideo } from "../state/projectStore";
+import { baixar } from "../utils/baixar";
 
 const FPS: ConfigVideo["fps"][] = [24, 30];
 const DURACOES: ConfigVideo["segundos"][] = [15, 30, 60, 90, 120];
@@ -290,12 +291,40 @@ export function PainelVideo() {
   );
 }
 
-/** Compartilhar direto (Web Share API com arquivo): no celular, abre o WhatsApp e outros apps. */
+/**
+ * Compartilhar (ADR-20): com Web Share de arquivos (celular, Windows, ChromeOS, macOS), abre o seletor do sistema;
+ * sem ele (Linux e outros), baixa o arquivo e abre o WhatsApp Web, onde o usuário arrasta o arquivo para a conversa.
+ */
 function Compartilhar({ arquivo }: { arquivo: ArquivoGerado }) {
   const file = useMemo(() => new File([arquivo.blob], arquivo.nome, { type: arquivo.blob.type }), [arquivo]);
   const pode = typeof navigator.canShare === "function" && navigator.canShare({ files: [file] });
   const [erro, setErro] = useState<string | null>(null);
-  if (!pode) return null;
+  const [instrucao, setInstrucao] = useState(false);
+  if (arquivo.tipo === "zip") return null;
+  if (!pode) {
+    return (
+      <>
+        <button
+          type="button"
+          className="btn largo"
+          data-testid="whatsapp-computador"
+          data-tip={"Este navegador não deixa sites anexarem arquivos em outros apps.\nO botão baixa o vídeo e abre o WhatsApp Web numa aba nova; lá, arraste o arquivo baixado para a conversa.\nNada é enviado pelo app."}
+          onClick={() => {
+            baixar(arquivo.blob, arquivo.nome);
+            window.open("https://web.whatsapp.com/", "_blank", "noopener");
+            setInstrucao(true);
+          }}
+        >
+          Enviar pelo WhatsApp
+        </button>
+        {instrucao && (
+          <p className="aviso-honesto" data-testid="instrucao-whatsapp">
+            O arquivo <strong>{arquivo.nome}</strong> foi baixado. No WhatsApp Web, abra a conversa e arraste o arquivo da pasta Downloads para ela, ou use o clipe › Fotos e vídeos. No aplicativo do WhatsApp para computador, é igual.
+          </p>
+        )}
+      </>
+    );
+  }
   return (
     <>
       <button
@@ -311,7 +340,7 @@ function Compartilhar({ arquivo }: { arquivo: ArquivoGerado }) {
           }
         }}
       >
-        Compartilhar…
+        Compartilhar… (WhatsApp e outros)
       </button>
       {erro && <p className="tenue pequeno">{erro}</p>}
     </>

@@ -22,6 +22,9 @@ Versões e licenças conferidas no registro npm em 2026-10-07.
 | 15 | Relatório PDF com jsPDF | Aceita |
 | 16 | Vídeo para compartilhar (MP4 para WhatsApp, GIF) | Aceita |
 | 17 | Revelação progressiva como padrão | Aceita |
+| 18 | Cronograma estimado (§13) | Aceita |
+| 19 | Tarefa por pavimento | Aceita |
+| 20 | WhatsApp no computador | Aceita |
 
 ---
 
@@ -263,4 +266,31 @@ Testes: lógica, parsing de CSV e de IFC no Vitest (Node). Exportação de víde
 - Tarefa com um só elemento (ex.: o contrapiso) se forma ao longo da tarefa inteira.
 - Cada elemento ganha a cor final assim que termina de se formar, sem esperar o fim da tarefa. Antes, todos ficavam em "em execução" até o último dia e mudavam juntos, o que dava a impressão de a fase surgir de uma vez no fim do prazo.
 - Os modos anteriores continuam disponíveis.
+
+
+## ADR-18 — Cronograma estimado (§13)
+
+- Entradas:
+  - área construída e número de pavimentos, que vêm do modelo quando possível: no paramétrico, os parâmetros; no IFC, os pavimentos com paredes e a área de piso estimada;
+  - tipo de estrutura (concreto armado, alvenaria estrutural ou estrutura metálica);
+  - data de início e prazo total.
+- **Prazo sugerido:** (60 + 0,9 × área) dias, × 1,15 por pavimento adicional, × 1,0 / 0,9 / 0,8 conforme a estrutura (concreto / alvenaria estrutural / metálica). Arredondado para dias inteiros e editável.
+- As etapas seguem frações do prazo típicas de obra residencial, com sobreposição. O bloco estrutural (estrutura, alvenaria e laje) se repete por pavimento, de baixo para cima. Cada etapa tem no mínimo um dia.
+- O cronograma fica marcado como **estimado**:
+  - selo ESTIMATIVA no cabeçalho;
+  - aviso no relatório PDF;
+  - o arquivo de origem é "estimativa automática".
+- A marca só sai quando outro cronograma é importado ou criado do zero. Editar tarefas não a remove (§13: não apresentar estimativa como cronograma executivo).
+
+## ADR-19 — Tarefa por pavimento
+
+- A tarefa ganha o campo opcional `pavimento`, e as regras automáticas dessa tarefa passam a valer só para os elementos desse pavimento (`FiltroRegra.pavimento`).
+- O campo entra no CSV, no XLSX e no JSON (coluna `pavimento`), no editor de tarefas, nas exportações e nos modelos de arquivo.
+- Sem o campo, nada muda: a tarefa vale para o prédio inteiro.
+
+## ADR-20 — WhatsApp no computador
+
+- Quando o aparelho não compartilha arquivos (`navigator.canShare` falso), o painel Vídeo mostra **Enviar pelo WhatsApp**: baixa o arquivo e abre `https://web.whatsapp.com/` numa aba nova, com a instrução de arrastar o arquivo baixado para a conversa.
+- Nada é enviado pelo app: é só um atalho, dito com clareza (§43).
+- Com Web Share disponível, o botão Compartilhar continua sendo o caminho.
 

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { REGRAS_PADRAO } from "../fourd/regras";
 import { formatarISO, lerData } from "../fourd/tempo";
 import { useProjeto } from "../state/projectStore";
@@ -40,6 +40,9 @@ export function ModalTarefa({ tarefaId, aoFechar }: Props) {
   const [inicioReal, setInicioReal] = useState("");
   const [fimReal, setFimReal] = useState("");
   const [avanco, setAvanco] = useState("");
+  const [pavimento, setPavimento] = useState("");
+  const elementos = useProjeto((s) => s.elementos);
+  const pavimentosModelo = useMemo(() => [...new Set(elementos.map((e) => e.pavimento).filter((p): p is string => !!p && p !== "Lote"))], [elementos]);
   const [erro, setErro] = useState<string | null>(null);
 
   useEffect(() => {
@@ -54,6 +57,7 @@ export function ModalTarefa({ tarefaId, aoFechar }: Props) {
       setInicioReal(editando.realIni !== undefined ? formatarISO(cronograma.inicio + editando.realIni) : "");
       setFimReal(editando.realFim !== undefined ? formatarISO(cronograma.inicio + editando.realFim) : "");
       setAvanco(editando.avanco !== undefined ? String(Math.round(editando.avanco * 100)) : "");
+      setPavimento(editando.pavimento ?? "");
     } else {
       // nova: começa no dia seguinte ao fim da última tarefa (ou hoje)
       const ultimo = cronograma ? cronograma.inicio + Math.max(...cronograma.tarefas.map((t) => t.fim)) + 1 : lerData(new Date().toLocaleDateString("sv-SE"))!;
@@ -65,6 +69,7 @@ export function ModalTarefa({ tarefaId, aoFechar }: Props) {
       setInicioReal("");
       setFimReal("");
       setAvanco("");
+      setPavimento("");
     }
   }, [tarefaId]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -75,7 +80,7 @@ export function ModalTarefa({ tarefaId, aoFechar }: Props) {
     const rf = fimReal ? lerData(fimReal) : undefined;
     const av = avanco.trim() === "" ? undefined : Number(avanco.replace(",", ".")) / 100;
     const msg = st().salvarTarefa(
-      { id, nome, categoria, inicio: i ?? NaN, fim: f ?? NaN, inicioReal: ri ?? undefined, fimReal: rf ?? undefined, avanco: av },
+      { id, nome, categoria, inicio: i ?? NaN, fim: f ?? NaN, inicioReal: ri ?? undefined, fimReal: rf ?? undefined, avanco: av, pavimento: pavimento || undefined },
       editando ? editando.id : null,
     );
     if (msg) setErro(msg);
@@ -102,6 +107,17 @@ export function ModalTarefa({ tarefaId, aoFechar }: Props) {
             </select>
           </label>
         </div>
+        <label className="campo" data-tip="Limita as regras automáticas desta tarefa aos elementos de um pavimento. Em branco, vale para o prédio inteiro.">
+          <span>Pavimento</span>
+          <select value={pavimento} onChange={(e) => setPavimento(e.target.value)} data-testid="tarefa-pavimento">
+            <option value="">Todos</option>
+            {[...new Set([...pavimentosModelo, ...(pavimento ? [pavimento] : [])])].map((p) => (
+              <option key={p} value={p}>
+                {p}
+              </option>
+            ))}
+          </select>
+        </label>
         <label className="campo">
           <span>Nome</span>
           <input value={nome} onChange={(e) => setNome(e.target.value)} required placeholder="Ex.: Alvenaria do térreo" data-testid="tarefa-nome" />

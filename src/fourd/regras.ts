@@ -42,7 +42,10 @@ export const ACOES_DE_SURGIMENTO: ReadonlySet<AcaoTarefa> = new Set<AcaoTarefa>(
 const norm = (c: string) => c.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim();
 
 export function regrasPadrao(tarefas: Tarefa[]): Regra[] {
-  return tarefas.flatMap((t) => (REGRAS_PADRAO[norm(t.categoria)] ?? []).map((r) => ({ taskId: t.id, acao: r.acao, onde: r.onde })));
+  // tarefa de um pavimento só pega os elementos dele (ADR-19)
+  return tarefas.flatMap((t) =>
+    (REGRAS_PADRAO[norm(t.categoria)] ?? []).map((r) => ({ taskId: t.id, acao: r.acao, onde: t.pavimento ? { ...r.onde, pavimento: [t.pavimento] } : r.onde })),
+  );
 }
 
 export function descreverRegras(categoria: string): string[] {

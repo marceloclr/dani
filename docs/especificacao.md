@@ -11,6 +11,7 @@ Versão enxuta do [prompt mestre](../prompt-mestre-original.md). Cada requisito 
 | `[INC-3]` | Incremento 3: persistência, XLSX e modo paramétrico |
 | `[INC-4]` | Incremento 4: acompanhamento da obra (real, fotos, planta, relatório) e modelos de arquivo |
 | `[INC-5]` | Incremento 5: revelação progressiva e vídeo para compartilhar |
+| `[INC-6]` | Incremento 6: cronograma estimado, tarefas por pavimento e WhatsApp no computador |
 | `[FUTURO]` | Não implementar. A arquitetura só não deve impedir |
 | `[SEMPRE]` | Princípio válido em todos os incrementos |
 
@@ -64,7 +65,7 @@ interface Tarefa {
 - `[INC-1]` Validar: datas inválidas, fim antes do início, IDs ausentes ou duplicados, tarefas sem elementos, elementos sem tarefa (§41).
 - `[INC-3]` Importar XLSX (§12).
 - `[INC-3]` Criar e editar tarefas manualmente (§12).
-- `[FUTURO]` Gerar cronograma estimado, sempre identificado como estimativa (§13).
+- `[INC-6]` Gerar cronograma estimado, sempre identificado como estimativa (§13; ADR-18), com tarefas por pavimento (ADR-19).
 - `[FUTURO]` Predecessoras, dias úteis, MS Project XML, `IfcWorkSchedule`/`IfcTask`.
 
 ### Mapeamento 4D
@@ -100,6 +101,7 @@ interface Tarefa {
 - `[INC-4]` Planta PDF/PNG/JPG como referência sobreposta (§29).
 - `[INC-4]` Fotos da obra na timeline e na simulação; planejado × real com datas reais, avanço físico e modo Comparar (§30, §31, §58; ADR-13, ADR-14).
 - `[INC-4]` Relatório PDF (§59; ADR-15) e modelos de arquivo para download, preenchidos.
+- `[INC-6]` Envio pelo WhatsApp no computador sem Web Share de arquivos (ADR-20).
 - `[INC-5]` Revelação progressiva como padrão e vídeo para compartilhar (MP4 para WhatsApp, GIF, Compartilhar) (ADR-16, ADR-17).
 - `[FUTURO]` Multiusuário (§60). PWA (§46) foi descartado pelo usuário em 2026-10-07.
 - `[FUTURO]` IA (§57). Conflito registrado: numa aplicação estática, IA implica chave de API no cliente ou envio de arquivos a terceiros, o que colide com o §43. Exigirá consentimento explícito.
@@ -121,4 +123,4 @@ interface Tarefa {
 
 O teste de ponta a ponta do §67 vale ao final do INC-2.
 
-**Situação em 2026-10-07:** INC-1 a INC-5 implementados e aceitos pelos testes (`npm run tudo`: 70 testes Vitest e 16 Playwright, incluindo o §67 com vídeo WebM real conferido pelo ffprobe, persistência ao recarregar, `.4dstudio` de ida e volta, sobrado paramétrico com vídeo, XLSX, modo Comparar com o exemplo, fotos, planta PNG e PDF, relatório PDF conferido pelo pdf.js download de cada modelo, revelação progressiva da alvenaria, MP4 para WhatsApp conferido pelo ffprobe e GIF). Publicado em https://marceloclr.github.io/dani/.
+**Situação em 2026-10-07:** INC-1 a INC-6 implementados e aceitos pelos testes (`npm run tudo`: 80 testes Vitest e 19 Playwright, incluindo o §67 com vídeo WebM real conferido pelo ffprobe, persistência ao recarregar, `.4dstudio` de ida e volta, sobrado paramétrico com vídeo, XLSX, modo Comparar com o exemplo, fotos, planta PNG e PDF, relatório PDF conferido pelo pdf.js download de cada modelo, revelação progressiva da alvenaria, MP4 para WhatsApp conferido pelo ffprobe e GIF). Publicado em https://marceloclr.github.io/dani/.

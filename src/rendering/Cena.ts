@@ -131,6 +131,11 @@ export class Cena {
     this.vista("isometrica");
   }
 
+  /** Cota da base de um elemento (para ordenar pavimentos). */
+  baseDe(guid: string): number | undefined {
+    return this.baseY.get(guid);
+  }
+
   /** Posição de cada elemento, para a fila do modo Por fases. */
   posicoes(): PosicaoElemento[] {
     return [...this.malhas].map(([guid, m]) => {

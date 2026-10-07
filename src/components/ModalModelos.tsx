@@ -13,6 +13,7 @@ const COLUNAS_CRONOGRAMA: [string, string, string][] = [
   ["inicio", "sim", "Início planejado: dd/mm/aaaa, aaaa-mm-dd ou data do Excel"],
   ["fim", "sim", "Fim planejado, inclusive"],
   ["categoria", "não", "Liga os elementos à tarefa: terreno, fundacao, estrutura, alvenaria, laje, cobertura, instalacoes, reboco, esquadrias, revestimento, pintura, loucas, paisagismo"],
+  ["pavimento", "não", "Limita a tarefa a um pavimento do modelo (ex.: Térreo); em branco, vale para o prédio inteiro"],
   ["inicio_real", "não", "Quando a tarefa começou de fato"],
   ["fim_real", "não", "Quando terminou de fato (exige inicio_real)"],
   ["avanco", "não", "Avanço físico: 0% a 100% (aceita 45%, 0,45 ou 45)"],
