@@ -19,9 +19,10 @@ export const COR_DOURADO_CLARO = "#d9b77e";
 export const COR_GRAFITE = "#2c2c2c";
 
 /**
- * Monograma provisório, em caminho SVG numa caixa 100 × 100 (só traço): dois D encaixados, o menor
- * apoiado na base do maior, como no logo do perfil. Serve ao SVG da interface e ao canvas do vídeo
- * (Path2D aceita o mesmo texto).
+ * Monograma (redesenhado em vetor a partir do logo do perfil, até chegar o arquivo oficial): um único
+ * contorno de D cuja contraforma é outro D, deslocado para baixo e para a direita: a haste do D de dentro
+ * desce até a base do bojo grande e a base dele se liga à haste da esquerda. Caixa 100 × 100, só traço.
+ * Serve ao SVG da interface e ao canvas do vídeo (Path2D aceita o mesmo texto).
  */
-export const MONOGRAMA_DP = "M24 14 H46 A36 36 0 0 1 46 86 H24 Q18 86 18 80 V20 Q18 14 24 14 Z M34 86 V34 H52 A26 26 0 0 1 52 86";
-export const MONOGRAMA_TRACO = 4;
+export const MONOGRAMA_DP = "M12 10 H39 A54 39.75 0 0 1 39 89.5 H35.4 V22 H43.5 A25.5 25 0 0 1 43.5 72 H12 Z";
+export const MONOGRAMA_TRACO = 4.2;

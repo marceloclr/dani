@@ -74,7 +74,7 @@ export function App() {
       <header className="topo">
         <div className="topo-linha">
           <div className="marca-topo" data-testid="marca-topo" data-tip={`${CLIENTE.empresa} · ${CLIENTE.slogan}\nConstruction 4D Studio`}>
-            <Monograma tamanho={34} titulo={`Monograma ${CLIENTE.empresa}`} />
+            <Monograma tamanho={38} titulo={`Monograma ${CLIENTE.empresa}`} />
             <div className="marca-topo-texto">
               <h1>{CLIENTE.nome.toLocaleUpperCase("pt-BR")}</h1>
               <span className="slogan-topo">Simulação 4D de obras residenciais</span>
