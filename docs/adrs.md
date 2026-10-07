@@ -14,6 +14,7 @@ Versões e licenças conferidas no registro npm em 2026-10-07.
 | 07 | Ativos WASM servidos localmente | Aceita |
 | 08 | IFC de demonstração próprio, gerado por script | Aceita |
 | 09 | Versões fixas e licenças | Aceita |
+| 10 | Reprodução: 1× = 6 dias por segundo | Aceita |
 
 ---
 
@@ -70,7 +71,7 @@ Regras-padrão, que o usuário pode editar:
 | Esquadrias | `IfcDoor`, `IfcWindow` (install) |
 | Instalações | `IfcPipeSegment`, `IfcTank`, `IfcElectricDistributionBoard` (install) |
 | Reboco / Pintura | `IfcWall` (finish), troca de aparência, sem mudar a visibilidade |
-| Revestimento de pisos | `IfcCovering` com `PredefinedType = FLOORING` (finish) |
+| Revestimento de pisos | `IfcCovering` com `PredefinedType = FLOORING` (construct: o piso é um elemento próprio, construído nessa tarefa) |
 | Louças e metais | `IfcSanitaryTerminal` (install) |
 | Terreno | `IfcGeographicElement` com `PredefinedType = TERRAIN` |
 | Paisagismo | `IfcGeographicElement` com `ObjectType = PAISAGISMO` |
@@ -164,7 +165,13 @@ Versões fixas no `package.json`, em vez de pedir à IA que "confirme a API atua
 | vitest | 5.0.3 | MIT |
 | @playwright/test | 1.63.0 | Apache-2.0 |
 | @thatopen/components | 3.4.9 | MIT (fora do MVP, ver ADR-01) |
+| @fontsource/ibm-plex-sans, -serif, -mono | 5.3.0 | OFL-1.1 (fontes do design system servidas localmente, para funcionar offline) |
+| @vitejs/plugin-react | 6.1.2 | MIT |
 
 MPL-2.0 é copyleft por arquivo: pode ser usada sem problema, desde que alterações nos próprios arquivos da biblioteca sejam publicadas. O §44 passa a citá-la explicitamente.
 
 Testes: lógica, parsing de CSV e de IFC no Vitest (Node). Exportação de vídeo só em navegador real (Playwright + Chromium), nunca em jsdom.
+
+## ADR-10 — Velocidade de reprodução
+
+**Decisão.** 1× = 6 dias de obra por segundo, para que a obra-padrão de 180 dias dure 30 s, a duração-padrão do vídeo (§22, §23). As velocidades do §17 multiplicam esse valor (0,25× = 1,5 dia/s; 8× = 48 dias/s). A fórmula aparece na dica do seletor de velocidade.

@@ -2,3 +2,6 @@
 __pycache__/
 node_modules/
 dist/
+public/wasm/
+e2e/resultados/
+playwright-report/

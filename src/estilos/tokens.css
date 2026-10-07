@@ -1,0 +1,140 @@
+/* Design system Papel e Tinta — tokens
+   Fonte da verdade: design-system.md (https://github.com/marceloclr/design-system)
+   Origem: saneamento/index.html (2026-09). Copie este arquivo para o projeto
+   ou importe-o; não altere os valores localmente sem atualizar o repositório.
+
+   Tema: claro por padrão; escuro com <html data-tema="escuro"> ou, sem
+   atributo, pela preferência do sistema. <html data-tema="claro"> força claro. */
+
+
+:root{
+  color-scheme:light;
+  /* superfícies */
+  --papel:#f3f1ec; --papel-2:#e9e6e0; --carta:#fffefc; --carta-2:#faf8f4;
+  /* texto */
+  --tinta:#1c1f23; --tinta-2:#4a5058; --tinta-3:#737a83;
+  /* linhas */
+  --linha:#d9d4cb; --linha-forte:#c1bab0;
+  /* cores nomeadas */
+  --grafite:#3f4750; --latao:#8d7130; --musgo:#4c6847; --ardosia:#3f5c78;
+  --ferrugem:#8a5240; --ameixa:#655070; --ocre:#867123; --carmim:#8b3a3a; --petroleo:#2f5f61; --sepia:#6f5a43;
+  /* semânticas */
+  --ok:var(--musgo); --alerta:var(--ocre); --risco:var(--carmim); --neutro:var(--tinta-3); --link:var(--ardosia);
+  /* acento do contexto (cada aba ou módulo pode redefinir) */
+  --acento:var(--grafite); --acento-tenue:rgba(63,71,80,.09); --acento-medio:rgba(63,71,80,.30);
+  /* forma */
+  --raio:12px; --raio-p:7px;
+  --sombra:0 1px 1px rgba(28,31,35,.05), 0 10px 26px -18px rgba(28,31,35,.35);
+  --sombra-alta:0 24px 60px -24px rgba(28,31,35,.45);
+  /* tipografia */
+  --fonte-corpo:"IBM Plex Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  --fonte-titulo:"IBM Plex Serif",Georgia,serif;
+  --fonte-mono:"IBM Plex Mono",ui-monospace,monospace;
+}
+
+/* escuro: atributo explícito */
+html[data-tema="escuro"]{
+  color-scheme:dark;
+  --papel:#14171b; --papel-2:#1a1e23; --carta:#1f242a; --carta-2:#242a31;
+  --tinta:#e9e6e0; --tinta-2:#bab5ac; --tinta-3:#8d949d;
+  --linha:#2e343b; --linha-forte:#3e454e;
+  --grafite:#9fa9b4; --latao:#c4a45e; --musgo:#87ab7f; --ardosia:#7ba3c8;
+  --ferrugem:#c68a74; --ameixa:#ab92b8; --ocre:#c0aa4e; --carmim:#cf7d7d; --petroleo:#64a7a9; --sepia:#c0a281;
+  --acento-tenue:rgba(159,169,180,.12); --acento-medio:rgba(159,169,180,.35);
+  --sombra:0 1px 1px rgba(0,0,0,.4), 0 10px 26px -18px rgba(0,0,0,.8);
+  --sombra-alta:0 24px 60px -24px rgba(0,0,0,.9);
+}
+
+/* escuro: preferência do sistema, quando a página não fixou o tema */
+@media (prefers-color-scheme:dark){
+  html:not([data-tema]){
+    color-scheme:dark;
+    --papel:#14171b; --papel-2:#1a1e23; --carta:#1f242a; --carta-2:#242a31;
+    --tinta:#e9e6e0; --tinta-2:#bab5ac; --tinta-3:#8d949d;
+    --linha:#2e343b; --linha-forte:#3e454e;
+    --grafite:#9fa9b4; --latao:#c4a45e; --musgo:#87ab7f; --ardosia:#7ba3c8;
+    --ferrugem:#c68a74; --ameixa:#ab92b8; --ocre:#c0aa4e; --carmim:#cf7d7d; --petroleo:#64a7a9; --sepia:#c0a281;
+    --acento-tenue:rgba(159,169,180,.12); --acento-medio:rgba(159,169,180,.35);
+    --sombra:0 1px 1px rgba(0,0,0,.4), 0 10px 26px -18px rgba(0,0,0,.8);
+    --sombra-alta:0 24px 60px -24px rgba(0,0,0,.9);
+  }
+}
+
+/* base */
+*,*::before,*::after{box-sizing:border-box}
+body{
+  margin:0; background:var(--papel); color:var(--tinta);
+  font:400 14px/1.55 var(--fonte-corpo); -webkit-font-smoothing:antialiased;
+}
+h1,h2,h3,h4{font-family:var(--fonte-titulo); font-weight:600; letter-spacing:-.01em; margin:0}
+a{color:var(--link)}
+.mono,.num{font-family:var(--fonte-mono); font-variant-numeric:tabular-nums}
+.tenue{color:var(--tinta-3)}
+:focus-visible{outline:2px solid var(--ardosia); outline-offset:2px}
+@media (prefers-reduced-motion:reduce){*{animation:none!important; transition:none!important}}
+
+/* bloco: seção com filete do acento à esquerda */
+.bloco{
+  background:var(--carta); border:1px solid var(--linha); border-left:3px solid var(--acento);
+  border-radius:var(--raio); box-shadow:var(--sombra); padding:16px 18px; margin-bottom:16px;
+}
+.bloco > header{display:flex; align-items:baseline; gap:10px; margin-bottom:12px; flex-wrap:wrap}
+.bloco > header h2,.bloco > header h3{color:var(--acento)}
+.bloco > header .legenda{font-size:12px; color:var(--tinta-3); margin-left:auto}
+
+/* cartão de indicador */
+.cartoes{display:grid; grid-template-columns:repeat(auto-fill,minmax(212px,1fr)); gap:12px}
+.cartao{
+  position:relative; background:var(--carta); border:1px solid var(--linha); border-radius:var(--raio);
+  padding:13px 14px 12px; box-shadow:var(--sombra);
+}
+.cartao::before{content:""; position:absolute; inset:0 auto 0 0; width:3px; background:var(--cor,var(--neutro)); border-radius:var(--raio) 0 0 var(--raio)}
+.cartao .rotulo{font-size:11.5px; color:var(--tinta-3)}
+.cartao .valor{font-family:var(--fonte-mono); font-size:23px; font-weight:500; letter-spacing:-.02em; margin-top:3px; color:var(--cor,var(--tinta))}
+.cartao .nota{font-size:11.5px; color:var(--tinta-3); margin-top:3px}
+
+/* tabela */
+table{width:100%; border-collapse:collapse; font-size:13px; font-variant-numeric:tabular-nums}
+th,td{text-align:left; padding:8px 12px; border-bottom:1px solid var(--linha); vertical-align:top}
+th{font-weight:600; color:var(--tinta-2); background:var(--carta-2); font-size:12px}
+td.n,th.n{text-align:right; white-space:nowrap}
+tfoot td{background:var(--papel-2); font-weight:600; border-top:1px solid var(--linha-forte)}
+
+/* botões */
+.btn{
+  font:500 13px/1 var(--fonte-corpo); color:var(--tinta); background:var(--carta);
+  border:1px solid var(--linha); border-radius:var(--raio-p); padding:8px 12px; cursor:pointer;
+  display:inline-flex; align-items:center; gap:7px;
+}
+.btn:hover{border-color:var(--linha-forte)}
+.btn.primario{background:var(--acento); border-color:var(--acento); color:var(--carta)}
+.btn:disabled{opacity:.5; cursor:not-allowed}
+
+/* selo (estado, demonstração, base carregada) */
+.selo{display:inline-flex; align-items:center; gap:7px; padding:4px 10px; border:1px solid var(--linha); border-radius:99px; background:var(--carta-2); font-size:12px; color:var(--tinta-2)}
+.selo .pt{width:7px; height:7px; border-radius:50%; background:var(--cor,var(--neutro))}
+
+/* etiqueta colorida */
+.etq{display:inline-block; font-size:11.5px; font-weight:600; padding:2px 8px; border-radius:99px; color:var(--cor); border:1px solid var(--cor); background:color-mix(in srgb,var(--cor) 10%,transparent); white-space:nowrap}
+
+/* segmentos: pílulas dentro de uma pílula (abas internas) */
+.segmentos{display:flex; gap:3px; flex-wrap:wrap; padding:4px; background:var(--carta); border:1px solid var(--linha); border-radius:99px; box-shadow:var(--sombra); width:max-content; max-width:100%}
+.seg{appearance:none; border:0; background:transparent; font:400 12.5px var(--fonte-corpo); color:var(--tinta-3); padding:6px 15px; border-radius:99px; cursor:pointer; white-space:nowrap}
+.seg:hover{background:var(--papel-2); color:var(--tinta)}
+.seg[aria-selected="true"]{background:var(--acento); color:var(--carta); font-weight:600}
+
+/* dicas (ver componentes/dicas.js) */
+[data-tip]{cursor:help}
+button[data-tip],a[data-tip],label[data-tip],select[data-tip],input[data-tip],th[data-tip]{cursor:inherit}
+.dica{
+  position:fixed; z-index:200; top:0; left:0; max-width:360px; width:max-content;
+  background:var(--tinta); color:var(--papel); padding:9px 11px; border-radius:var(--raio-p);
+  font:400 11.5px/1.5 var(--fonte-corpo); box-shadow:var(--sombra-alta); pointer-events:none;
+  opacity:0; transform:translateY(3px); transition:opacity .12s ease, transform .12s ease;
+}
+.dica.visivel{opacity:1; transform:none}
+.dica b{color:var(--papel); font-weight:600}
+.dica .t{display:block; font-family:var(--fonte-titulo); font-size:12.5px; font-weight:600; margin-bottom:4px; padding-bottom:4px; border-bottom:1px solid color-mix(in srgb,var(--papel) 25%,transparent)}
+.dica .l{display:block}
+.dica .l + .l{margin-top:3px}
+.calc{border-bottom:1px dotted var(--tinta-3)}

@@ -45,7 +45,7 @@ REGRAS = {
     "instalacoes": ("install", lambda e: e.is_a("IfcPipeSegment") or e.is_a("IfcTank") or e.is_a("IfcElectricDistributionBoard")),
     "reboco": ("finish", lambda e: e.is_a("IfcWall")),
     "esquadrias": ("install", lambda e: e.is_a("IfcDoor") or e.is_a("IfcWindow")),
-    "revestimento": ("finish", lambda e: e.is_a("IfcCovering") and _pt(e) == "FLOORING"),
+    "revestimento": ("construct", lambda e: e.is_a("IfcCovering") and _pt(e) == "FLOORING"),
     "pintura": ("finish", lambda e: e.is_a("IfcWall")),
     "loucas": ("install", lambda e: e.is_a("IfcSanitaryTerminal")),
     "paisagismo": ("construct", lambda e: e.is_a("IfcGeographicElement") and e.ObjectType == "PAISAGISMO"),

@@ -1,0 +1,152 @@
+/* Layout do Construction 4D Studio sobre os tokens Papel e Tinta. A área 3D é a protagonista (§33). */
+
+html, body, #raiz { height: 100%; }
+.app { height: 100%; display: flex; flex-direction: column; min-height: 0; }
+.pequeno { font-size: 12px; }
+
+/* cabeçalho */
+.topo { position: sticky; top: 0; z-index: 40; background: var(--carta); border-bottom: 1px solid var(--linha); box-shadow: var(--sombra); flex: none; }
+.topo-linha { display: flex; align-items: center; gap: 14px; padding: 8px 16px; min-width: 0; }
+.brasao {
+  width: 34px; height: 34px; border-radius: 9px; flex: none; display: grid; place-items: center;
+  background: linear-gradient(150deg, var(--grafite), var(--ardosia)); color: var(--carta);
+  font: 600 13px/1 var(--fonte-titulo);
+}
+.titulo-bloco { display: flex; flex-direction: column; line-height: 1.25; min-width: 0; }
+.titulo-bloco h1 { font-size: 17px; }
+.titulo-bloco .sub { font-size: 11.5px; color: var(--tinta-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.topo-acoes .btn { white-space: nowrap; }
+.topo-acoes { margin-left: auto; display: flex; gap: 6px; align-items: center; flex-wrap: wrap; justify-content: flex-end; }
+.selo-demo .curto { display: none; }
+.selo-demo { flex: none; font-weight: 600; letter-spacing: .04em; color: var(--latao); border-color: var(--latao); }
+
+.btn[aria-pressed="true"] { background: var(--grafite); border-color: var(--grafite); color: var(--carta); }
+.btn.mini { padding: 5px 8px; font-size: 12px; }
+
+/* erro */
+.erro {
+  display: flex; gap: 12px; align-items: flex-start; margin: 10px 16px 0; padding: 12px 14px; flex: none;
+  background: var(--carta); border: 1px solid var(--linha); border-left: 3px solid var(--risco); border-radius: var(--raio);
+}
+.erro-txt { display: flex; flex-direction: column; gap: 3px; flex: 1; min-width: 0; }
+.erro-txt strong { color: var(--risco); }
+.erro details { margin-top: 4px; font-size: 12px; color: var(--tinta-2); }
+.erro pre { white-space: pre-wrap; word-break: break-word; max-height: 180px; overflow: auto; background: var(--papel-2); padding: 8px; border-radius: var(--raio-p); font: 11.5px/1.45 var(--fonte-mono); }
+
+/* tela inicial */
+.inicial { flex: 1; overflow: auto; padding: 28px 16px 48px; }
+.inicial-in { max-width: 980px; margin: 0 auto; }
+.inicial h1 { font-size: clamp(26px, 4.5vw, 38px); line-height: 1.15; }
+.kicker { color: var(--tinta-3); font-size: 13px; margin: 0 0 6px; }
+.lede { font-family: var(--fonte-titulo); font-size: 17px; line-height: 1.55; color: var(--tinta-2); max-width: 60ch; margin: 10px 0 22px; }
+.passos { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+.passos .bloco { margin: 0; display: flex; flex-direction: column; gap: 10px; align-items: flex-start; }
+.passos .bloco p { margin: 0; color: var(--tinta-2); flex: 1; }
+@media (max-width: 860px) { .passos { grid-template-columns: minmax(0, 1fr); } }
+
+/* estúdio: viewport + painel + timeline */
+.estudio {
+  flex: 1; min-height: 0; display: grid; gap: 0;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  grid-template-rows: minmax(0, 1fr) auto;
+  grid-template-areas: "vista painel" "tempo tempo";
+}
+.viewport { grid-area: vista; position: relative; min-height: 0; display: flex; flex-direction: column; }
+.ferramentas { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px 12px; background: var(--carta); border-bottom: 1px solid var(--linha); }
+.ferramentas .btn { padding: 6px 10px; font-size: 12.5px; }
+.ferramentas .sep { width: 1px; background: var(--linha); margin: 0 4px; }
+.tela3d { flex: 1; min-height: 0; position: relative; touch-action: none; }
+.tela3d canvas { display: block; }
+.legenda3d {
+  position: absolute; left: 12px; bottom: 12px; display: flex; gap: 12px; flex-wrap: wrap;
+  background: color-mix(in srgb, var(--carta) 88%, transparent); border: 1px solid var(--linha); border-radius: 99px;
+  padding: 5px 12px; font-size: 11.5px; color: var(--tinta-2); pointer-events: none;
+}
+.legenda3d i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 5px; vertical-align: -1px; border: 1px solid var(--tinta-3); }
+
+.painel { grid-area: painel; border-left: 1px solid var(--linha); background: var(--carta); display: flex; flex-direction: column; min-height: 0; }
+.painel .segmentos { margin: 10px 12px; width: auto; box-shadow: none; }
+.painel .seg { flex: 1; }
+.painel-corpo { overflow: auto; padding: 0 12px 16px; flex: 1; min-height: 0; }
+.bloco-campo { margin-bottom: 10px; }
+.campo { display: flex; flex-direction: column; gap: 3px; font-size: 11.5px; color: var(--tinta-3); }
+.campo select, .campo input, .incluir select {
+  font: 400 13px var(--fonte-corpo); color: var(--tinta); background: var(--carta); border: 1px solid var(--linha);
+  border-radius: var(--raio-p); padding: 6px 8px;
+}
+.lista-tarefas { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.lista-tarefas .cartao { --cor: var(--grafite); padding: 10px 12px; }
+.lista-tarefas .cartao.destaque { --cor: var(--ardosia); }
+.tarefa-nome { font-weight: 600; margin-top: 2px; }
+.cartao .valor.reduzido { font-size: 15px; }
+.cartao .valor.zero { color: var(--alerta); }
+.lista-tarefas .btn.mini { margin-top: 6px; }
+.el-nome { font-size: 15px; margin: 4px 0 8px; }
+table.meta th { width: 42%; background: transparent; font-weight: 500; }
+table.meta td, table.meta th { padding: 5px 6px; font-size: 12.5px; }
+.painel h4 { margin: 14px 0 6px; font-size: 13px; }
+.vinculos { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.vinculos li { display: flex; justify-content: space-between; gap: 8px; align-items: center; font-size: 12.5px; padding: 6px 8px; border: 1px solid var(--linha); border-radius: var(--raio-p); background: var(--carta-2); }
+.incluir { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.incluir h4 { width: 100%; }
+.problemas { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; font-size: 12.5px; }
+.problemas .aviso { padding: 7px 9px; border-radius: var(--raio-p); background: var(--carta-2); border-left: 3px solid var(--alerta); }
+.problemas .aviso.erro { border-left-color: var(--risco); }
+
+/* timeline */
+.timeline { grid-area: tempo; background: var(--carta); border-top: 1px solid var(--linha); padding: 8px 12px 10px; min-width: 0; }
+.timeline.vazia { display: flex; gap: 12px; align-items: center; color: var(--tinta-2); }
+.timeline.vazia p { margin: 0; }
+.controles { display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-end; margin-bottom: 8px; }
+.controles .btn { min-width: 36px; justify-content: center; padding: 7px 9px; }
+.controles .dia { font-size: 13px; color: var(--tinta); padding-bottom: 7px; }
+.controles .andamento { font-size: 12px; color: var(--tinta-2); padding-bottom: 8px; flex: 1; min-width: 160px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.gantt { --col: 190px; max-height: 210px; overflow-y: auto; overflow-x: hidden; border: 1px solid var(--linha); border-radius: var(--raio-p); }
+.escala-linha, .linha { display: grid; grid-template-columns: var(--col) minmax(0, 1fr); }
+.escala-linha { position: sticky; top: 0; z-index: 2; background: var(--carta-2); border-bottom: 1px solid var(--linha); }
+.escala { position: relative; height: 26px; cursor: ew-resize; touch-action: none; }
+.escala:focus-visible { outline-offset: -2px; }
+.mes { position: absolute; top: 5px; font-size: 10.5px; color: var(--tinta-3); padding-left: 3px; border-left: 1px solid var(--linha-forte); line-height: 16px; pointer-events: none; white-space: nowrap; }
+.cursor { position: absolute; top: 0; bottom: 0; width: 2px; margin-left: -1px; background: var(--risco); pointer-events: none; z-index: 1; }
+.linha { border-bottom: 1px solid var(--linha); }
+.linha:last-child { border-bottom: 0; }
+.linha .rotulo-col {
+  appearance: none; border: 0; background: transparent; text-align: left; cursor: pointer; font: 400 12px var(--fonte-corpo);
+  color: var(--tinta-2); padding: 4px 8px; display: flex; gap: 6px; align-items: center; min-width: 0; border-right: 1px solid var(--linha);
+}
+.linha .rotulo-col .nome { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.linha .rotulo-col .sem { color: var(--alerta); }
+.linha.ativa .rotulo-col { color: var(--tinta); font-weight: 600; }
+.linha.isolada { background: var(--acento-tenue); }
+.trilho { position: relative; height: 24px; }
+.barra { position: absolute; top: 6px; height: 12px; border-radius: 3px; background: var(--cor); opacity: .55; }
+.linha.ativa .barra { opacity: 1; }
+
+/* carga do IFC */
+.carga { position: fixed; inset: 0; z-index: 100; display: grid; place-items: center; background: color-mix(in srgb, var(--papel) 70%, transparent); }
+.carga-caixa { background: var(--carta); border: 1px solid var(--linha); border-radius: var(--raio); box-shadow: var(--sombra-alta); padding: 18px 20px; width: min(380px, 90vw); display: flex; flex-direction: column; gap: 8px; }
+.barra-progresso { height: 8px; background: var(--papel-2); border-radius: 99px; overflow: hidden; }
+.barra-progresso span { display: block; height: 100%; background: var(--ardosia); transition: width .15s; }
+
+/* telas estreitas: tablet e celular */
+@media (max-width: 980px) {
+  .estudio { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(320px, 1fr) auto auto; grid-template-areas: "vista" "tempo" "painel"; overflow-y: auto; }
+  .painel { border-left: 0; border-top: 1px solid var(--linha); }
+  .painel-corpo { max-height: 50vh; }
+  .gantt { --col: 130px; }
+  .topo-linha .sub { display: none; }
+}
+@media (max-width: 560px) {
+  .topo-linha { padding: 8px 12px; gap: 10px; }
+  .titulo-bloco { display: none; }
+  .topo-acoes { flex-wrap: nowrap; }
+  .topo-acoes .btn { padding: 7px 9px; font-size: 12px; }
+  .selo-demo { padding: 3px 8px; font-size: 10.5px; }
+  .selo-demo .longo { display: none; }
+  .selo-demo .curto { display: inline; }
+  .estudio { grid-template-rows: minmax(58vh, 1fr) auto auto; }
+  .ferramentas { gap: 4px; padding: 6px 8px; }
+  .ferramentas .sep { display: none; }
+  .ferramentas .btn { font-size: 11.5px; padding: 5px 8px; }
+  .controles .campo span { display: none; }
+}
