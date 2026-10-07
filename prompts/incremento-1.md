@@ -4,6 +4,7 @@ Você vai construir o primeiro incremento do **Construction 4D Studio**, uma apl
 
 Leia antes de começar, neste repositório:
 - `docs/especificacao.md`: requisitos com etiqueta. Implemente **só** os `[INC-1]` e respeite os `[SEMPRE]`.
+- https://raw.githubusercontent.com/marceloclr/design-system/main/design-system.md: padrão visual. Use `tokens.css` e `componentes/dicas.js` desse repositório.
 - `docs/adrs.md`: decisões já tomadas. Não as reabra. Se encontrar um impedimento real, pare e descreva-o em vez de improvisar outra arquitetura.
 
 ## Escopo fechado

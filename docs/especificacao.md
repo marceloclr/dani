@@ -104,7 +104,7 @@ interface Tarefa {
 
 - `[INC-1]` Tela inicial com 3 passos: Projeto, Cronograma e Simulação, mais DEMONSTRAÇÃO (§32).
 - `[INC-1]` Após carregar: viewport 3D protagonista e timeline embaixo (§32, §33).
-- `[SEMPRE]` Visual técnico, sem excesso de cards ou gradientes (§33). Seguir o `design-system.md` do autor quando estiver disponível no repositório.
+- `[SEMPRE]` Visual técnico, sem excesso de cards ou gradientes (§33), seguindo o design system **Papel e Tinta** (https://github.com/marceloclr/design-system): tokens de `tokens.css`, IBM Plex, temas claro e escuro, dicas com fórmula em todo valor calculado. Estados construtivos na interface: `--latao` em execução, `--musgo` concluído, `--tinta-3` translúcido para fantasma.
 - `[SEMPRE]` Desktop completo; tablet adaptado; celular com visualização e controles essenciais (§34).
 
 ## 5. Critérios de aceitação

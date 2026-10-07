@@ -14,6 +14,10 @@ Este repositório ainda **não tem código**: guarda o prompt original, a avalia
 | [tools/](tools/) | Gerador do IFC de demonstração e prévia estática da simulação |
 | [prompts/incremento-1.md](prompts/incremento-1.md) | Prompt fechado para o 1º incremento: IFC → 3D → cronograma → mapeamento → simulação 4D |
 
+## Design
+
+Interface no padrão [Papel e Tinta](https://github.com/marceloclr/design-system) (`design-system.md`, `tokens.css`, `componentes/dicas.js`).
+
 ## Incrementos
 
 1. **INC-1**: IFC → 3D → CSV → mapeamento automático por regras → timeline → simulação 4D.
@@ -22,7 +26,6 @@ Este repositório ainda **não tem código**: guarda o prompt original, a avalia
 
 ## Pendências antes de implementar
 
-- Trazer o `design-system.md` para este repositório, para a especificação poder referenciá-lo.
 - Escrever os prompts dos incrementos 2 e 3 depois que o 1 for aceito.
 
 ## Casa de demonstração
