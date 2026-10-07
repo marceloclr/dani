@@ -21,7 +21,7 @@ function tipos(s: Estado): Map<string, string> {
 }
 
 function fila(s: Estado, cena: Cena): Map<string, PosicaoFila> | null {
-  if (s.modoAnimacao !== "fases" || !s.cronograma) return null;
+  if ((s.modoAnimacao !== "fases" && s.modoAnimacao !== "progressivo") || !s.cronograma) return null;
   const chaves = [s.vinculos, s.cronograma, s.elementos];
   if (!cacheFila || cacheFila.chaves.some((c, i) => c !== chaves[i])) {
     cacheFila = { chaves, valor: filaPorFases(cena.posicoes(), s.vinculos, s.cronograma.tarefas) };

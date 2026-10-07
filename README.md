@@ -6,9 +6,10 @@ Aplicação web estática que transforma um modelo de residência (IFC) e o cron
 - IFC → 3D → cronograma → mapeamento → timeline → simulação 4D;
 - quatro modos de animação, presets e roteiro de câmera, e geração de vídeo real;
 - projetos salvos no navegador, arquivo `.4dstudio`, cronograma em XLSX, edição de tarefas e modo paramétrico;
-- acompanhamento da obra: planejado × real, fotos na timeline e na simulação, planta sobreposta, relatório PDF e modelos de arquivo para download.
+- acompanhamento da obra: planejado × real, fotos na timeline e na simulação, planta sobreposta, relatório PDF e modelos de arquivo para download;
+- revelação progressiva da obra (padrão) e vídeo pronto para compartilhar: MP4 para WhatsApp, MP4 1080p, WebM, GIF e quadros PNG.
 
-Ficam para depois (`[FUTURO]` na [especificação](docs/especificacao.md)): IA, PWA, cronograma automático e multiusuário.
+Ficam para depois (`[FUTURO]` na [especificação](docs/especificacao.md)): IA, cronograma automático e multiusuário. PWA foi descartado.
 
 ![Prévia da simulação](docs/demo-etapas.png)
 
@@ -51,7 +52,9 @@ e publique a pasta `dist/` (GitHub Pages, Cloudflare Pages, Netlify ou Vercel). 
 2. **Carregar cronograma** (CSV, XLSX ou JSON) ou **Criar cronograma** na tela. Os elementos são ligados às tarefas automaticamente, pela coluna `categoria`. Tarefas podem ser incluídas, editadas e excluídas na aba Tarefas.
 3. Use a timeline: ▶ reproduz, o cursor pode ser arrastado e a data pode ser digitada.
 4. Para corrigir o mapeamento, clique num elemento (modo **Selecionar**) e use **Excluir** ou **Incluir** na aba Elemento.
-5. Escolha a **Animação** na timeline: Aparecimento, Fade-in, Crescimento (paredes, pilares e esquadrias sobem da base) ou Por fases (um a um, de baixo para cima e da frente para o fundo).
+5. Escolha a **Animação** na timeline:
+   - **Progressivo** (padrão): os elementos de cada etapa se formam um a um ao longo do prazo. Paredes e pilares sobem, lajes, vigas e pisos avançam, e o resto aparece aos poucos. Cada um ganha a cor final ao terminar.
+   - Os outros modos: Aparecimento, Fade-in, Crescimento e Por fases.
 6. Na aba **Vídeo**, escolha formato (16:9, 9:16 ou 1:1), fps e duração, ajuste o roteiro de câmera (presets ou a câmera atual, capturada pela prévia) e gere o arquivo. O painel mostra o progresso, permite cancelar e, ao fim, pré-visualizar e baixar.
 7. **Projetos**, no alto: o projeto é salvo sozinho neste navegador (a demonstração só com "Salvar cópia"). Dali se abre, duplica, exporta e importa `.4dstudio`, e se exportam o cronograma (JSON ou CSV para o Excel) e o mapeamento (JSON).
 8. Aba **Obra**: avanço planejado e real com fórmula, fotos da obra (com data do EXIF ou de um `fotos.csv`), planta sobreposta em PNG, JPG ou PDF, e o **relatório PDF** da data da simulação. Na viewport, alterne entre **Planejado**, **Real** e **Comparar**: no modo Comparar, o carmim marca o que está atrasado e a ardósia, o que está adiantado.
@@ -90,18 +93,20 @@ Categorias com regra automática: `terreno`, `fundacao`, `estrutura`, `alvenaria
 
 ## Saídas de vídeo
 
-| Saída | Quando aparece | Observação |
-|-------|----------------|------------|
-| MP4 (H.264) | Navegador com WebCodecs e codificador H.264 (Chrome e Edge, em geral) | Quadro a quadro, determinístico |
-| WebM (VP9 ou VP8) | Navegador com WebCodecs | Quadro a quadro, determinístico |
-| WebM em tempo real | Sem WebCodecs, com MediaRecorder | Leva a duração do vídeo; a fluidez depende do computador |
-| Quadros PNG em ZIP | Sempre | Traz um LEIAME com o comando do ffmpeg para montar o vídeo |
+| Saída | Para quê | Detalhes |
+|-------|----------|----------|
+| **MP4 para WhatsApp e celulares** (padrão) | WhatsApp, Instagram, celulares, TVs | H.264 Baseline, yuv420p, 720p, sem áudio, índice no início; codificador próprio em WebAssembly, igual em qualquer navegador |
+| MP4 alta qualidade (1080p) | YouTube, apresentações | H.264 perfil Main pelo codificador do navegador (só quando ele existe) |
+| WebM (VP9 ou VP8) | Navegadores, VLC | WebCodecs + Mediabunny |
+| WebM em tempo real | Navegador sem WebCodecs | MediaRecorder; leva a duração do vídeo |
+| GIF animado | E-mail, apresentações, mensageiros | 480 px, 10 fps |
+| Quadros PNG em ZIP | Edição em outro programa | LEIAME com o comando do ffmpeg |
 
-Só aparecem as saídas que o navegador consegue produzir com a resolução e o fps escolhidos (`canEncodeVideo`). Sem MP4, o painel avisa: «Seu navegador não oferece suporte à codificação MP4 neste modo. O sistema produzirá WebM ou imagens sequenciais.»
+Depois de gerar, o painel mostra a pré-visualização, o botão Baixar e, no celular, **Compartilhar…**, que abre direto o WhatsApp.
 
 ## Limitações conhecidas
 
-- A saída MP4 não foi exercitada nos testes automáticos: o Chromium do Playwright não traz codificador H.264, então os testes geram WebM (VP9) e conferem o arquivo com o ffprobe.
+- O MP4 para WhatsApp é conferido nos testes com o ffprobe (H.264 Baseline, yuv420p, 720 × 1280, quadros e duração); o envio pelo WhatsApp em si não é automatizável. O MP4 1080p depende do codificador do navegador e não roda no Chromium dos testes.
 - O cronograma é por categoria: uma tarefa de alvenaria levanta as paredes de todos os pavimentos ao mesmo tempo. Para separar pavimentos, use exceções (aba Elemento) ou tarefas com categoria "Outra".
 - O modo paramétrico tem uma planta-tipo fixa (dois cômodos na frente, sala e cozinha no fundo, escada na lateral) e não tem instalações nem louças; é para animar, não é projeto (ADR-12).
 - Simulação real: tarefa sem início real conta como não iniciada; com início e sem fim real, segue em execução indefinidamente (ADR-13).
@@ -131,9 +136,10 @@ Chrome, Edge ou Brave atualizados (testado no Chromium 153 do Playwright). Firef
 | [prompts/incremento-2.md](prompts/incremento-2.md) | Prompt do incremento 2 |
 | [prompts/incremento-3.md](prompts/incremento-3.md) | Prompt do incremento 3 |
 | [prompts/incremento-4.md](prompts/incremento-4.md) | Prompt do incremento 4 |
+| [prompts/incremento-5.md](prompts/incremento-5.md) | Prompt do incremento 5 |
 | [public/modelos/](public/modelos/) | Modelos de arquivo para download |
 | [public/samples/](public/samples/) | Casa de demonstração e cronograma |
-| [tools/](tools/) | Gerador do IFC de demonstração, prévia estática, modelos de arquivo e cópia do wasm e das fontes do pdf.js |
+| [tools/](tools/) | Gerador do IFC de demonstração, prévia estática, modelos de arquivo e cópia dos ativos locais (wasm, fontes do pdf.js, codificador H.264) |
 
 Interface no padrão [Papel e Tinta](https://github.com/marceloclr/design-system).
 

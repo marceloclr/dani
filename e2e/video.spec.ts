@@ -67,9 +67,8 @@ test("§67 de ponta a ponta: demonstração → PLAY → vídeo real", async ({ 
   await configurarVideo(page, "quadrado", "24", "15");
   await expect(page.getByTestId("relacao-tempo")).toHaveText("180 dias → 15 s: 12 dias por segundo");
   const saidas = await page.getByTestId("video-saida").locator("option").allTextContents();
-  if (!saidas.includes("MP4 (H.264)")) {
-    await expect(page.getByTestId("aviso-mp4")).toHaveText("Seu navegador não oferece suporte à codificação MP4 neste modo. O sistema produzirá WebM ou imagens sequenciais.");
-  }
+  expect(saidas[0]).toBe("MP4 para WhatsApp e celulares (720p)");
+  if (!saidas.includes("MP4 alta qualidade (1080p)")) await expect(page.getByTestId("aviso-mp4")).toContainText("não codifica H.264 por conta própria");
   const webm = saidas.find((s) => s.startsWith("WebM (VP"));
   expect(webm, `saídas oferecidas: ${saidas.join(", ")}`).toBeTruthy();
   await page.getByTestId("video-saida").selectOption({ label: webm! });
@@ -104,6 +103,11 @@ test("cancelar interrompe sem gerar arquivo", async ({ page }) => {
   await expect(page.getByTestId("aviso-video")).toHaveText("Geração cancelada. Nenhum arquivo foi criado.");
   await expect(page.getByTestId("resultado-video")).toHaveCount(0);
   await expect(page.getByTestId("gerar-video")).toBeEnabled();
+  await expect(page.getByTestId("erro")).toHaveCount(0);
+  // depois de cancelar, o codificador continua utilizável
+  await page.getByTestId("video-duracao").selectOption("15");
+  await page.getByTestId("gerar-video").click();
+  await expect(page.getByTestId("resultado-video")).toBeVisible({ timeout: 240_000 });
 });
 
 test.describe("navegador sem WebCodecs", () => {
@@ -120,7 +124,8 @@ test.describe("navegador sem WebCodecs", () => {
     await configurarVideo(page, "vertical", "24", "15");
     await expect(page.getByTestId("aviso-mp4")).toBeVisible();
     const saidas = await page.getByTestId("video-saida").locator("option").allTextContents();
-    expect(saidas).toEqual(["WebM em tempo real (MediaRecorder)", "Quadros PNG em ZIP"]);
+    expect(saidas).toEqual(["MP4 para WhatsApp e celulares (720p)", "WebM em tempo real (MediaRecorder)", "GIF animado (leve)", "Quadros PNG em ZIP"]);
+    await page.getByTestId("video-saida").selectOption({ label: "WebM em tempo real (MediaRecorder)" });
     await page.getByTestId("gerar-video").click();
     await expect(page.getByTestId("resultado-video")).toBeVisible({ timeout: 120_000 });
     const caminho = await baixar(page);

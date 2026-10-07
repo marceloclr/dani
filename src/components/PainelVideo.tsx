@@ -2,12 +2,12 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { camadasPara, obterCena } from "../app/estadoCena";
 import { duracaoObra } from "../fourd/simulacao";
 import { PRESETS, diaDoQuadro, poseNoTempo, roteiroPadrao, totalDeQuadros, type PontoRoteiro, type Preset } from "../rendering/cameras";
-import { Cancelado, NOME_SAIDA, capacidades, dispositivoLimitado, estimarZipMB, gerarVideo, type ArquivoGerado, type Capacidades, type Saida } from "../rendering/VideoRenderer";
+import { Cancelado, DESCRICAO_SAIDA, NOME_SAIDA, capacidades, dimensoesDaSaida, dispositivoLimitado, estimarZipMB, gerarVideo, type ArquivoGerado, type Capacidades, type Saida } from "../rendering/VideoRenderer";
 import { RESOLUCOES, useProjeto, type ConfigVideo, type FormatoVideo } from "../state/projectStore";
 
 const FPS: ConfigVideo["fps"][] = [24, 30];
 const DURACOES: ConfigVideo["segundos"][] = [15, 30, 60, 90, 120];
-const AVISO_MP4 = "Seu navegador não oferece suporte à codificação MP4 neste modo. O sistema produzirá WebM ou imagens sequenciais.";
+const AVISO_SEM_H264 = "Este navegador não codifica H.264 por conta própria: o MP4 para WhatsApp sai pelo codificador do app (um pouco mais lento) e o MP4 em 1080p fica indisponível.";
 
 const mb = (bytes: number) => `${(bytes / 1_048_576).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} MB`;
 const fmt = (n: number, casas = 1) => n.toLocaleString("pt-BR", { maximumFractionDigits: casas });
@@ -32,7 +32,7 @@ export function PainelVideo() {
   const [caps, setCaps] = useState<Capacidades | null>(null);
   const [saida, setSaida] = useState<Saida | null>(null);
   const [progresso, setProgresso] = useState<Progresso | null>(null);
-  const [resultado, setResultado] = useState<(ArquivoGerado & { url: string }) | null>(null);
+  const [resultado, setResultado] = useState<(ArquivoGerado & { url: string; resumo: string }) | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
   const [previa, setPrevia] = useState(0);
   const controle = useRef<AbortController | null>(null);
@@ -105,7 +105,8 @@ export function PainelVideo() {
           quadroPrevia.current?.replaceChildren(c);
         },
       });
-      setResultado({ ...arq, url: URL.createObjectURL(arq.blob) });
+      const d = dimensoesDaSaida(saida, largura, altura, video.fps);
+      setResultado({ ...arq, url: URL.createObjectURL(arq.blob), resumo: `${d.largura} × ${d.altura} · ${d.fps} fps · ${totalDeQuadros(video.segundos, d.fps)} quadros` });
     } catch (err) {
       if (err instanceof Cancelado) setAviso("Geração cancelada. Nenhum arquivo foi criado.");
       else st().mostrarErro({ mensagem: "Não foi possível gerar o vídeo.", orientacao: "Tente outro formato de saída ou uma duração menor.", detalhes: String((err as Error)?.stack ?? err) });
@@ -118,7 +119,9 @@ export function PainelVideo() {
   };
 
   const pct = progresso ? Math.round((progresso.quadro / progresso.total) * 100) : 0;
-  const semMp4 = caps !== null && !caps.saidas.includes("mp4-avc");
+  const semMp4 = caps !== null && !caps.h264Nativo;
+  const efetivo = saida ? dimensoesDaSaida(saida, largura, altura, video.fps) : { largura, altura, fps: video.fps };
+  const quadrosSaida = totalDeQuadros(video.segundos, efetivo.fps);
 
   return (
     <div className="painel-video" data-testid="painel-video">
@@ -213,7 +216,7 @@ export function PainelVideo() {
         <h4>Saída</h4>
         {semMp4 && (
           <p className="aviso-honesto" data-testid="aviso-mp4">
-            {AVISO_MP4}
+            {AVISO_SEM_H264}
           </p>
         )}
         <label className="campo">
@@ -227,7 +230,15 @@ export function PainelVideo() {
             ))}
           </select>
         </label>
-        {saida === "webm-tempo-real" && <p className="tenue pequeno">Gravação em tempo real: leva os {video.segundos} s do vídeo e a fluidez depende do computador.</p>}
+        {saida && (
+          <p className="descricao-saida pequeno" data-testid="descricao-saida">
+            {DESCRICAO_SAIDA[saida]}
+            <span className="tenue">
+              {" "}
+              {efetivo.largura} × {efetivo.altura} · {efetivo.fps} fps · {quadrosSaida} quadros
+            </span>
+          </p>
+        )}
         {saida === "png-zip" && (
           <p className="tenue pequeno calc" tabIndex={0} data-tip={`Estimativa: ${quadros} quadros × ${largura} × ${altura} pixels × ~0,35 byte por pixel`}>
             {quadros} imagens PNG, cerca de {fmt(estimarZipMB(largura, altura, quadros), 0)} MB.
@@ -238,7 +249,7 @@ export function PainelVideo() {
 
       {!progresso ? (
         <button type="button" className="btn primario largo" data-testid="gerar-video" disabled={!saida || gerando} onClick={gerar}>
-          Gerar {saida === "png-zip" ? "quadros" : "vídeo"}
+          Gerar {saida === "png-zip" ? "quadros" : saida === "gif" ? "GIF" : "vídeo"}
         </button>
       ) : (
         <div className="progresso-video" role="status" aria-live="polite" data-testid="progresso-video">
@@ -265,14 +276,44 @@ export function PainelVideo() {
       {resultado && (
         <div className="resultado-video" data-testid="resultado-video">
           {resultado.tipo === "video" && <video src={resultado.url} controls muted playsInline className="previa-canvas" />}
+          {resultado.tipo === "gif" && <img src={resultado.url} alt="Prévia do GIF" className="previa-canvas" />}
           <a className="btn primario largo" href={resultado.url} download={resultado.nome} data-testid="baixar-video">
             Baixar {resultado.nome} ({mb(resultado.blob.size)})
           </a>
+          <Compartilhar arquivo={resultado} />
           <p className="tenue pequeno">
-            {resultado.descricao} · {largura} × {altura} · {video.fps} fps · {quadros} quadros
+            {resultado.descricao} · {resultado.resumo}
           </p>
         </div>
       )}
     </div>
+  );
+}
+
+/** Compartilhar direto (Web Share API com arquivo): no celular, abre o WhatsApp e outros apps. */
+function Compartilhar({ arquivo }: { arquivo: ArquivoGerado }) {
+  const file = useMemo(() => new File([arquivo.blob], arquivo.nome, { type: arquivo.blob.type }), [arquivo]);
+  const pode = typeof navigator.canShare === "function" && navigator.canShare({ files: [file] });
+  const [erro, setErro] = useState<string | null>(null);
+  if (!pode) return null;
+  return (
+    <>
+      <button
+        type="button"
+        className="btn largo"
+        data-testid="compartilhar-video"
+        onClick={async () => {
+          setErro(null);
+          try {
+            await navigator.share({ files: [file], title: arquivo.nome });
+          } catch (e) {
+            if ((e as Error).name !== "AbortError") setErro("Não foi possível compartilhar; use o botão Baixar.");
+          }
+        }}
+      >
+        Compartilhar…
+      </button>
+      {erro && <p className="tenue pequeno">{erro}</p>}
+    </>
   );
 }

@@ -14,6 +14,7 @@ import { dataDeStatus } from "../fourd/real";
 export const DIAS_POR_SEGUNDO = 6;
 const VELOCIDADES = [0.25, 0.5, 1, 2, 4, 8];
 const MODOS: { id: ModoAnimacao; rotulo: string }[] = [
+  { id: "progressivo", rotulo: "Progressivo" },
   { id: "aparecimento", rotulo: "Aparecimento" },
   { id: "fade", rotulo: "Fade-in" },
   { id: "crescimento", rotulo: "Crescimento" },
@@ -151,7 +152,7 @@ export function Timeline() {
         </label>
         <label
           className="campo"
-          data-tip={"Como cada elemento surge durante a sua tarefa.\nAparecimento: surge inteiro no primeiro dia\nFade-in: fica opaco aos poucos\nCrescimento: paredes, pilares e esquadrias sobem a partir da base\nPor fases: os elementos da tarefa surgem um a um, de baixo para cima e da frente para o fundo"}
+          data-tip={"Como cada elemento surge durante a sua tarefa.\nProgressivo (padrão): os elementos da tarefa se formam um a um ao longo do prazo; paredes e pilares sobem, lajes e pisos avançam, o resto aparece aos poucos\nAparecimento: surge inteiro no primeiro dia\nFade-in: fica opaco aos poucos\nCrescimento: paredes, pilares e esquadrias sobem a partir da base\nPor fases: os elementos da tarefa surgem um a um, de baixo para cima e da frente para o fundo"}
         >
           <span>Animação</span>
           <select data-testid="modo-animacao" disabled={gerando} value={modo} onChange={(e) => st().definirModoAnimacao(e.target.value as ModoAnimacao)}>

@@ -10,6 +10,7 @@ Versão enxuta do [prompt mestre](../prompt-mestre-original.md). Cada requisito 
 | `[INC-2]` | Incremento 2: câmeras e vídeo |
 | `[INC-3]` | Incremento 3: persistência, XLSX e modo paramétrico |
 | `[INC-4]` | Incremento 4: acompanhamento da obra (real, fotos, planta, relatório) e modelos de arquivo |
+| `[INC-5]` | Incremento 5: revelação progressiva e vídeo para compartilhar |
 | `[FUTURO]` | Não implementar. A arquitetura só não deve impedir |
 | `[SEMPRE]` | Princípio válido em todos os incrementos |
 
@@ -99,7 +100,8 @@ interface Tarefa {
 - `[INC-4]` Planta PDF/PNG/JPG como referência sobreposta (§29).
 - `[INC-4]` Fotos da obra na timeline e na simulação; planejado × real com datas reais, avanço físico e modo Comparar (§30, §31, §58; ADR-13, ADR-14).
 - `[INC-4]` Relatório PDF (§59; ADR-15) e modelos de arquivo para download, preenchidos.
-- `[FUTURO]` Multiusuário (§60), PWA (§46).
+- `[INC-5]` Revelação progressiva como padrão e vídeo para compartilhar (MP4 para WhatsApp, GIF, Compartilhar) (ADR-16, ADR-17).
+- `[FUTURO]` Multiusuário (§60). PWA (§46) foi descartado pelo usuário em 2026-10-07.
 - `[FUTURO]` IA (§57). Conflito registrado: numa aplicação estática, IA implica chave de API no cliente ou envio de arquivos a terceiros, o que colide com o §43. Exigirá consentimento explícito.
 
 ## 4. Interface
@@ -119,4 +121,4 @@ interface Tarefa {
 
 O teste de ponta a ponta do §67 vale ao final do INC-2.
 
-**Situação em 2026-10-07:** INC-1 a INC-4 implementados e aceitos pelos testes (`npm run tudo`: 64 testes Vitest e 13 Playwright, incluindo o §67 com vídeo WebM real conferido pelo ffprobe, persistência ao recarregar, `.4dstudio` de ida e volta, sobrado paramétrico com vídeo, XLSX, modo Comparar com o exemplo, fotos, planta PNG e PDF, relatório PDF conferido pelo pdf.js e download de cada modelo). Publicado em https://marceloclr.github.io/dani/.
+**Situação em 2026-10-07:** INC-1 a INC-5 implementados e aceitos pelos testes (`npm run tudo`: 70 testes Vitest e 16 Playwright, incluindo o §67 com vídeo WebM real conferido pelo ffprobe, persistência ao recarregar, `.4dstudio` de ida e volta, sobrado paramétrico com vídeo, XLSX, modo Comparar com o exemplo, fotos, planta PNG e PDF, relatório PDF conferido pelo pdf.js download de cada modelo, revelação progressiva da alvenaria, MP4 para WhatsApp conferido pelo ffprobe e GIF). Publicado em https://marceloclr.github.io/dani/.

@@ -141,7 +141,7 @@ function INICIAL_COMPLETO(): Partial<Estado> {
     cronograma: null, arquivoCronograma: null, formatoCronograma: null, demoCronograma: false, problemasImportacao: [],
     regras: [], excecoes: [], politica: "fantasma", dia: 0, tocando: false,
     selecionado: null, ocultosUsuario: new Set(), tarefaIsolada: null, painel: "tarefas", erro: null,
-    modoAnimacao: "aparecimento", video: { formato: "horizontal", fps: 30, segundos: 30, roteiro: null }, gerandoVideo: false,
+    modoAnimacao: "progressivo", video: { formato: "horizontal", fps: 30, segundos: 30, roteiro: null }, gerandoVideo: false,
     visao: "planejado", fotos: [], mostrarFotos: true, planta: null,
   };
 }
@@ -213,7 +213,7 @@ export const useProjeto = create<Estado>((set, get) => {
     tarefaIsolada: null,
     painel: "tarefas",
     erro: null,
-    modoAnimacao: "aparecimento",
+    modoAnimacao: "progressivo",
     video: { formato: "horizontal", fps: 30, segundos: 30, roteiro: null },
     gerandoVideo: false,
     visao: "planejado",

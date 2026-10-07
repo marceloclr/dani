@@ -106,7 +106,7 @@ export interface EstadoElemento {
   surgimento: number;
 }
 
-export type ModoAnimacao = "aparecimento" | "fade" | "crescimento" | "fases";
+export type ModoAnimacao = "progressivo" | "aparecimento" | "fade" | "crescimento" | "fases";
 
 /** Vínculo resolvido: elemento → tarefa, com a ação e a origem. */
 export interface Vinculo {

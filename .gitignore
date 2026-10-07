@@ -6,3 +6,4 @@ public/wasm/
 e2e/resultados/
 playwright-report/
 public/pdfjs/
+public/vendor/

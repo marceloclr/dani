@@ -251,3 +251,5 @@ table.meta td, table.meta th { padding: 5px 6px; font-size: 12.5px; }
 .modelos-lista td, .modelos-lista th { padding: 4px 8px; }
 
 button.link { appearance: none; border: 0; background: none; padding: 0; font: inherit; color: var(--link); text-decoration: underline; cursor: pointer; }
+
+.descricao-saida { margin: 0; color: var(--tinta-2); }

@@ -6,10 +6,18 @@ import { tarefaDeSurgimento } from "./simulacao";
 export interface ParametrosVisuais {
   opacidade: number; // multiplica a opacidade do material
   escalaY: number; // 1 = altura total; pivô na base do elemento
+  /** Avanço no maior eixo horizontal (lajes, vigas, pisos); pivô na borda mínima. */
+  escalaH?: number;
+  /** O elemento já terminou de se formar (modos Progressivo e Por fases): mostra a cor final. */
+  formado?: boolean;
 }
 
 /** Classes que "crescem" de baixo para cima no modo Crescimento. */
 export const CLASSES_QUE_CRESCEM: ReadonlySet<string> = new Set(["IfcWall", "IfcWallStandardCase", "IfcColumn", "IfcDoor", "IfcWindow", "IfcMember", "IfcPile"]);
+
+/** Classes que avançam no maior eixo horizontal no modo Progressivo (ADR-17). */
+export const CLASSES_QUE_AVANCAM: ReadonlySet<string> = new Set(["IfcSlab", "IfcCovering", "IfcBeam", "IfcFooting", "IfcRoof", "IfcPlate", "IfcRailing"]);
+const SOBEM_NO_PROGRESSIVO: ReadonlySet<string> = new Set(["IfcWall", "IfcWallStandardCase", "IfcColumn", "IfcMember", "IfcPile", "IfcStair", "IfcStairFlight"]);
 
 /** Posição de um elemento na fila do modo Por fases: `pos` de 0 a n−1. */
 export interface PosicaoFila {
@@ -27,11 +35,20 @@ export function parametros(estado: EstadoElemento, modo: ModoAnimacao, ifcType: 
       return { opacidade: s, escalaY: 1 };
     case "crescimento":
       return CLASSES_QUE_CRESCEM.has(ifcType) ? { opacidade: 1, escalaY: Math.max(s, 0.001) } : { opacidade: s, escalaY: 1 };
+    case "progressivo": {
+      // cada elemento ocupa a sua fatia da tarefa e se forma durante ela, conforme o tipo
+      const local = !fila || fila.n <= 1 ? s : Math.min(Math.max((s - fila.pos / fila.n) * fila.n, 0), 1);
+      if (local <= 0) return { opacidade: 0, escalaY: 1 }; // ainda não chegou a vez dele
+      const formado = local >= 1;
+      if (SOBEM_NO_PROGRESSIVO.has(ifcType)) return { opacidade: 1, escalaY: local, formado };
+      if (CLASSES_QUE_AVANCAM.has(ifcType)) return { opacidade: 1, escalaY: 1, escalaH: local, formado };
+      return { opacidade: local, escalaY: 1, formado };
+    }
     case "fases": {
       if (!fila || fila.n <= 1) return { opacidade: s, escalaY: 1 };
       // cada elemento ocupa uma fatia 1/n do avanço da tarefa e surge ao longo dela
       const local = Math.min(Math.max((s - fila.pos / fila.n) * fila.n, 0), 1);
-      return { opacidade: local, escalaY: 1 };
+      return { opacidade: local, escalaY: 1, formado: local >= 1 };
     }
   }
 }

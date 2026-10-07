@@ -35,6 +35,8 @@ test("incremento 1 de ponta a ponta com a demonstração", async ({ page }) => {
   await expect(page.getByTestId("selo-demo")).toBeVisible({ timeout: 60_000 });
   await expect(page.locator(".tela3d canvas")).toBeVisible();
   await expect(page.getByTestId("situacao")).toContainText("146 elementos");
+  await expect(page.getByTestId("modo-animacao")).toHaveValue("progressivo"); // padrão desde o incremento 5
+  await page.getByTestId("modo-animacao").selectOption("aparecimento"); // este roteiro confere a ordem das etapas
 
   // 3. cronograma na timeline; regras já vincularam os elementos
   await expect(page.locator(".gantt .linha")).toHaveCount(15);

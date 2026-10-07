@@ -40,6 +40,8 @@ export class Cena {
   private malhas = new Map<string, THREE.Mesh>();
   private corBase = new Map<string, THREE.Color>();
   private baseY = new Map<string, number>();
+  /** Eixo horizontal mais longo e a borda mínima nele, para o avanço horizontal. */
+  private eixoH = new Map<string, { eixo: "x" | "z"; min: number }>();
   private materiais = new Map<string, THREE.MeshStandardMaterial>();
   private caixa = new THREE.Box3();
   private pendente = false;
@@ -118,7 +120,9 @@ export class Cena {
       malha.userData.opacidadeBase = m.cor[3];
       this.malhas.set(m.guid, malha);
       this.corBase.set(m.guid, cor);
-      this.baseY.set(m.guid, geo.boundingBox!.min.y);
+      const b = geo.boundingBox!;
+      this.baseY.set(m.guid, b.min.y);
+      this.eixoH.set(m.guid, b.max.x - b.min.x >= b.max.z - b.min.z ? { eixo: "x", min: b.min.x } : { eixo: "z", min: b.min.z });
       this.scene.add(malha);
     }
     this.caixa.makeEmpty();
@@ -181,18 +185,23 @@ export class Cena {
       const opacidadeBase = malha.userData.opacidadeBase as number;
       if (p.opacidade * opacidadeBase < 0.025) visivel = false;
       malha.visible = visivel;
-      // crescimento: escala vertical com pivô na base do elemento
+      // crescimento: escala vertical com pivô na base; avanço horizontal com pivô na borda mínima
       const by = this.baseY.get(guid)!;
-      malha.scale.y = p.escalaY;
-      malha.position.y = by * (1 - p.escalaY);
+      malha.scale.set(1, p.escalaY, 1);
+      malha.position.set(0, by * (1 - p.escalaY), 0);
+      if (p.escalaH !== undefined) {
+        const h = this.eixoH.get(guid)!;
+        malha.scale[h.eixo] = p.escalaH;
+        malha.position[h.eixo] = h.min * (1 - p.escalaH);
+      }
       if (!visivel) continue;
 
       const base = this.corBase.get(guid)!;
       const sel = c.selecionado === guid;
       if (desvio === "atrasado") {
         this.ultimosDesvios.atrasado++;
-        malha.scale.y = 1;
-        malha.position.y = 0;
+        malha.scale.set(1, 1, 1);
+        malha.position.set(0, 0, 0);
         malha.material = this.material(estado?.visivel ? base.clone().lerp(COR_ATRASADO, 0.75) : COR_ATRASADO, estado?.visivel ? opacidadeBase : 0.4, sel);
         continue;
       }
@@ -201,7 +210,8 @@ export class Cena {
         malha.material = this.material(base.clone().lerp(COR_ADIANTADO, 0.7), opacidadeBase * p.opacidade, sel);
         continue;
       }
-      if (!estado || estado.fase === "concluido") {
+      // no Progressivo, o elemento que já se formou ganha a cor final sem esperar o fim da tarefa
+      if (!estado || estado.fase === "concluido" || (estado.fase === "em-execucao" && p.formado)) {
         const ap = estado && APARENCIAS[estado.aparencia];
         malha.material = this.material(ap ? new THREE.Color(ap) : base, opacidadeBase * p.opacidade, sel);
       } else if (estado.fase === "em-execucao") {
@@ -390,6 +400,7 @@ export class Cena {
     this.malhas.clear();
     this.corBase.clear();
     this.baseY.clear();
+    this.eixoH.clear();
     this.materiais.clear();
   }
 

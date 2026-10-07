@@ -20,6 +20,8 @@ Versões e licenças conferidas no registro npm em 2026-10-07.
 | 13 | Dados reais da obra e comparação | Aceita |
 | 14 | Anexos: fotos e planta | Aceita |
 | 15 | Relatório PDF com jsPDF | Aceita |
+| 16 | Vídeo para compartilhar (MP4 para WhatsApp, GIF) | Aceita |
+| 17 | Revelação progressiva como padrão | Aceita |
 
 ---
 
@@ -175,6 +177,8 @@ Versões fixas no `package.json`, em vez de pedir à IA que "confirme a API atua
 | @vitejs/plugin-react | 6.1.2 | MIT |
 | jspdf | 4.2.1 | MIT |
 | pdfjs-dist | 6.4.299 | Apache-2.0 |
+| h264-mp4-encoder | 1.0.12 (minih264, domínio público; libmp4v2, MPL 1.1) | MIT |
+| gifenc | 1.0.3 | MIT |
 | xlsx (SheetJS) | 0.20.3, do tarball https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz | Apache-2.0 |
 
 MPL-2.0 é copyleft por arquivo: pode ser usada sem problema, desde que alterações nos próprios arquivos da biblioteca sejam publicadas. O §44 passa a citá-la explicitamente.
@@ -233,4 +237,30 @@ Testes: lógica, parsing de CSV e de IFC no Vitest (Node). Exportação de víde
   - desvios;
   - até 4 fotos dos 30 dias anteriores.
 - O rodapé diz se os dados são de demonstração ou se o modelo é paramétrico.
+
+
+## ADR-16 — Vídeo para compartilhar
+
+- **MP4 para WhatsApp e celulares** (recomendado e padrão):
+  - H.264 perfil Baseline, 4:2:0 e no máximo 1280 px no lado maior (720p), a resolução que o WhatsApp mantém;
+  - taxa fixa e `moov` no início (pronto para streaming);
+  - codificado em WebAssembly (minih264, domínio público, e libmp4v2, MPL 1.1, pelo pacote `h264-mp4-encoder` 1.0.12, MIT), servido pelo próprio app, para o arquivo sair igual em qualquer navegador, com ou sem codificador H.264 nativo;
+  - sem áudio: o WhatsApp aceita vídeo sem trilha de áudio.
+- **MP4 alta qualidade (1080p)** pelo WebCodecs, com perfil Main fixado (`avc1.4d0028`), quando o navegador tiver H.264.
+- **WebM** (VP9 ou VP8), **WebM em tempo real** (sem WebCodecs), **GIF animado** (gifenc, MIT; 480 px, 10 fps, para mensageiros e apresentações) e **quadros PNG em ZIP**.
+- O MP4 para WhatsApp é reescrito com o índice (`moov`) no início, sem recodificar (Mediabunny), para tocar antes de baixar o arquivo inteiro.
+- No cancelamento, o codificador é finalizado antes de ser descartado: descartá-lo sem finalizar aborta o WebAssembly.
+- Depois de gerar: botão **Compartilhar** (Web Share API com arquivo) quando o aparelho permitir, que leva direto ao WhatsApp no celular.
+
+## ADR-17 — Revelação progressiva como padrão
+
+- Novo modo de animação **Progressivo**, padrão em projetos novos:
+  - cada tarefa revela os seus elementos um a um, de baixo para cima e da frente para o fundo, ao longo de toda a duração;
+  - cada elemento se forma durante a sua vez, conforme o tipo:
+    - paredes, pilares, escadas e estacas sobem a partir da base;
+    - lajes, vigas, baldrames, pisos e telhados avançam no maior eixo horizontal;
+    - portas, janelas, louças, instalações, terreno e paisagismo aparecem aos poucos (fade).
+- Tarefa com um só elemento (ex.: o contrapiso) se forma ao longo da tarefa inteira.
+- Cada elemento ganha a cor final assim que termina de se formar, sem esperar o fim da tarefa. Antes, todos ficavam em "em execução" até o último dia e mudavam juntos, o que dava a impressão de a fase surgir de uma vez no fim do prazo.
+- Os modos anteriores continuam disponíveis.
 
