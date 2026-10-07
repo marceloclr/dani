@@ -6,6 +6,7 @@ import type { ParametrosCasa } from "../bim/parametrico";
 import type { Aparencia3D } from "../rendering/aparencia";
 import type { Luz } from "../rendering/iluminacao";
 import type { ConfigApresentadora } from "../rendering/composicao";
+import type { Cena } from "../rendering/montagem";
 import type { FotoObra, PlantaSobreposta, Tarefa, Visao } from "../types";
 import type { Problema } from "../importers/cronograma";
 import { aplicarMapeamento, regrasPadrao } from "../fourd/regras";
@@ -31,7 +32,9 @@ export interface ConfigVideo {
   /** null = roteiro padrão do §21 para a duração escolhida. */
   roteiro: PontoRoteiro[] | null;
   /** Câmera do vídeo: roteiro de vistas (padrão) ou drone, com voo e passeio pela obra pronta (ADR-23). */
-  camera?: "roteiro" | "drone";
+  camera?: "roteiro" | "drone" | "montagem";
+  /** Cenas da montagem (ADR-25); null = Roteiro Reels. */
+  montagem?: Cena[] | null;
   /** Nome e slogan da marca no canto do vídeo (padrão: ligado). */
   assinatura?: boolean;
   /** Vinheta de abertura e encerramento com a marca (padrão: ligada, ADR-24). */

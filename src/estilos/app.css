@@ -235,6 +235,8 @@ table.meta td, table.meta th { padding: 5px 6px; font-size: 12.5px; }
 .marca-foto:hover, .marca-foto:focus-visible { transform: scale(1.3); }
 .visao3d { margin-left: auto; padding: 2px; box-shadow: none; }
 .visao3d .seg { padding: 4px 10px; font-size: 12px; }
+/* o segmento escolhido fica em negrito: reserva a largura do negrito em todos, para a barra não se mexer */
+.visao3d .seg[data-rotulo]::after { content: attr(data-rotulo); display: block; height: 0; overflow: hidden; visibility: hidden; font-weight: 600; }
 .foto3d {
   position: absolute; right: 12px; bottom: 12px; width: min(240px, 38%); padding: 0; border: 1px solid var(--linha); border-radius: var(--raio-p);
   background: var(--carta); box-shadow: var(--sombra-alta); overflow: hidden; cursor: zoom-in; display: flex; flex-direction: column; text-align: left;
@@ -282,6 +284,9 @@ button.link { appearance: none; border: 0; background: none; padding: 0; font: i
 
 .aparencia3d { margin-left: auto; }
 .aparencia3d + .visao3d { margin-left: 6px; }
+.luz3d + .visao3d { margin-left: 6px; }
+.luz3d.inativo { opacity: 0.45; }
+.luz3d.inativo .seg { cursor: default; }
 
 /* apresentadora (ADR-24) */
 .apresentadora { display: grid; gap: 8px; }
@@ -291,3 +296,20 @@ button.link { appearance: none; border: 0; background: none; padding: 0; font: i
 .previa-vazia { display: grid; place-items: center; width: 160px; height: 120px; color: var(--tinta-3); font-size: 12px; }
 .conta-gotas { width: 96px; height: auto; border-radius: 4px; cursor: crosshair; border: 1px solid var(--linha); }
 .apresentadora input[type="color"] { width: 48px; height: 28px; padding: 0; border: 1px solid var(--linha); background: none; }
+
+/* montagem em cenas (ADR-25) */
+.montagem { display: grid; gap: 8px; margin-top: 8px; }
+.faixa-cenas { display: flex; gap: 2px; border-radius: 4px; overflow: hidden; min-height: 36px; }
+.bloco-cena { display: flex; flex-direction: column; justify-content: center; min-width: 0; padding: 3px 6px; font-size: 11px; line-height: 1.2; color: var(--carta); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bloco-cena span { overflow: hidden; text-overflow: ellipsis; }
+.bloco-cena.tipo-fala { background: var(--sepia); }
+.bloco-cena.tipo-revelacao { background: var(--latao); }
+.bloco-cena.tipo-obra { background: var(--ardosia); }
+.bloco-cena.tipo-marca { background: var(--grafite); }
+.bloco-cena.atual { outline: 2px solid var(--tinta); outline-offset: -2px; }
+.lista-cenas { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.lista-cenas li { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; padding: 4px; border-radius: 4px; }
+.lista-cenas li.atual { background: var(--acento-tenue); }
+.lista-cenas input[type="number"] { width: 58px; }
+.obra-cena { display: inline-flex; align-items: center; gap: 3px; }
+.acoes-cena { margin-left: auto; display: inline-flex; gap: 2px; }

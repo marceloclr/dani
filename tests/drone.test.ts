@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { beforeAll, describe, expect, it } from "vitest";
 import { IfcAPI } from "web-ifc";
 import { lerIfc } from "../src/bim/parseIfc";
-import { FRACAO_CONSTRUCAO, diaDoVoo, girarNaDobradica, montarVoo } from "../src/rendering/drone";
+import { FRACAO_CONSTRUCAO, PARADA_FINAL, VELOCIDADE_VOO, diaDoVoo, duracaoDoVooAutomatico, girarNaDobradica, montarVoo } from "../src/rendering/drone";
 import { caixaDe, gradeDoPavimento, livreEm, type Solido } from "../src/rendering/navegacao";
 
 const api = new IfcAPI();
@@ -50,12 +50,20 @@ describe("voo no sobrado de exemplo", () => {
     const bloqueados = terreo.filter((p) => !livreEm(g, p[0], p[2]));
     expect(bloqueados.length).toBe(0);
   });
-  it("termina dentro da casa, longe das paredes e dos móveis", () => {
+  it("sai pela porta da frente, dá outra volta por fora e para de frente para a fachada", () => {
     const fim = voo.passeio[voo.passeio.length - 1];
-    expect(fim[0]).toBeGreaterThan(0.2);
-    expect(fim[0]).toBeLessThan(7.8);
-    expect(fim[2]).toBeLessThan(-0.2); // a frente da casa fica em z = 0 e o fundo em z = −12
-    expect(fim[2]).toBeGreaterThan(-11.8);
+    expect(fim[2]).toBeGreaterThan(2); // a frente da casa fica em z = 0: o passeio termina do lado de fora, na frente
+    const parada = voo.quadro(1);
+    expect(voo.quadro(1 - PARADA_FINAL / 2).pos).toEqual(parada.pos); // parado no fim
+    expect(parada.pos[2]).toBeGreaterThan(8); // de frente (+z), afastado
+    expect(Math.abs(parada.pos[0] - (s.caixa.min[0] + s.caixa.max[0]) / 2)).toBeLessThan(0.5); // centrado na fachada
+    // a última volta por fora passa pelos fundos (z < −12) depois de sair
+    const fimPasseio = 1 - PARADA_FINAL;
+    let fundos = false;
+    for (let i = 0; i <= 200; i++) if (voo.quadro(fimPasseio - 0.18 + (0.18 * i) / 200).pos[2] < -14) fundos = true;
+    expect(fundos).toBe(true);
+  });
+  it("o passeio pelo térreo fica longe das paredes e dos móveis", () => {
     const g = gradeDoPavimento(s.solidos, 0, { x0: s.caixa.min[0] - 5, x1: s.caixa.max[0] + 5, z0: s.caixa.min[2] - 5, z1: s.caixa.max[2] + 5 });
     const terreo = voo.passeio.filter((p) => p[1] < 1.7 && p[2] < -1.5);
     const media = terreo.reduce((a, p) => a + (g.distancia[Math.floor((p[2] - g.z0) / g.passo) * g.nx + Math.floor((p[0] - g.x0) / g.passo)] ?? 0), 0) / terreo.length;
@@ -77,13 +85,14 @@ describe("voo no sobrado de exemplo", () => {
     expect(voo.pessoas.filter((p) => p.pos[1] > 2)).toHaveLength(1);
   });
   it("velocidade constante e pessoas sempre sobre piso", () => {
-    // comprimento percorrido em cada passo de tempo (subdividido, para medir o caminho e não a corda)
+    // comprimento percorrido em cada passo de tempo (subdividido, para medir o caminho e não a corda),
+    // só no trecho em movimento (o fim fica parado na fachada)
     const passos: number[] = [];
     let a = voo.quadro(0).pos;
     for (let i = 1; i <= 2000; i++) {
       let soma = 0;
       for (let k = 1; k <= 10; k++) {
-        const b = voo.quadro((i - 1 + k / 10) / 2000).pos;
+        const b = voo.quadro(((i - 1 + k / 10) / 2000) * (1 - PARADA_FINAL)).pos;
         soma += Math.hypot(b[0] - a[0], b[1] - a[1], b[2] - a[2]);
         a = b;
       }
@@ -119,6 +128,11 @@ describe("voo na casa térrea da demonstração", () => {
     expect(voo.entrada).not.toBeNull();
     expect(voo.temEscada).toBe(false);
     expect(voo.passeio.length).toBeGreaterThan(3);
+  });
+  it("o voo automático anda a 2,5 m/s: a duração sai do comprimento", () => {
+    const d = duracaoDoVooAutomatico(voo.comprimento);
+    expect((voo.comprimento / (d * (1 - PARADA_FINAL)))).toBeCloseTo(VELOCIDADE_VOO, 9);
+    expect(d).toBeGreaterThan(30);
   });
 });
 

@@ -43,6 +43,15 @@ export interface EstadoPorta {
 
 /** Fração (antes de igualar a velocidade) em que a obra termina de ser montada. */
 export const FRACAO_CONSTRUCAO = 0.5;
+/** Parte final do voo parada na vista da fachada frontal (ADR-25). */
+export const PARADA_FINAL = 0.06;
+/**
+ * Velocidade do voo automático na viewport, em m/s (ADR-25): a duração sai do comprimento do voo,
+ * e não de um tempo fixo (antes, 30 s para qualquer voo: acima de 10 m/s nos modelos maiores).
+ */
+export const VELOCIDADE_VOO = 2.5;
+/** Duração do voo automático na viewport: comprimento ÷ velocidade, mais a parada final. */
+export const duracaoDoVooAutomatico = (comprimento: number) => comprimento / VELOCIDADE_VOO / (1 - PARADA_FINAL);
 
 /** Dia da obra no instante u (0..1) do voo: a obra é montada até `fim` (Voo.fimConstrucao) e fica pronta. */
 export function diaDoVoo(u: number, diasDeObra: number, fim = FRACAO_CONSTRUCAO): number {
@@ -539,6 +548,13 @@ export function montarVoo(solidos: Solido[], caixa: { min: P3; max: P3 }, centro
       ancoras.push({ g: gTerreo, perto: fundo, y: piso });
       pontos.push(ligar(gTerreo, interno, fundo, olho, listaPortas) ?? []);
     }
+    // sai pela porta da frente para a última volta por fora
+    const ultimoDentro = pontos.flat().at(-1);
+    if (ultimoDentro) {
+      const de: P2 = [ultimoDentro[0], ultimoDentro[2]];
+      pontos.push(ligar(gTerreo, de, dentroDa(entrada, 0.8), olho, listaPortas) ?? [no(dentroDa(entrada, 0.8), olho)]);
+      pontos.push([no(fora(entrada, 0.4), olho), no(fora(entrada, 3.5), olho)]);
+    }
     passeio = arredondar(semVaivem(pontos.flat().filter((p, i, l) => i === 0 || Math.hypot(p[0] - l[i - 1][0], p[1] - l[i - 1][1], p[2] - l[i - 1][2]) > 0.05)));
   }
   const interno: Trecho[] = [];
@@ -549,19 +565,40 @@ export function montarVoo(solidos: Solido[], caixa: { min: P3; max: P3 }, centro
     interno.push({ peso: 1, quadro: (u) => orbital(centro, grau(lerp(0, -40, u)), grau(lerp(4, 20, u)), R * lerp(1.25, 1.1, u)) });
   }
 
+  // ---------------------------------------------------------------- 4) última volta por fora
+  // mais uma volta inteira pelas fachadas, subindo um pouco, e para de frente para a fachada frontal
+  // (como o preset Frontal: a câmera em +z, olhando a casa inteira)
+  const fimInterno = encadear(interno)(1);
+  const azSaidaFinal = Math.atan2(fimInterno.pos[0] - centro[0], fimInterno.pos[2] - centro[2]);
+  const giroFinal = 2 * Math.PI + ((((0 - azSaidaFinal) % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI));
+  const distFrontal = R * 1.7;
+  const ultimaVolta = (u: number): QuadroCamera => {
+    const q = orbital(centro, azSaidaFinal + giroFinal * suave(u), lerp(grau(10), grau(7), u), lerp(distFachada, distFrontal, suave(u)), lerp(centro[1] - R * 0.1, centro[1], u));
+    q.fov = 50;
+    return q;
+  };
+  const externoFinal: Trecho[] = [transicao(fimInterno, ultimaVolta(0), 1), { peso: 4, quadro: ultimaVolta }];
+
   const pronto = porFracoes([
-    { fracao: 0.4, quadro: encadear(fachadas) },
-    { fracao: 0.6, quadro: encadear(interno) },
+    { fracao: 0.3, quadro: encadear(fachadas) },
+    { fracao: 0.45, quadro: encadear(interno) },
+    { fracao: 0.25, quadro: encadear(externoFinal) },
   ]);
   const bruto = porFracoes([
     { fracao: FRACAO_CONSTRUCAO, quadro: encadear(construcao) },
     { fracao: 1 - FRACAO_CONSTRUCAO, quadro: pronto },
   ]);
   const vc = velocidadeConstante(bruto, [FRACAO_CONSTRUCAO]);
+  // parada final: o tempo de PARADA_FINAL fica na vista da fachada frontal (o voo anda no resto)
+  const andando = 1 - PARADA_FINAL;
+  const comParada = (u: number) => vc.quadro(Math.min(u / andando, 1));
   const resumo = [
+    "volta completa por fora",
     entrada ? "entra pela porta da frente" : "sem porta externa: voo só por fora",
     escada ? "sobe e desce a escada" : "sem escada: passeio pelo térreo",
-  ].join("; ");
+    entrada ? "sai e dá outra volta por fora" : "",
+    "termina parado de frente para a fachada",
+  ].filter(Boolean).join("; ");
   const pessoas: { pos: P3; olhar: P2 }[] = [];
   if (entrada) {
     // duas pessoas conversando na frente da casa, ao lado do caminho da porta
@@ -580,6 +617,6 @@ export function montarVoo(solidos: Solido[], caixa: { min: P3; max: P3 }, centro
     if (lugar) pessoas.push(lugar);
   }
   const listaFolhas = folhas(todasPortas, [passagem, passeio]);
-  const quadro = comPortas(vc.quadro, vc.comprimento, listaFolhas);
-  return { quadro, passeio, temEscada: !!escada, entrada, resumo, pessoas, folhas: listaFolhas, fimConstrucao: vc.marcas[0], comprimento: vc.comprimento };
+  const quadro = comPortas(comParada, vc.comprimento / andando, listaFolhas); // metros por unidade de u (com a parada)
+  return { quadro, passeio, temEscada: !!escada, entrada, resumo, pessoas, folhas: listaFolhas, fimConstrucao: vc.marcas[0] * andando, comprimento: vc.comprimento };
 }

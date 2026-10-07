@@ -464,3 +464,53 @@ Testes: lógica, parsing de CSV e de IFC no Vitest (Node). Exportação de víde
 - Logo oficial.
 - Legendas da fala no estilo dos reels dela.
 
+
+## ADR-25 — Montagem em cenas (Reels) e revelação "terreno real → projeto"
+
+**Status:** aceito em 2026-10-07 (INC-11).
+
+**Contexto.** A meta indicada pelo usuário é um reel de arquitetura de 49 s (referência em `docs/referencias/`, fora do git). Ele tem cortes a cada 2–4 s sobre uma voz contínua; o apresentador é filmado no terreno, e o fundo vira o projeto pronto enquanto ele fala; depois vêm a obra, o 4D aéreo e o logo. O app gerava uma câmera contínua (roteiro de vistas ou drone).
+
+**Decisão.** Nova câmera do vídeo, **Montagem (Reels)**: uma lista de cenas com cortes secos. A fala da apresentadora (ADR-24) segue inteira por baixo dos cortes.
+
+- **Cenas** (`src/rendering/montagem.ts`, puro e testado):
+  - **Fala no terreno**: o vídeo original dela em tela cheia (cover), sem cena 3D;
+  - **Revelação**: ela continua no mesmo lugar do quadro; o fundo real some de baixo para cima (cortina com borda suave de 12 %) e mostra a obra 3D atrás dela, que **sobe** do terreno à pronta durante a cena (`obra` de 0 a 1, com início e fim suaves);
+  - **Obra**: câmera do drone (trecho da montagem ou do passeio pela obra pronta, `trechoDoVoo`) ou um preset com movimento lento (`poseDaCena`: aproximação de 8 % e giro de 3,4°; a órbita anda 15 % da volta); a apresentadora fica oculta, recortada no canto ou em tela cheia, e a assinatura aparece nessas cenas;
+  - **Marca**: a vinheta parada, com @daniellapompeuengenharia.
+- **Duração:** cada cena tem um peso (parte do vídeo), então as durações acompanham a fala. `normalizar` garante 0,8 s por cena e uma única marca, a última. Sem a fala, ficam só cenas de obra e a marca.
+- **Roteiro Reels** (padrão): Fala 15 % → Revelação 25 % → Passeio de drone 40 % → Volta recortada em órbita 12 % → Marca 8 %.
+- **Camada da apresentadora:** dois planos com a mesma textura e a mesma máscara: recortado (ADR-24) e tela cheia. O shader do plano cheio aplica a cortina (`cortinaRevelacao`, a mesma conta testada no Node). A segmentação roda uma vez por quadro.
+- **Interface:** faixa proporcional das cenas (com a fórmula na dica e a cena da prévia destacada) e lista editável (tipo, segundos, câmera, obra de–até %, pessoa, ordem, excluir, acrescentar, **Roteiro Reels**). Fica gravada em `video.montagem` (null = Roteiro Reels).
+- **Aviso honesto:** com recorte por fundo verde, a abertura mostra o pano verde. A revelação pede a fala gravada no terreno, com recorte por IA.
+- Com montagem, a vinheta global de abertura e encerramento sai: a marca é uma cena.
+
+**Voo automático (pedido: "a velocidade do voo automático está fora de controle; por padrão gere um tour completo externo, interno e finalize com outro tour externo parando com a visão da fachada frontal").**
+- **Antes:** a viewport tocava o voo inteiro em 30 s, qualquer que fosse o comprimento. O sobrado tem 344 m de voo, o que dava 11,5 m/s.
+- **Agora:** velocidade de cruzeiro fixa de **2,5 m/s** (`VELOCIDADE_VOO`). A duração é o comprimento ÷ 2,5 m/s, mais a parada final: 2 min 26 s no sobrado e 3 min 27 s na casa térrea. No vídeo, a velocidade continua sendo o comprimento ÷ a duração escolhida.
+- **Roteiro da obra pronta:**
+  - volta completa por fora;
+  - entra pela porta da frente, faz o passeio interno (escada, cômodo mais distante e sala);
+  - **sai pela porta da frente** (a folha abre também na saída);
+  - **dá outra volta inteira por fora**, subindo um pouco;
+  - **para de frente para a fachada frontal** (+z, centrada, afastada como o preset Frontal) nos últimos 6 % do tempo (`PARADA_FINAL`).
+- O teste de colisão do voo inteiro continua passando: nem paredes nem portas são atravessadas.
+
+**Barra da viewport:** o seletor de luz fica sempre na barra, inativo na aparência Técnica. Antes ele sumia, e os botões mudavam de lugar ao trocar Realista ↔ Técnica. O teste de navegador confere as posições.
+
+**Correção junto:** o caminho do GIF não aguardava o desenho assíncrono do quadro (INC-10), então quadros com a apresentadora saíam atrasados. O teste de navegador agora confere o conteúdo do GIF por cena.
+
+**Limites.**
+- A cortina não casa a perspectiva da filmagem com a câmera 3D: a câmera da revelação é escolhida (frontal por padrão), e a cortina de baixo para cima disfarça a diferença.
+- Vídeos muito curtos deixam o passeio do drone rápido e rente às paredes.
+- Fotos fotorrealistas, pessoas animadas, legendas, números animados, logo em traço e música ficam para os próximos incrementos (as legendas pela transcrição no navegador e por .srt, escolha do usuário).
+
+**Verificação.**
+- Vitest: roteiro (soma 1, com e sem fala), limites de `cenaNoTempo`, normalização (mínimo e marca única), cortina (cheia → vazia, de baixo para cima, monótona), avanço da obra, câmera das cenas e trecho do voo.
+- Playwright, com MP4 para WhatsApp e GIF:
+  - quadro da abertura com o pano verde;
+  - fim da revelação sem verde;
+  - passeio sem a pessoa;
+  - marca em grafite;
+  - voz em AAC audível;
+  - edição da lista.

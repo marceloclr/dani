@@ -37,8 +37,17 @@ test("aparência realista por padrão; técnica volta às cores lisas", async ({
   expect(real.projetamSombra).toBeGreaterThan(100);
   expect(real.toneMapping).not.toBe(0); // ACES
   await page.locator(".tela3d").screenshot({ path: "e2e/resultados/21-realista.png" });
+  // trocar a aparência não move os botões da barra (o seletor de luz fica, inativo na técnica)
+  const posicoes = () =>
+    Promise.all(["drone-automatico", "aparencia-realista", "aparencia-tecnica", "luz-dia", "visao-planejado"].map(async (id) => {
+      const b = await page.getByTestId(id).boundingBox();
+      return b ? [Math.round(b.x), Math.round(b.y), Math.round(b.width)] : null;
+    }));
+  const antes = await posicoes();
 
   await page.getByTestId("aparencia-tecnica").click();
+  expect(await posicoes()).toEqual(antes);
+  await expect(page.getByTestId("luz-noite")).toHaveAttribute("aria-disabled", "true");
   const tec = await estadoCena(page);
   expect(tec.aparencia).toBe("tecnica");
   expect(tec.comTextura).toBe(0);

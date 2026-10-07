@@ -2,6 +2,8 @@ import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "reac
 import { aoMudarApresentadora, blobDaApresentadora } from "../app/anexos";
 import { duracaoDoVideo } from "../rendering/composicao";
 import { SecaoApresentadora } from "./SecaoApresentadora";
+import { EditorMontagem } from "./EditorMontagem";
+import { NOME_CENA, cenaNoTempo, normalizar, obraNaCena, poseDaCena, roteiroReels, trechoDoVoo } from "../rendering/montagem";
 import { camadasPara, obterCena } from "../app/estadoCena";
 import { duracaoObra } from "../fourd/simulacao";
 import { PRESETS, diaDoQuadro, poseNoTempo, roteiroPadrao, totalDeQuadros, type PontoRoteiro, type Preset } from "../rendering/cameras";
@@ -38,8 +40,10 @@ export function PainelVideo() {
   const fala = blobFala ? video.apresentadora ?? null : null;
   const segundos = duracaoDoVideo(video.segundos, fala);
   const acompanha = !!fala?.acompanharFala;
+  const cenas = normalizar(video.montagem ?? roteiroReels(!!fala), segundos, !!fala);
   const roteiro = video.roteiro ?? roteiroPadrao(segundos);
   const comDrone = video.camera === "drone";
+  const comMontagem = video.camera === "montagem";
   const vooAtual = comDrone ? obterCena()?.voo() : null;
   const fimVoo = vooAtual?.fimConstrucao ?? FRACAO_CONSTRUCAO;
   const comprimentoVoo = vooAtual?.comprimento ?? 0;
@@ -52,6 +56,7 @@ export function PainelVideo() {
   const [resultado, setResultado] = useState<(ArquivoGerado & { url: string; resumo: string }) | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
   const [previa, setPrevia] = useState(0);
+  const [cenaPrevia, setCenaPrevia] = useState<number | null>(null);
   const controle = useRef<AbortController | null>(null);
   const quadroPrevia = useRef<HTMLDivElement>(null);
   const limitado = useMemo(dispositivoLimitado, []);
@@ -80,6 +85,18 @@ export function PainelVideo() {
     const cena = obterCena();
     if (!cena) return;
     cena.pararGiro();
+    if (comMontagem) {
+      const m = cenaNoTempo(cenas, t, segundos);
+      setCenaPrevia(m.indice);
+      const c = m.cena;
+      if (c.tipo === "fala" || c.tipo === "marca") return;
+      const voo = c.camera === "drone" ? cena.voo() : null;
+      if (voo) cena.posicionarLivre(cena.camera, voo.quadro(trechoDoVoo(c, m.u, voo.fimConstrucao)));
+      else cena.mostrarPose(poseDaCena(c.camera === "drone" ? "orbita" : c.camera, cena.enquadramento(), m.u));
+      st().definirDia(obraNaCena(c, m.u) * dias);
+      cena.pedirQuadro();
+      return;
+    }
     const voo = comDrone ? cena.voo() : null;
     if (voo) {
       cena.posicionarLivre(cena.camera, voo.quadro(t / segundos));
@@ -113,6 +130,7 @@ export function PainelVideo() {
     const e = cena.enquadramento();
     const voo = comDrone ? cena.voo() : null;
     const seg = segundos;
+    const montagem = comMontagem ? { cenas, enquadramento: e, voo: cena.voo(), cartela: { nome: CLIENTE.nome, slogan: CLIENTE.slogan, secundario: CLIENTE.instagram } } : undefined;
     try {
       const arq = await gerarVideo(cena, {
         saida,
@@ -128,6 +146,7 @@ export function PainelVideo() {
         ...(video.assinatura !== false ? { assinatura: { nome: CLIENTE.nome, slogan: CLIENTE.slogan, secundario: SLOGAN } } : {}),
         ...(video.vinheta !== false && segundos >= 6 ? { vinheta: { nome: CLIENTE.nome, slogan: CLIENTE.slogan, secundario: `${NOME_MARCA} · ${SLOGAN}` } } : {}),
         poseNoTempo: (t) => poseNoTempo(r, e, t, segundos),
+        ...(montagem ? { montagem } : {}),
         ...(voo
           ? {
               quadroLivre: (t: number) => voo.quadro(t / seg),
@@ -212,7 +231,7 @@ export function PainelVideo() {
 
         <h4>Câmera do vídeo</h4>
         <div className="segmentos" role="tablist" aria-label="Câmera do vídeo">
-          <button type="button" role="tab" className="seg" aria-selected={!comDrone} data-testid="camera-roteiro" data-tip="Vistas fixas em sequência (frontal, isométrica, lateral, superior) ou o seu roteiro de câmeras capturadas." onClick={() => st().definirVideo({ camera: "roteiro" })}>
+          <button type="button" role="tab" className="seg" aria-selected={!comDrone && !comMontagem} data-testid="camera-roteiro" data-tip="Vistas fixas em sequência (frontal, isométrica, lateral, superior) ou o seu roteiro de câmeras capturadas." onClick={() => st().definirVideo({ camera: "roteiro" })}>
             Roteiro de vistas
           </button>
           <button
@@ -226,14 +245,35 @@ export function PainelVideo() {
           >
             Drone: voo e passeio
           </button>
+          <button
+            type="button"
+            role="tab"
+            className="seg"
+            aria-selected={comMontagem}
+            data-testid="camera-montagem"
+            data-tip={"Cortes entre a sua fala no terreno, a revelação do projeto atrás de você, o passeio do drone e a marca.\nA voz continua por baixo dos cortes."}
+            onClick={() => st().definirVideo({ camera: "montagem" })}
+          >
+            Montagem (Reels)
+          </button>
         </div>
+        {comMontagem && (
+          <EditorMontagem
+            cenas={cenas}
+            segundos={segundos}
+            temFala={!!fala}
+            fundoVerde={fala?.recorte === "verde"}
+            atual={cenaPrevia}
+            aoMudar={(l) => st().definirVideo({ montagem: l })}
+          />
+        )}
         {comDrone && (
           <p className="relacao" data-testid="resumo-drone">
             {obterCena()?.voo()?.resumo ?? "O voo é calculado a partir do modelo."}
             {segundos < 60 && " · com menos de 60 s o passeio fica rápido."}
           </p>
         )}
-        {!comDrone && (
+        {!comDrone && !comMontagem && (
         <ul className="roteiro" data-testid="roteiro">
           {roteiro.map((p, i) => (
             <li key={i}>
@@ -267,10 +307,12 @@ export function PainelVideo() {
         </ul>
         )}
         <label className="campo" data-tip="Mostra na viewport a câmera e o estado da obra neste segundo do vídeo.">
-          <span>Prévia {comDrone ? "do voo" : "do roteiro"}: {fmt(previa)} s</span>
+          <span>
+            Prévia {comMontagem ? "da montagem" : comDrone ? "do voo" : "do roteiro"}: {fmt(previa)} s{comMontagem && cenaPrevia !== null && cenas[cenaPrevia] ? ` · ${NOME_CENA[cenas[cenaPrevia].tipo]}` : ""}
+          </span>
           <input type="range" min={0} max={segundos} step={0.1} value={previa} onChange={(e) => mostrarPrevia(Number(e.target.value))} />
         </label>
-        {!comDrone && (
+        {!comDrone && !comMontagem && (
         <div className="botoes">
           <button type="button" className="btn" data-tip="Grava a câmera atual da viewport como ponto-chave no segundo da prévia." onClick={capturar}>
             Capturar câmera atual

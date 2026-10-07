@@ -10,7 +10,7 @@ import { formatarBR } from "../fourd/tempo";
 import { useUi } from "../state/uiStore";
 import type { Visao } from "../types";
 import { AJUDA_VOO, PreviaVoo, VooManual, type Comando } from "../rendering/voo";
-import { diaDoVoo } from "../rendering/drone";
+import { VELOCIDADE_VOO, diaDoVoo, duracaoDoVooAutomatico } from "../rendering/drone";
 import { NOME_LUZ, type Luz } from "../rendering/iluminacao";
 
 export function Viewport() {
@@ -114,9 +114,11 @@ export function Viewport() {
     const dias = s.cronograma?.tarefas.length ? Math.max(...s.cronograma.tarefas.map((t) => t.fim)) + 1 : 0;
     setOrbita(false);
     setModoDrone("automatico");
+    // velocidade de cruzeiro fixa: a duração sai do comprimento do voo (ADR-25)
+    const voo = cena.current.voo();
     previa.current = new PreviaVoo(
       cena.current,
-      Math.max(s.video.segundos, 30),
+      voo ? duracaoDoVooAutomatico(voo.comprimento) : 30,
       (u) => dias && st().definirDia(diaDoVoo(u, dias, cena.current?.voo()?.fimConstrucao)),
       () => {
         previa.current = null;
@@ -193,7 +195,7 @@ export function Viewport() {
           className="btn"
           aria-pressed={modoDrone === "automatico"}
           data-testid="drone-automatico"
-          data-tip={"Voo automático: o drone voa em volta e por dentro da obra enquanto ela é montada; com a obra pronta e humanizada, gira pelas fachadas, entra, sobe e desce a escada.\nÉ o mesmo voo da câmera Drone do vídeo."}
+          data-tip={`Voo automático: o drone voa em volta e por dentro da obra enquanto ela é montada; com a obra pronta e humanizada, dá uma volta completa por fora, entra, sobe e desce a escada, sai pela porta da frente, dá outra volta por fora e para de frente para a fachada.\nVelocidade de cruzeiro: ${VELOCIDADE_VOO.toLocaleString("pt-BR")} m/s (duração = comprimento do voo ÷ ${VELOCIDADE_VOO.toLocaleString("pt-BR")} m/s).\nÉ o mesmo voo da câmera Drone do vídeo.`}
           onClick={alternarAutomatico}
         >
           Voo automático
@@ -281,7 +283,7 @@ function SeletorAparencia() {
   return (
     <div className="segmentos visao3d aparencia3d" role="tablist" aria-label="Aparência">
       {opcoes.map((o) => (
-        <button key={o.id} type="button" role="tab" className="seg" aria-selected={a === o.id} data-testid={`aparencia-${o.id}`} data-tip={o.dica} onClick={() => useProjeto.getState().definirAparencia3d(o.id)}>
+        <button key={o.id} type="button" role="tab" className="seg" aria-selected={a === o.id} data-testid={`aparencia-${o.id}`} data-rotulo={o.rotulo} data-tip={o.dica} onClick={() => useProjeto.getState().definirAparencia3d(o.id)}>
           {o.rotulo}
         </button>
       ))}
@@ -289,20 +291,33 @@ function SeletorAparencia() {
   );
 }
 
-/** Luz da cena (ADR-24): só no realista. */
+/**
+ * Luz da cena (ADR-24): vale no realista. Fica sempre na barra (inativa na técnica), para os botões não
+ * mudarem de lugar ao trocar a aparência.
+ */
 function SeletorLuz() {
   const realista = useProjeto((s) => s.aparencia3d === "realista");
   const luz = useProjeto((s) => s.video.luz ?? "dia");
-  if (!realista) return null;
   const opcoes: { id: Luz; dica: string }[] = [
     { id: "dia", dica: "Sol alto, da frente e da direita, com sombras." },
     { id: "entardecer", dica: "Sol baixo e dourado, céu quente e as luzes da casa começando a acender (obra pronta)." },
     { id: "noite", dica: "Hora azul, luar e as luminárias da casa acesas em luz quente (2.700 K), no meio de cada cômodo (obra pronta)." },
   ];
   return (
-    <div className="segmentos visao3d luz3d" role="tablist" aria-label="Luz">
+    <div className={`segmentos visao3d luz3d${realista ? "" : " inativo"}`} role="tablist" aria-label="Luz">
       {opcoes.map((o) => (
-        <button key={o.id} type="button" role="tab" className="seg" aria-selected={luz === o.id} data-testid={`luz-${o.id}`} data-tip={`${o.dica}\nVale também para o vídeo e o relatório.`} onClick={() => useProjeto.getState().definirVideo({ luz: o.id })}>
+        <button
+          key={o.id}
+          type="button"
+          role="tab"
+          className="seg"
+          aria-selected={luz === o.id}
+          aria-disabled={!realista}
+          data-testid={`luz-${o.id}`}
+          data-rotulo={NOME_LUZ[o.id]}
+          data-tip={realista ? `${o.dica}\nVale também para o vídeo e o relatório.` : "A luz vale na aparência Realista."}
+          onClick={() => realista && useProjeto.getState().definirVideo({ luz: o.id })}
+        >
           {NOME_LUZ[o.id]}
         </button>
       ))}
@@ -323,6 +338,7 @@ function SeletorVisao() {
           className="seg"
           aria-selected={visao === v.id}
           data-testid={`visao-${v.id}`}
+          data-rotulo={v.rotulo}
           data-tip={v.id !== "planejado" && !comReal ? `${v.dica}\nEste cronograma ainda não tem datas reais: informe-as ao editar as tarefas ou importe um cronograma com inicio_real e fim_real.` : v.dica}
           onClick={() => useProjeto.getState().definirVisao(v.id)}
         >

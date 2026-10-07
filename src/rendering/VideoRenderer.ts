@@ -11,6 +11,9 @@ import { diaDoQuadro, totalDeQuadros } from "./cameras";
 import { desenharAssinatura, desenharVinheta, opacidadeVinheta, sobrepor, type Sobreposicao, type TextoMarca } from "./marcaVideo";
 import { abrirQuadros, audioDaFala, criarCamadaApresentadora, pedacosDeAudio, type CamadaApresentadora, type QuadrosDaFala } from "./apresentadora";
 import { cantoDaAssinatura, type ConfigApresentadora } from "./composicao";
+import { cenaNoTempo, obraNaCena, poseDaCena, trechoDoVoo, type Cena as CenaMontagem } from "./montagem";
+import type { Enquadramento } from "./cameras";
+import type { Voo } from "./drone";
 
 export type Saida = "mp4-whatsapp" | "mp4-alta" | "webm-vp9" | "webm-vp8" | "webm-tempo-real" | "gif" | "png-zip";
 
@@ -110,6 +113,11 @@ export interface PedidoVideo {
   vinheta?: TextoMarca;
   /** Apresentadora em primeiro plano, com o áudio da fala (ADR-24). */
   apresentadora?: { arquivo: Blob; cfg: ConfigApresentadora };
+  /**
+   * Montagem em cenas (ADR-25): substitui a câmera única. Cada quadro pergunta em que cena está;
+   * a fala segue contínua por baixo dos cortes.
+   */
+  montagem?: { cenas: CenaMontagem[]; enquadramento: Enquadramento; voo: Voo | null; cartela: TextoMarca };
   sinal: AbortSignal;
   aoProgredir(p: { quadro: number; total: number; restanteS: number | null }): void;
   /** Recebe o canvas do vídeo, para pré-visualização durante a geração. */
@@ -162,12 +170,15 @@ export async function gerarVideo(cena: Cena, pedido: PedidoVideo): Promise<Arqui
   let audio: AudioBuffer | null = null;
   if (p.apresentadora) {
     fala = await abrirQuadros(p.apresentadora.arquivo, Array.from({ length: total }, (_, i) => i / p.fps));
-    camada = await criarCamadaApresentadora(lr, ar, p.apresentadora.cfg, fala.largura, fala.altura);
+    const telaCheia = !!p.montagem?.cenas.some((c) => c.tipo === "fala" || c.tipo === "revelacao" || c.pessoa === "cheia");
+    camada = await criarCamadaApresentadora(lr, ar, p.apresentadora.cfg, fala.largura, fala.altura, telaCheia);
     if (p.saida !== "gif" && p.saida !== "png-zip") audio = await audioDaFala(p.apresentadora.arquivo);
   }
   const canto = cantoDaAssinatura(p.apresentadora ? p.apresentadora.cfg.posicao : null);
   const marca = p.assinatura ? sobrepor(desenharAssinatura(lr, ar, p.assinatura), lr, ar, canto === "esquerda" ? "canto" : "canto-direito") : null;
-  const vinheta = p.vinheta ? sobrepor(desenharVinheta(lr, ar, p.vinheta), lr, ar, "cheia") : null;
+  const vinheta = p.vinheta && !p.montagem ? sobrepor(desenharVinheta(lr, ar, p.vinheta), lr, ar, "cheia") : null;
+  // a cena "marca" da montagem: a vinheta parada, em opacidade cheia
+  const cartela = p.montagem?.cenas.some((c) => c.tipo === "marca") ? sobrepor(desenharVinheta(lr, ar, p.montagem.cartela), lr, ar, "cheia") : null;
   /** Sobreposições por cima da cena, na ordem: assinatura e vinheta. */
   const sobre = (s: Pick<Sobreposicao, "cena" | "camera">) => {
     renderer.autoClear = false;
@@ -177,7 +188,44 @@ export async function gerarVideo(cena: Cena, pedido: PedidoVideo): Promise<Arqui
   p.aoCriarCanvas?.(canvas);
 
   const inicio = performance.now();
+  /** Quadro de uma montagem em cenas (ADR-25). */
+  const desenharCena = async (i: number, m: NonNullable<PedidoVideo["montagem"]>) => {
+    const { cena: c, u } = cenaNoTempo(m.cenas, i / p.fps, total / p.fps);
+    const img = fala ? await fala.proximo(i / p.fps) : null; // a leitura da fala é sequencial: avança sempre
+    if (c.tipo === "fala" || c.tipo === "marca") {
+      renderer.setRenderTarget(null);
+      renderer.setClearColor(0x000000, 1);
+      renderer.clear();
+    } else {
+      p.aplicarDia(obraNaCena(c, u) * p.diasDeObra);
+      if (c.camera === "drone" && m.voo) cena.posicionarLivre(camera, m.voo.quadro(trechoDoVoo(c, u, m.voo.fimConstrucao)));
+      else {
+        cena.atualizarPortas(null);
+        cena.posicionar(camera, poseDaCena(c.camera === "drone" ? "orbita" : c.camera, m.enquadramento, u));
+      }
+      desenhista.desenhar(camera, i);
+    }
+    if (c.tipo === "marca") {
+      if (cartela) {
+        cartela.definirOpacidade(1);
+        sobre(cartela);
+      }
+      return;
+    }
+    const modo = c.tipo === "fala" || c.tipo === "revelacao" ? "cheia" : c.pessoa;
+    if (camada && img && modo !== "oculta") {
+      await camada.atualizar(img);
+      camada.definir({ modo, revelacao: c.tipo === "revelacao" ? u : 0 });
+      sobre(camada);
+    }
+    if (marca && c.tipo === "obra") sobre(marca);
+  };
   const desenhar = async (i: number) => {
+    if (p.montagem) {
+      await desenharCena(i, p.montagem);
+      reducao?.drawImage(tela, 0, 0, p.largura, p.altura);
+      return;
+    }
     p.aplicarDia(p.diaNoQuadro ? p.diaNoQuadro(i, total) : diaDoQuadro(i, total, p.diasDeObra));
     if (p.quadroLivre) {
       cena.posicionarLivre(camera, p.quadroLivre(i / p.fps));
@@ -214,10 +262,11 @@ export async function gerarVideo(cena: Cena, pedido: PedidoVideo): Promise<Arqui
   } finally {
     cena.silencioso = false;
     cena.sombraMaxima(false);
-    if (p.quadroLivre) cena.atualizarPortas(null);
+    if (p.quadroLivre || p.montagem) cena.atualizarPortas(null);
     desenhista.dispose();
     marca?.dispose();
     vinheta?.dispose();
+    cartela?.dispose();
     camada?.dispose();
     fala?.dispose();
     renderer.dispose();
@@ -517,7 +566,7 @@ async function comoGif(p: PedidoVideo, canvas: HTMLCanvasElement, total: number,
   const atraso = Math.round(1000 / p.fps);
   for (let i = 0; i < total; i++) {
     conferir();
-    desenhar(i);
+    await desenhar(i);
     const rgba = lerPixels(canvas, ctx);
     const paleta = quantize(rgba, 256);
     gif.writeFrame(applyPalette(rgba, paleta), p.largura, p.altura, { palette: paleta, delay: atraso, ...(i === 0 ? { repeat: 0 } : {}) });

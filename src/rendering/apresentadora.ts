@@ -5,6 +5,7 @@ import * as THREE from "three";
 import { ALL_FORMATS, BlobSource, CanvasSink, Input, type WrappedCanvas } from "mediabunny";
 import type { ImageSegmenter } from "@mediapipe/tasks-vision";
 import { croma, layoutApresentadora, type ConfigApresentadora, type Retangulo } from "./composicao";
+import { BORDA_CORTINA, type PessoaNaCena } from "./montagem";
 
 const temWebCodecs = () => typeof VideoDecoder !== "undefined" && typeof VideoFrame !== "undefined";
 
@@ -156,6 +157,11 @@ export interface CamadaApresentadora {
   cena: THREE.Scene;
   camera: THREE.OrthographicCamera;
   ret: Retangulo;
+  /**
+   * Como ela aparece (ADR-25): recortada no canto (padrão), o quadro original em tela cheia com a cortina
+   * da revelação (0 = fundo real inteiro, 1 = só a pessoa) ou oculta.
+   */
+  definir(o: { modo: PessoaNaCena; revelacao?: number }): void;
   /** Atualiza a imagem e a máscara com o quadro atual da fala. */
   atualizar(img: CanvasImageSource): Promise<void>;
   dispose(): void;
@@ -172,7 +178,17 @@ const FRAG = /* glsl */ `
   uniform vec2 chave; // Cb, Cr da cor do fundo
   uniform float tolerancia, suavidade;
   uniform vec2 texel; // 1 / tamanho da máscara
+  uniform vec2 uvEscala, uvDesloc; // recorte central (cover) do quadro no plano de tela cheia
+  uniform float cheia; // 1 = plano de tela cheia (ADR-25)
+  uniform float revelacao; // 0 = fundo real inteiro; 1 = só a pessoa (a obra aparece atrás)
+  uniform float borda; // borda suave da cortina
   varying vec2 vUv;
+  // mesma conta de cortinaRevelacao (montagem.ts): o fundo real some de baixo para cima
+  float cortina(float u, float y) {
+    float frente = -borda + u * (1.0 + 2.0 * borda);
+    float t = clamp((y - frente + borda) / (2.0 * borda), 0.0, 1.0);
+    return t * t * (3.0 - 2.0 * t);
+  }
   // a textura chega em luz linear; a chave foi medida em sRGB
   vec3 paraSrgb(vec3 c) { return mix(c * 12.92, 1.055 * pow(max(c, vec3(0.0)), vec3(1.0 / 2.4)) - 0.055, step(vec3(0.0031308), c)); }
   vec2 croma(vec3 c) {
@@ -186,18 +202,24 @@ const FRAG = /* glsl */ `
     return t * t * (3.0 - 2.0 * t);
   }
   void main() {
+    vec2 uv = uvDesloc + vUv * uvEscala;
     // borda: média em cruz (suaviza o serrilhado da máscara e da chave)
     vec2 p = modo == 0 ? texel : texel * 0.5;
-    float a = alfa(vUv) * 0.4 + (alfa(vUv + vec2(p.x, 0.0)) + alfa(vUv - vec2(p.x, 0.0)) + alfa(vUv + vec2(0.0, p.y)) + alfa(vUv - vec2(0.0, p.y))) * 0.15;
-    vec3 cor = texture2D(tVideo, vUv).rgb;
+    float a = alfa(uv) * 0.4 + (alfa(uv + vec2(p.x, 0.0)) + alfa(uv - vec2(p.x, 0.0)) + alfa(uv + vec2(0.0, p.y)) + alfa(uv - vec2(0.0, p.y))) * 0.15;
+    vec3 original = texture2D(tVideo, uv).rgb;
+    vec3 cor = original;
     if (modo == 1) cor.g = min(cor.g, (cor.r + cor.b) * 0.5 + 0.002); // tira o verde que vaza (em luz linear)
-    // sombra suave, deslocada para baixo e para a direita, só onde a pessoa não está
+    // tela cheia: o fundo real aparece onde a cortina ainda não passou
+    float fundo = cheia > 0.5 ? cortina(revelacao, vUv.y) : 0.0;
+    float base = max(a, fundo);
+    cor = mix(cor, original, fundo);
+    // sombra suave, deslocada para baixo e para a direita, só onde nem a pessoa nem o fundo estão
     vec2 off = vec2(0.012, -0.008);
     float s = 0.0;
-    for (int i = -2; i <= 2; i++) for (int j = -2; j <= 2; j++) s += alfa(vUv - off + vec2(float(i), float(j)) * texel * 3.0);
+    for (int i = -2; i <= 2; i++) for (int j = -2; j <= 2; j++) s += alfa(uv - off + vec2(float(i), float(j)) * texel * 3.0);
     s = s / 25.0 * 0.32;
-    float aFinal = a + s * (1.0 - a);
-    vec3 corFinal = aFinal > 0.0 ? cor * a / aFinal : cor;
+    float aFinal = base + s * (1.0 - base);
+    vec3 corFinal = aFinal > 0.0 ? cor * base / aFinal : cor;
     gl_FragColor = vec4(corFinal, aFinal);
     #include <colorspace_fragment>
   }`;
@@ -206,10 +228,12 @@ const FRAG = /* glsl */ `
  * Camada da apresentadora no tamanho do vídeo (`largura` × `altura`), na posição e altura configuradas.
  * O renderizador desenha `cena` com `camera` por cima da cena do projeto, sem limpar o quadro.
  */
-export async function criarCamadaApresentadora(largura: number, altura: number, cfg: ConfigApresentadora, videoW: number, videoH: number): Promise<CamadaApresentadora> {
+export async function criarCamadaApresentadora(largura: number, altura: number, cfg: ConfigApresentadora, videoW: number, videoH: number, comTelaCheia = false): Promise<CamadaApresentadora> {
   const ret = layoutApresentadora(largura, altura, videoW, videoH, cfg.posicao, cfg.alturaFracao);
   const quadro = document.createElement("canvas");
-  quadro.width = Math.max(2, Math.min(videoW, Math.round(ret.w * 1.5)));
+  // com tela cheia (montagem, ADR-25), o quadro precisa da resolução do vídeo de saída
+  const larguraUtil = comTelaCheia ? Math.max(ret.w * 1.5, largura, (altura * videoW) / Math.max(videoH, 1)) : ret.w * 1.5;
+  quadro.width = Math.max(2, Math.min(videoW, Math.round(larguraUtil)));
   quadro.height = Math.max(2, Math.round((quadro.width * videoH) / Math.max(videoW, 1)));
   const ctxQuadro = quadro.getContext("2d")!;
   const tex = new THREE.CanvasTexture(quadro);
@@ -230,32 +254,52 @@ export async function criarCamadaApresentadora(largura: number, altura: number, 
   mascara.needsUpdate = true;
   const seg = ia ? await obterSegmentador() : null;
 
-  const mat = new THREE.ShaderMaterial({
-    uniforms: {
-      tVideo: { value: tex },
-      tMascara: { value: mascara },
-      modo: { value: ia ? 0 : 1 },
-      chave: { value: new THREE.Vector2(...croma(...cfg.chave)) },
-      tolerancia: { value: cfg.tolerancia },
-      suavidade: { value: cfg.suavidade },
-      texel: { value: new THREE.Vector2(1 / pequeno.width, 1 / pequeno.height) },
-    },
-    vertexShader: VERT,
-    fragmentShader: FRAG,
-    transparent: true,
-    depthTest: false,
-    toneMapped: false,
-  });
+  const material = (cheia: boolean) => {
+    // tela cheia: recorte central do quadro na proporção do vídeo de saída (cover)
+    const A = largura / altura, V = videoW / Math.max(videoH, 1);
+    const escala = !cheia ? [1, 1] : V > A ? [A / V, 1] : [1, V / A];
+    return new THREE.ShaderMaterial({
+      uniforms: {
+        tVideo: { value: tex },
+        tMascara: { value: mascara },
+        modo: { value: ia ? 0 : 1 },
+        chave: { value: new THREE.Vector2(...croma(...cfg.chave)) },
+        tolerancia: { value: cfg.tolerancia },
+        suavidade: { value: cfg.suavidade },
+        texel: { value: new THREE.Vector2(1 / pequeno.width, 1 / pequeno.height) },
+        uvEscala: { value: new THREE.Vector2(escala[0], escala[1]) },
+        uvDesloc: { value: new THREE.Vector2((1 - escala[0]) / 2, (1 - escala[1]) / 2) },
+        cheia: { value: cheia ? 1 : 0 },
+        revelacao: { value: 0 },
+        borda: { value: BORDA_CORTINA },
+      },
+      vertexShader: VERT,
+      fragmentShader: FRAG,
+      transparent: true,
+      depthTest: false,
+      toneMapped: false,
+    });
+  };
+  const mat = material(false);
+  const matCheia = material(true);
   const plano = new THREE.Mesh(new THREE.PlaneGeometry(ret.w, ret.h), mat);
   plano.position.set(ret.x + ret.w / 2, ret.y + ret.h / 2, 0);
+  const planoCheio = new THREE.Mesh(new THREE.PlaneGeometry(largura, altura), matCheia);
+  planoCheio.position.set(largura / 2, altura / 2, 0);
+  planoCheio.visible = false;
   const cena = new THREE.Scene();
-  cena.add(plano);
+  cena.add(plano, planoCheio);
   const camera = new THREE.OrthographicCamera(0, largura, altura, 0, -1, 1);
 
   return {
     cena,
     camera,
     ret,
+    definir({ modo, revelacao = 0 }) {
+      plano.visible = modo === "recortada";
+      planoCheio.visible = modo === "cheia";
+      matCheia.uniforms.revelacao.value = revelacao;
+    },
     async atualizar(img) {
       ctxQuadro.drawImage(img, 0, 0, quadro.width, quadro.height);
       tex.needsUpdate = true;
@@ -273,7 +317,9 @@ export async function criarCamadaApresentadora(largura: number, altura: number, 
       tex.dispose();
       mascara.dispose();
       mat.dispose();
+      matCheia.dispose();
       plano.geometry.dispose();
+      planoCheio.geometry.dispose();
     },
   };
 }
