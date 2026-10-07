@@ -109,7 +109,8 @@ interface EstadoElemento {
 2. Codificar com `VideoEncoder` e montar o arquivo com **Mediabunny** (MP4 ou WebM).
 3. Controlar a contrapressão: aguardar enquanto `encoder.encodeQueueSize` passar de um limite (por exemplo, 8).
 4. Antes de oferecer cada opção, consultar `VideoEncoder.isConfigSupported()` (por exemplo, `avc1.640028` para H.264 1080×1920, `vp09.00.10.08` para VP9). Só mostrar as opções aceitas.
-5. Hierarquia de fallback:
+5. A implementação usa o `CanvasSource` do Mediabunny, que encapsula o `VideoEncoder` e devolve uma promessa por quadro que só resolve quando o codificador aceita mais trabalho: é o controle de contrapressão do item 3. O teste de codec usa `canEncodeVideo` do Mediabunny, que consulta `VideoEncoder.isConfigSupported()`.
+6. Hierarquia de fallback:
    1. WebCodecs + Mediabunny → MP4 (ou WebM);
    2. `MediaRecorder` + `canvas.captureStream()` → WebM em tempo real, menos preciso, mas é vídeo de verdade;
    3. sequência de PNGs num ZIP (fflate).

@@ -116,3 +116,5 @@ interface Tarefa {
 | INC-3 | Fechar e reabrir o navegador mantém o projeto → exportar `.4dstudio` e importar noutro navegador reproduz o mesmo resultado → modo paramétrico gera uma casa e roda a simulação |
 
 O teste de ponta a ponta do §67 vale ao final do INC-2.
+
+**Situação em 2026-10-07:** INC-1 e INC-2 implementados e aceitos pelos testes (`npm run tudo`: 30 testes Vitest e 6 Playwright, incluindo o §67 com vídeo WebM real conferido pelo ffprobe).

@@ -37,25 +37,43 @@ function aparencia(vs: VinculoResolvido[], dia: number): string {
   return melhor ? normalizar(melhor.categoria) || "base" : "base";
 }
 
-/** Estado de um elemento no dia informado. */
-export function estadoDe(lista: Vinculo[], dia: number, porId: Map<string, Tarefa>, politica: PoliticaSemTarefa): EstadoElemento {
+/** Tarefa que faz o elemento surgir: a primeira (menor início) entre as de surgimento. */
+export function tarefaDeSurgimento(lista: Vinculo[], porId: Map<string, Tarefa>): Tarefa | null {
+  let melhor: Tarefa | null = null;
+  for (const v of lista) {
+    const t = porId.get(v.taskId);
+    if (t && ACOES_DE_SURGIMENTO.has(v.acao) && (!melhor || t.ini < melhor.ini)) melhor = t;
+  }
+  return melhor;
+}
+
+/** Avanço da tarefa no instante `dia` (fracionário; o dia k vai de k a k+1). */
+export const avancoNaTarefa = (t: Tarefa, dia: number) => Math.min(Math.max((dia - t.ini + 1) / (t.fim - t.ini + 1), 0), 1);
+
+/**
+ * Estado de um elemento no instante `dia`. A fase usa o dia inteiro (Math.floor);
+ * `surgimento` usa o valor fracionário, para animações suaves.
+ */
+export function estadoDe(lista: Vinculo[], diaFracionario: number, porId: Map<string, Tarefa>, politica: PoliticaSemTarefa): EstadoElemento {
+  const dia = Math.floor(diaFracionario);
   const vs = resolver(lista, porId);
   const ap = aparencia(vs, dia);
   const surgimento = vs.filter((v) => ACOES_DE_SURGIMENTO.has(v.acao));
 
   if (surgimento.length === 0) {
-    if (politica === "oculto") return { visivel: false, fase: "oculto", aparencia: ap, progresso: 0 };
-    if (politica === "visivel") return { visivel: true, fase: "concluido", aparencia: ap, progresso: 1 };
-    return { visivel: true, fase: "fantasma", aparencia: ap, progresso: 0 };
+    if (politica === "oculto") return { visivel: false, fase: "oculto", aparencia: ap, progresso: 0, surgimento: 0 };
+    if (politica === "visivel") return { visivel: true, fase: "concluido", aparencia: ap, progresso: 1, surgimento: 1 };
+    return { visivel: true, fase: "fantasma", aparencia: ap, progresso: 0, surgimento: 1 };
   }
 
-  const inicio = Math.min(...surgimento.map((v) => v.tarefa.ini));
-  if (dia < inicio) return { visivel: false, fase: "oculto", aparencia: ap, progresso: 0 };
+  const primeira = surgimento.reduce((a, b) => (b.tarefa.ini < a.tarefa.ini ? b : a)).tarefa;
+  const surg = avancoNaTarefa(primeira, diaFracionario);
+  if (dia < primeira.ini) return { visivel: false, fase: "oculto", aparencia: ap, progresso: 0, surgimento: 0 };
 
   const removido = vs.some((v) => v.acao === "remove" && dia > v.tarefa.fim);
   const soTemporario = surgimento.every((v) => v.acao === "temporary");
   if (removido || (soTemporario && dia > Math.max(...surgimento.map((v) => v.tarefa.fim)))) {
-    return { visivel: false, fase: "oculto", aparencia: ap, progresso: 1 };
+    return { visivel: false, fase: "oculto", aparencia: ap, progresso: 1, surgimento: 1 };
   }
 
   // tarefa que governa o elemento hoje: maior ordem de ação; empate, a que começou por último
@@ -66,12 +84,12 @@ export function estadoDe(lista: Vinculo[], dia: number, porId: Map<string, Taref
   }
   if (ativa) {
     const progresso = (dia - ativa.tarefa.ini + 1) / (ativa.tarefa.fim - ativa.tarefa.ini + 1);
-    return { visivel: true, fase: "em-execucao", aparencia: ap, progresso };
+    return { visivel: true, fase: "em-execucao", aparencia: ap, progresso, surgimento: surg };
   }
-  return { visivel: true, fase: "concluido", aparencia: ap, progresso: 1 };
+  return { visivel: true, fase: "concluido", aparencia: ap, progresso: 1, surgimento: 1 };
 }
 
-/** avaliar(dia) → Map<guid, EstadoElemento> (ADR-03). */
+/** avaliar(dia) → Map<guid, EstadoElemento> (ADR-03). `dia` pode ser fracionário. */
 export function avaliar(dia: number, ctx: Contexto): Map<string, EstadoElemento> {
   const porId = new Map(ctx.tarefas.map((t) => [t.id, t]));
   const out = new Map<string, EstadoElemento>();

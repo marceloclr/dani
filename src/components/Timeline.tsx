@@ -3,12 +3,19 @@ import { duracaoObra } from "../fourd/simulacao";
 import { duracao, formatarBR, formatarISO, lerData } from "../fourd/tempo";
 import { contarPorTarefa } from "../fourd/regras";
 import { useProjeto } from "../state/projectStore";
+import type { ModoAnimacao } from "../types";
 import { SeletorArquivo } from "./SeletorArquivo";
 import { DICA_CRONO, abrirCronograma } from "./acoesArquivo";
 
 /** 1× = 6 dias por segundo: 180 dias em 30 s, a duração-padrão do vídeo (§23). */
 export const DIAS_POR_SEGUNDO = 6;
 const VELOCIDADES = [0.25, 0.5, 1, 2, 4, 8];
+const MODOS: { id: ModoAnimacao; rotulo: string }[] = [
+  { id: "aparecimento", rotulo: "Aparecimento" },
+  { id: "fade", rotulo: "Fade-in" },
+  { id: "crescimento", rotulo: "Crescimento" },
+  { id: "fases", rotulo: "Por fases" },
+];
 
 const COR_CATEGORIA: Record<string, string> = {
   terreno: "var(--sepia)",
@@ -33,6 +40,8 @@ export function Timeline() {
   const velocidade = useProjeto((s) => s.velocidade);
   const vinculos = useProjeto((s) => s.vinculos);
   const tarefaIsolada = useProjeto((s) => s.tarefaIsolada);
+  const modo = useProjeto((s) => s.modoAnimacao);
+  const gerando = useProjeto((s) => s.gerandoVideo);
   const st = useProjeto.getState;
   const escala = useRef<HTMLDivElement>(null);
   const arrastando = useRef(false);
@@ -87,6 +96,7 @@ export function Timeline() {
           type="button"
           className="btn primario"
           data-testid="play"
+          disabled={gerando}
           aria-label={tocando ? "Pausar" : "Reproduzir"}
           data-tip={tocando ? "Pausa a simulação." : "Reproduz a obra a partir do dia atual."}
           onClick={() => {
@@ -111,6 +121,19 @@ export function Timeline() {
             {VELOCIDADES.map((v) => (
               <option key={v} value={v}>
                 {String(v).replace(".", ",")}×
+              </option>
+            ))}
+          </select>
+        </label>
+        <label
+          className="campo"
+          data-tip={"Como cada elemento surge durante a sua tarefa.\nAparecimento: surge inteiro no primeiro dia\nFade-in: fica opaco aos poucos\nCrescimento: paredes, pilares e esquadrias sobem a partir da base\nPor fases: os elementos da tarefa surgem um a um, de baixo para cima e da frente para o fundo"}
+        >
+          <span>Animação</span>
+          <select data-testid="modo-animacao" disabled={gerando} value={modo} onChange={(e) => st().definirModoAnimacao(e.target.value as ModoAnimacao)}>
+            {MODOS.map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.rotulo}
               </option>
             ))}
           </select>

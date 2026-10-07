@@ -1,0 +1,278 @@
+import { useEffect, useMemo, useRef, useState } from "react";
+import { camadasPara, obterCena } from "../app/estadoCena";
+import { duracaoObra } from "../fourd/simulacao";
+import { PRESETS, diaDoQuadro, poseNoTempo, roteiroPadrao, totalDeQuadros, type PontoRoteiro, type Preset } from "../rendering/cameras";
+import { Cancelado, NOME_SAIDA, capacidades, dispositivoLimitado, estimarZipMB, gerarVideo, type ArquivoGerado, type Capacidades, type Saida } from "../rendering/VideoRenderer";
+import { RESOLUCOES, useProjeto, type ConfigVideo, type FormatoVideo } from "../state/projectStore";
+
+const FPS: ConfigVideo["fps"][] = [24, 30];
+const DURACOES: ConfigVideo["segundos"][] = [15, 30, 60, 90, 120];
+const AVISO_MP4 = "Seu navegador não oferece suporte à codificação MP4 neste modo. O sistema produzirá WebM ou imagens sequenciais.";
+
+const mb = (bytes: number) => `${(bytes / 1_048_576).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} MB`;
+const fmt = (n: number, casas = 1) => n.toLocaleString("pt-BR", { maximumFractionDigits: casas });
+const tempo = (s: number) => (s < 60 ? `${Math.ceil(s)} s` : `${Math.floor(s / 60)} min ${Math.ceil(s % 60)} s`);
+
+interface Progresso {
+  quadro: number;
+  total: number;
+  restanteS: number | null;
+}
+
+export function PainelVideo() {
+  const cronograma = useProjeto((s) => s.cronograma);
+  const video = useProjeto((s) => s.video);
+  const gerando = useProjeto((s) => s.gerandoVideo);
+  const st = useProjeto.getState;
+  const { largura, altura } = RESOLUCOES[video.formato];
+  const roteiro = video.roteiro ?? roteiroPadrao(video.segundos);
+  const dias = cronograma ? duracaoObra(cronograma.tarefas) : 0;
+  const quadros = totalDeQuadros(video.segundos, video.fps);
+
+  const [caps, setCaps] = useState<Capacidades | null>(null);
+  const [saida, setSaida] = useState<Saida | null>(null);
+  const [progresso, setProgresso] = useState<Progresso | null>(null);
+  const [resultado, setResultado] = useState<(ArquivoGerado & { url: string }) | null>(null);
+  const [aviso, setAviso] = useState<string | null>(null);
+  const [previa, setPrevia] = useState(0);
+  const controle = useRef<AbortController | null>(null);
+  const quadroPrevia = useRef<HTMLDivElement>(null);
+  const limitado = useMemo(dispositivoLimitado, []);
+
+  // saídas realmente suportadas para a resolução e o fps escolhidos
+  useEffect(() => {
+    let vivo = true;
+    capacidades(largura, altura, video.fps).then((c) => {
+      if (!vivo) return;
+      setCaps(c);
+      setSaida((atual) => (atual && c.saidas.includes(atual) ? atual : c.saidas[0]));
+    });
+    return () => {
+      vivo = false;
+    };
+  }, [largura, altura, video.fps]);
+
+  useEffect(() => () => (resultado ? URL.revokeObjectURL(resultado.url) : undefined), [resultado]);
+
+  if (!cronograma) return <p className="tenue">Carregue um cronograma para gerar o vídeo da obra.</p>;
+
+  const definirRoteiro = (r: PontoRoteiro[]) => st().definirVideo({ roteiro: r });
+
+  const mostrarPrevia = (t: number) => {
+    setPrevia(t);
+    const cena = obterCena();
+    if (!cena) return;
+    cena.pararGiro();
+    cena.mostrarPose(poseNoTempo(roteiro, cena.enquadramento(), t, video.segundos));
+    st().definirDia(diaDoQuadro(Math.round(t * video.fps), quadros, dias));
+  };
+
+  const capturar = () => {
+    const cena = obterCena();
+    if (!cena) return;
+    const novo: PontoRoteiro = { segundo: previa, camera: "capturada", captura: cena.poseAtual() };
+    definirRoteiro([...roteiro.filter((p) => Math.abs(p.segundo - previa) > 0.01), novo].sort((a, b) => a.segundo - b.segundo));
+  };
+
+  const gerar = async () => {
+    const cena = obterCena();
+    if (!cena || !saida) return;
+    if (resultado) URL.revokeObjectURL(resultado.url);
+    setResultado(null);
+    setAviso(null);
+    const ac = new AbortController();
+    controle.current = ac;
+    st().definirGerandoVideo(true);
+    st().mostrarErro(null);
+    setProgresso({ quadro: 0, total: quadros, restanteS: null });
+    const r = roteiro;
+    const e = cena.enquadramento();
+    try {
+      const arq = await gerarVideo(cena, {
+        saida,
+        largura,
+        altura,
+        fps: video.fps,
+        segundos: video.segundos,
+        diasDeObra: dias,
+        nomeBase: `obra-4d-${video.formato}-${video.segundos}s`,
+        aplicarDia: (d) => cena.aplicar(camadasPara(st(), cena, d, true)),
+        poseNoTempo: (t) => poseNoTempo(r, e, t, video.segundos),
+        sinal: ac.signal,
+        aoProgredir: setProgresso,
+        aoCriarCanvas: (c) => {
+          c.className = "previa-canvas";
+          quadroPrevia.current?.replaceChildren(c);
+        },
+      });
+      setResultado({ ...arq, url: URL.createObjectURL(arq.blob) });
+    } catch (err) {
+      if (err instanceof Cancelado) setAviso("Geração cancelada. Nenhum arquivo foi criado.");
+      else st().mostrarErro({ mensagem: "Não foi possível gerar o vídeo.", orientacao: "Tente outro formato de saída ou uma duração menor.", detalhes: String((err as Error)?.stack ?? err) });
+    } finally {
+      controle.current = null;
+      quadroPrevia.current?.replaceChildren();
+      setProgresso(null);
+      st().definirGerandoVideo(false);
+    }
+  };
+
+  const pct = progresso ? Math.round((progresso.quadro / progresso.total) * 100) : 0;
+  const semMp4 = caps !== null && !caps.saidas.includes("mp4-avc");
+
+  return (
+    <div className="painel-video" data-testid="painel-video">
+      <fieldset disabled={gerando}>
+        <label className="campo">
+          <span>Formato</span>
+          <select data-testid="video-formato" value={video.formato} onChange={(e) => st().definirVideo({ formato: e.target.value as FormatoVideo })}>
+            {(Object.keys(RESOLUCOES) as FormatoVideo[]).map((f) => (
+              <option key={f} value={f}>
+                {RESOLUCOES[f].rotulo}
+              </option>
+            ))}
+          </select>
+        </label>
+        <div className="linha-campos">
+          <label className="campo">
+            <span>Quadros por segundo</span>
+            <select data-testid="video-fps" value={video.fps} onChange={(e) => st().definirVideo({ fps: Number(e.target.value) as ConfigVideo["fps"] })}>
+              {FPS.map((f) => (
+                <option key={f} value={f}>
+                  {f} fps
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="campo">
+            <span>Duração</span>
+            <select data-testid="video-duracao" value={video.segundos} onChange={(e) => st().definirVideo({ segundos: Number(e.target.value) as ConfigVideo["segundos"] })}>
+              {DURACOES.map((d) => (
+                <option key={d} value={d}>
+                  {d} s
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+        <p
+          className="relacao calc"
+          tabIndex={0}
+          data-testid="relacao-tempo"
+          data-tip-t="Tempo da obra → tempo do vídeo"
+          data-tip={`Fórmula: dias por segundo = dias de obra ÷ duração do vídeo\nDias de obra: ${dias}\nDuração: ${video.segundos} s\nQuadros: ${video.segundos} s × ${video.fps} fps = ${quadros}\nCada quadro avança ${fmt(dias / quadros, 2)} dia`}
+        >
+          {dias} dias → {video.segundos} s: {fmt(dias / video.segundos)} dias por segundo
+        </p>
+
+        <h4>Câmera do vídeo</h4>
+        <ul className="roteiro" data-testid="roteiro">
+          {roteiro.map((p, i) => (
+            <li key={i}>
+              <input
+                type="number"
+                min={0}
+                max={video.segundos}
+                step={0.5}
+                value={Number(p.segundo.toFixed(2))}
+                aria-label="Segundo"
+                onChange={(e) => definirRoteiro(roteiro.map((x, j) => (j === i ? { ...x, segundo: Math.min(Math.max(Number(e.target.value), 0), video.segundos) } : x)))}
+              />
+              <span className="tenue">s</span>
+              <select
+                aria-label="Câmera"
+                value={p.camera}
+                onChange={(e) => definirRoteiro(roteiro.map((x, j) => (j === i ? { segundo: x.segundo, camera: e.target.value as Preset } : x)))}
+              >
+                {PRESETS.map((x) => (
+                  <option key={x.id} value={x.id}>
+                    {x.rotulo}
+                  </option>
+                ))}
+                {p.camera === "capturada" && <option value="capturada">Câmera capturada</option>}
+              </select>
+              <button type="button" className="btn mini" disabled={roteiro.length <= 1} aria-label="Remover ponto" onClick={() => definirRoteiro(roteiro.filter((_, j) => j !== i))}>
+                ✕
+              </button>
+            </li>
+          ))}
+        </ul>
+        <label className="campo" data-tip="Mostra na viewport a câmera e o estado da obra neste segundo do vídeo.">
+          <span>Prévia do roteiro: {fmt(previa)} s</span>
+          <input type="range" min={0} max={video.segundos} step={0.1} value={previa} onChange={(e) => mostrarPrevia(Number(e.target.value))} />
+        </label>
+        <div className="botoes">
+          <button type="button" className="btn" data-tip="Grava a câmera atual da viewport como ponto-chave no segundo da prévia." onClick={capturar}>
+            Capturar câmera atual
+          </button>
+          <button type="button" className="btn" disabled={!video.roteiro} data-tip="Volta ao roteiro do §21: frontal, isométrica, lateral e superior." onClick={() => st().definirVideo({ roteiro: null })}>
+            Roteiro padrão
+          </button>
+        </div>
+
+        <h4>Saída</h4>
+        {semMp4 && (
+          <p className="aviso-honesto" data-testid="aviso-mp4">
+            {AVISO_MP4}
+          </p>
+        )}
+        <label className="campo">
+          <span>Arquivo</span>
+          <select data-testid="video-saida" value={saida ?? ""} onChange={(e) => setSaida(e.target.value as Saida)} disabled={!caps}>
+            {!caps && <option value="">Verificando o navegador…</option>}
+            {caps?.saidas.map((x) => (
+              <option key={x} value={x}>
+                {NOME_SAIDA[x]}
+              </option>
+            ))}
+          </select>
+        </label>
+        {saida === "webm-tempo-real" && <p className="tenue pequeno">Gravação em tempo real: leva os {video.segundos} s do vídeo e a fluidez depende do computador.</p>}
+        {saida === "png-zip" && (
+          <p className="tenue pequeno calc" tabIndex={0} data-tip={`Estimativa: ${quadros} quadros × ${largura} × ${altura} pixels × ~0,35 byte por pixel`}>
+            {quadros} imagens PNG, cerca de {fmt(estimarZipMB(largura, altura, quadros), 0)} MB.
+          </p>
+        )}
+        {limitado && <p className="aviso-honesto">Este dispositivo pode ter dificuldade para gerar vídeo ({limitado}). Prefira 15 s ou um computador.</p>}
+      </fieldset>
+
+      {!progresso ? (
+        <button type="button" className="btn primario largo" data-testid="gerar-video" disabled={!saida || gerando} onClick={gerar}>
+          Gerar {saida === "png-zip" ? "quadros" : "vídeo"}
+        </button>
+      ) : (
+        <div className="progresso-video" role="status" aria-live="polite" data-testid="progresso-video">
+          <strong>{saida === "png-zip" ? "GERANDO QUADROS" : "GERANDO VÍDEO"}</strong>
+          <div className="barra-progresso">
+            <span style={{ width: `${pct}%` }} />
+          </div>
+          <div className="num pequeno">
+            {pct}% · Quadro {progresso.quadro} / {progresso.total}
+            {progresso.restanteS !== null && ` · Tempo estimado: ${tempo(progresso.restanteS)}`}
+          </div>
+          <button type="button" className="btn" data-testid="cancelar-video" onClick={() => controle.current?.abort()}>
+            Cancelar
+          </button>
+        </div>
+      )}
+      <div ref={quadroPrevia} className="previa" />
+
+      {aviso && (
+        <p className="tenue" data-testid="aviso-video">
+          {aviso}
+        </p>
+      )}
+      {resultado && (
+        <div className="resultado-video" data-testid="resultado-video">
+          {resultado.tipo === "video" && <video src={resultado.url} controls muted playsInline className="previa-canvas" />}
+          <a className="btn primario largo" href={resultado.url} download={resultado.nome} data-testid="baixar-video">
+            Baixar {resultado.nome} ({mb(resultado.blob.size)})
+          </a>
+          <p className="tenue pequeno">
+            {resultado.descricao} · {largura} × {altura} · {video.fps} fps · {quadros} quadros
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}

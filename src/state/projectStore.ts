@@ -1,6 +1,7 @@
 // Estado do projeto (Zustand). Geometria pesada fica na cena (rendering/Cena.ts), não aqui.
 import { create } from "zustand";
-import type { AcaoTarefa, Cronograma, ElementoMeta, Excecao, PoliticaSemTarefa, Regra, Vinculo } from "../types";
+import type { AcaoTarefa, Cronograma, ElementoMeta, Excecao, ModoAnimacao, PoliticaSemTarefa, Regra, Vinculo } from "../types";
+import type { PontoRoteiro } from "../rendering/cameras";
 import type { Problema } from "../importers/cronograma";
 import { aplicarMapeamento, regrasPadrao } from "../fourd/regras";
 import { duracaoObra } from "../fourd/simulacao";
@@ -9,6 +10,21 @@ export interface ErroVisivel {
   mensagem: string;
   orientacao?: string;
   detalhes?: string | null;
+}
+
+export type FormatoVideo = "horizontal" | "vertical" | "quadrado";
+export const RESOLUCOES: Record<FormatoVideo, { largura: number; altura: number; rotulo: string }> = {
+  horizontal: { largura: 1920, altura: 1080, rotulo: "Horizontal 16:9 (1920 × 1080)" },
+  vertical: { largura: 1080, altura: 1920, rotulo: "Vertical 9:16 (1080 × 1920)" },
+  quadrado: { largura: 1080, altura: 1080, rotulo: "Quadrado 1:1 (1080 × 1080)" },
+};
+
+export interface ConfigVideo {
+  formato: FormatoVideo;
+  fps: 24 | 30;
+  segundos: 15 | 30 | 60 | 90 | 120;
+  /** null = roteiro padrão do §21 para a duração escolhida. */
+  roteiro: PontoRoteiro[] | null;
 }
 
 export interface Estado {
@@ -36,8 +52,12 @@ export interface Estado {
   modoSelecao: boolean;
   ocultosUsuario: Set<string>;
   tarefaIsolada: string | null;
-  painel: "tarefas" | "elemento" | "validacao";
+  painel: "tarefas" | "elemento" | "validacao" | "video";
   erro: ErroVisivel | null;
+  // animação e vídeo
+  modoAnimacao: ModoAnimacao;
+  video: ConfigVideo;
+  gerandoVideo: boolean;
 
   definirModelo(elementos: ElementoMeta[], arquivo: string, demo: boolean): void;
   definirCronograma(c: Cronograma, arquivo: string, formato: string, problemas: Problema[], demo: boolean): void;
@@ -57,6 +77,9 @@ export interface Estado {
   removerExcecao(guid: string, taskId: string): void;
   definirPainel(p: Estado["painel"]): void;
   mostrarErro(e: ErroVisivel | null): void;
+  definirModoAnimacao(m: ModoAnimacao): void;
+  definirVideo(v: Partial<ConfigVideo>): void;
+  definirGerandoVideo(g: boolean): void;
 }
 
 export const useProjeto = create<Estado>((set, get) => {
@@ -88,6 +111,9 @@ export const useProjeto = create<Estado>((set, get) => {
     tarefaIsolada: null,
     painel: "tarefas",
     erro: null,
+    modoAnimacao: "aparecimento",
+    video: { formato: "horizontal", fps: 30, segundos: 30, roteiro: null },
+    gerandoVideo: false,
 
     definirModelo: (elementos, arquivo, demo) =>
       set(remapear({ elementos, arquivoModelo: arquivo, demoModelo: demo, excecoes: [], selecionado: null, ocultosUsuario: new Set(), tarefaIsolada: null, erro: null })),
@@ -139,5 +165,8 @@ export const useProjeto = create<Estado>((set, get) => {
     removerExcecao: (guid, taskId) => set(remapear({ excecoes: get().excecoes.filter((x) => !(x.guid === guid && x.taskId === taskId)) })),
     definirPainel: (painel) => set({ painel }),
     mostrarErro: (erro) => set({ erro }),
+    definirModoAnimacao: (modoAnimacao) => set({ modoAnimacao }),
+    definirVideo: (v) => set((s) => ({ video: { ...s.video, ...v } })),
+    definirGerandoVideo: (gerandoVideo) => set({ gerandoVideo, ...(gerandoVideo ? { tocando: false } : {}) }),
   };
 });

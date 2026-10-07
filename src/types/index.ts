@@ -71,7 +71,11 @@ export interface EstadoElemento {
   fase: Fase;
   aparencia: Aparencia;
   progresso: number; // 0..1 dentro da tarefa em execução
+  /** Avanço (0..1) da tarefa que faz o elemento surgir, com dia fracionário; 1 depois dela. */
+  surgimento: number;
 }
+
+export type ModoAnimacao = "aparecimento" | "fade" | "crescimento" | "fases";
 
 /** Vínculo resolvido: elemento → tarefa, com a ação e a origem. */
 export interface Vinculo {

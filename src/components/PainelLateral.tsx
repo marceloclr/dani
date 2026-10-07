@@ -4,6 +4,7 @@ import { estadoDe } from "../fourd/simulacao";
 import { validarMapeamento } from "../fourd/validacao";
 import { useProjeto } from "../state/projectStore";
 import type { AcaoTarefa, PoliticaSemTarefa } from "../types";
+import { PainelVideo } from "./PainelVideo";
 
 const NOME_ACAO: Record<AcaoTarefa, string> = {
   construct: "construção",
@@ -22,6 +23,7 @@ export function PainelLateral() {
     { id: "tarefas", rotulo: "Tarefas" },
     { id: "elemento", rotulo: "Elemento" },
     { id: "validacao", rotulo: nProblemas ? `Validação (${nProblemas})` : "Validação" },
+    { id: "video", rotulo: "Vídeo" },
   ];
   return (
     <aside className="painel" aria-label="Painel do projeto">
@@ -36,6 +38,10 @@ export function PainelLateral() {
         {painel === "tarefas" && <PainelTarefas />}
         {painel === "elemento" && <PainelElemento />}
         {painel === "validacao" && <PainelValidacao />}
+        {/* o painel de vídeo fica montado para não perder a geração em andamento nem o arquivo pronto */}
+        <div hidden={painel !== "video"}>
+          <PainelVideo />
+        </div>
       </div>
     </aside>
   );

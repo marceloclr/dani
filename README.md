@@ -2,7 +2,7 @@
 
 Aplicação web estática que transforma um modelo de residência (IFC) e o cronograma da obra numa simulação 4D navegável: a casa surge etapa por etapa, dia a dia. Tudo é processado no navegador; nenhum arquivo sai do dispositivo.
 
-**Estado:** incremento 1 implementado (IFC → 3D → cronograma → mapeamento → timeline → simulação 4D). Câmeras animadas e vídeo vêm no incremento 2; persistência, XLSX e modo paramétrico no 3 (ver [especificação](docs/especificacao.md)).
+**Estado:** incrementos 1 e 2 implementados: IFC → 3D → cronograma → mapeamento → timeline → simulação 4D, com quatro modos de animação, presets e roteiro de câmera, e geração de vídeo real (MP4 ou WebM via WebCodecs, WebM em tempo real ou quadros PNG em ZIP). Persistência, XLSX e modo paramétrico vêm no incremento 3 (ver [especificação](docs/especificacao.md)).
 
 ![Prévia da simulação](docs/demo-etapas.png)
 
@@ -20,9 +20,9 @@ npm run preview    # serve o build em http://localhost:4173
 Testes:
 
 ```bash
-npm test                          # unidade e leitura de IFC (Vitest, Node, fuso America/Fortaleza)
+npm test                          # unidade, câmeras, animação e leitura de IFC (Vitest, Node, fuso America/Fortaleza)
 npx playwright install chromium   # uma vez
-npm run e2e                       # roteiro de aceitação no Chromium (usa o build)
+npm run e2e                       # aceitação no Chromium (usa o build); os testes de vídeo usam o ffprobe
 npm run tudo                      # os três em sequência
 ```
 
@@ -42,6 +42,8 @@ e publique a pasta `dist/` (GitHub Pages, Cloudflare Pages, Netlify ou Vercel). 
 2. **Carregar cronograma** (CSV ou JSON). Os elementos são ligados às tarefas automaticamente, pela coluna `categoria`.
 3. Use a timeline: ▶ reproduz, o cursor pode ser arrastado e a data pode ser digitada.
 4. Para corrigir o mapeamento, clique num elemento (modo **Selecionar**) e use **Excluir** ou **Incluir** na aba Elemento.
+5. Escolha a **Animação** na timeline: Aparecimento, Fade-in, Crescimento (paredes, pilares e esquadrias sobem da base) ou Por fases (um a um, de baixo para cima e da frente para o fundo).
+6. Na aba **Vídeo**, escolha formato (16:9, 9:16 ou 1:1), fps e duração, ajuste o roteiro de câmera (presets ou a câmera atual, capturada pela prévia) e gere o arquivo. O painel mostra o progresso, permite cancelar e, ao fim, pré-visualizar e baixar.
 
 Na cena, os elementos em execução aparecem em latão; os concluídos, com a cor do material; os que nenhuma tarefa faz surgir ficam translúcidos ("fantasma"). Paredes mudam de cor quando o reboco e a pintura terminam.
 
@@ -55,10 +57,21 @@ Na cena, os elementos em execução aparecem em latão; os concluídos, com a co
 
 Categorias com regra automática: `terreno`, `fundacao`, `estrutura`, `alvenaria`, `laje`, `cobertura`, `instalacoes`, `reboco`, `esquadrias`, `revestimento`, `pintura`, `loucas`, `paisagismo` (regras no ADR-02 de [docs/adrs.md](docs/adrs.md)).
 
-## Limitações conhecidas (incremento 1)
+## Saídas de vídeo
 
-- Animação só por **aparecimento**; fade, crescimento vertical e construção por fases chegam no incremento 2.
-- Ainda não há câmeras animadas, geração de vídeo nem exportação de quadros.
+| Saída | Quando aparece | Observação |
+|-------|----------------|------------|
+| MP4 (H.264) | Navegador com WebCodecs e codificador H.264 (Chrome e Edge, em geral) | Quadro a quadro, determinístico |
+| WebM (VP9 ou VP8) | Navegador com WebCodecs | Quadro a quadro, determinístico |
+| WebM em tempo real | Sem WebCodecs, com MediaRecorder | Leva a duração do vídeo; a fluidez depende do computador |
+| Quadros PNG em ZIP | Sempre | Traz um LEIAME com o comando do ffmpeg para montar o vídeo |
+
+Só aparecem as saídas que o navegador consegue produzir com a resolução e o fps escolhidos (`canEncodeVideo`). Sem MP4, o painel avisa: «Seu navegador não oferece suporte à codificação MP4 neste modo. O sistema produzirá WebM ou imagens sequenciais.»
+
+## Limitações conhecidas
+
+- A saída MP4 não foi exercitada nos testes automáticos: o Chromium do Playwright não traz codificador H.264, então os testes geram WebM (VP9) e conferem o arquivo com o ffprobe.
+- O vídeo não tem áudio nem legendas; vídeos longos em 1080p ficam na memória até o download (≈ 10 MB por 15 s em VP9).
 - O projeto não é salvo: ao recarregar a página, o modelo, o cronograma e as exceções se perdem (IndexedDB no incremento 3).
 - XLSX e edição de tarefas na tela ainda não existem; edite o CSV e carregue de novo.
 - Calendário corrido (sem dias úteis nem feriados) e sem predecessoras.
@@ -77,6 +90,7 @@ Chrome, Edge ou Brave atualizados (testado no Chromium 153 do Playwright). Firef
 | [docs/especificacao.md](docs/especificacao.md) | Especificação etiquetada por incremento |
 | [docs/adrs.md](docs/adrs.md) | Decisões técnicas, versões e licenças |
 | [prompts/incremento-1.md](prompts/incremento-1.md) | Prompt do incremento 1 |
+| [prompts/incremento-2.md](prompts/incremento-2.md) | Prompt do incremento 2 |
 | [public/samples/](public/samples/) | Casa de demonstração e cronograma |
 | [tools/](tools/) | Gerador do IFC de demonstração, prévia estática e cópia do wasm |
 
@@ -86,17 +100,17 @@ Interface no padrão [Papel e Tinta](https://github.com/marceloclr/design-system
 
 ```
 src/
-├── app/          App, ações de carga (IFC, cronograma, demonstração)
+├── app/          App, ações de carga, estadoCena (camadas comuns à viewport e ao vídeo)
 ├── bim/          parseIfc (web-ifc → metadados e malhas), Web Worker, ModelAdapter
-├── fourd/        tempo (dias civis), regras (mapeamento), simulacao (avaliar), validacao
+├── fourd/        tempo (dias civis), regras (mapeamento), simulacao (avaliar), animacao (modos), validacao
 ├── importers/    CSV/JSON do cronograma, decodificação de texto
-├── rendering/    Cena (Three.js, câmera, seleção, camadas de visibilidade)
-├── components/   tela inicial, viewport, timeline, painel lateral, erros
+├── rendering/    Cena (Three.js, seleção, camadas), cameras (presets e roteiro, puro), VideoRenderer
+├── components/   tela inicial, viewport, timeline, painel lateral, painel de vídeo, erros
 ├── state/        projectStore (Zustand)
 ├── estilos/      tokens do design system e layout
 └── utils/        dicas com fórmula
-tests/            Vitest (núcleo e leitura do IFC de demonstração)
-e2e/              Playwright (roteiro de aceitação)
+tests/            Vitest (núcleo, animação, câmeras e leitura do IFC de demonstração)
+e2e/              Playwright (aceitação do incremento 1 e vídeo do incremento 2)
 ```
 
 `src/fourd/` não importa Three.js nem o DOM e roda no Node.
