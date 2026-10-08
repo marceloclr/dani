@@ -60,12 +60,13 @@ e publique a pasta `dist/` (GitHub Pages, Cloudflare Pages, Netlify ou Vercel).
 **Assistente (tela principal).** Três passos (ADR-29 e ADR-30):
 
 1. **Carregar.** Um cartão para cada tipo de arquivo:
-   - a **planilha da obra** ([modelo](public/modelos/obra-dani.xlsx), com as abas Obra, Modelo, Cronograma, Vínculos, Falas, Fotos, Vídeo e Documento);
-   - o **IFC** (opcional: sem ele, a casa vem da aba Modelo);
-   - os **vídeos da engenheira**, um por linha da aba Falas, casados pelo nome do arquivo;
-   - as **fotos**.
+   - **Planilha** ([modelo](public/modelos/obra-dani.xlsx), com as abas Obra, Modelo, Cronograma, Vínculos, Falas, Fotos, Sequência, Trilhas, Vídeo e Documento);
+   - **Projeto IFC** (opcional: sem ele, a casa vem da aba Modelo);
+   - **Apresentação**: os vídeos da engenheira (um por linha da aba Falas, casados pelo nome do arquivo) e/ou áudios de **narração** (só a voz, com a obra na tela);
+   - **Fotos**: entram no vídeo emolduradas, com data, etapa e descrição, no ponto da obra do dia de cada uma;
+   - **Trilha sonora**: músicas de fundo; o volume abaixa sozinho sob a voz e some no fim (ADR-34).
    A ordem não importa.
-2. **Conferir.** Ficha da obra, avisos com aba e linha e prévia grande de cada cena no formato do vídeo, com a engenheira recortada sobre a obra. Em **Passeio**, escolha o fim do vídeo: **Externo** (padrão, uma volta baixa por fora), **Interno** (entra pela porta a passo de quem caminha) ou **Ambos** (a volta e, depois de um corte, por dentro). Interno e Ambos pedem a porta de entrada encontrada no modelo; a escolha também vai na aba Vídeo da planilha (ADR-32).
+2. **Conferir.** Ficha da obra, avisos com aba e linha e prévia grande de cada cena no formato do vídeo, com a engenheira recortada sobre a obra. Em **Sequência do vídeo**, ordene vídeos, narrações e fotos (↑ ↓ ou arrastando), escolha quanto tempo cada foto fica e onde cada trilha entra (início, antes de um item ou final) e o volume. O vídeo dura o tempo da voz mais as fotos, com 1 s de respiro e a marca no fim; sem voz, a obra se monta pelo tempo da aba Vídeo (ADR-34). Em **Passeio**, escolha o fim do vídeo: **Externo** (padrão, uma volta baixa por fora), **Interno** (entra pela porta a passo de quem caminha) ou **Ambos** (a volta e, depois de um corte, por dentro). Interno e Ambos pedem a porta de entrada encontrada no modelo; a escolha também vai na aba Vídeo da planilha (ADR-32).
 3. **Gerar.** MP4 com a voz das falas em sequência: abertura no terreno, revelação, a obra se formando, o passeio pela obra pronta e a marca.
 
 Os arquivos exportados (vídeo, planilha, `.4dstudio`, cronograma, mapeamento e relatório) levam a data e a hora no nome: `<nome>-AAAAMMDD-HHMM`. Os modelos para download têm nome fixo.

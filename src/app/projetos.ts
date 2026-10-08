@@ -3,7 +3,7 @@ import { carregarIfc, carregarParametrico, ifcDoModeloAtual, limparModelo } from
 import { descreverParametros } from "../bim/parametrico";
 import { aplicarMapeamento, contarPorTarefa, descreverRegras, semTarefa } from "../fourd/regras";
 import { formatarISO } from "../fourd/tempo";
-import { chaveApresentadora, chaveFala, chaveFoto, chavePlanta, excluirProjeto, gravarAnexo, gravarProjeto, lerProjeto, listarProjetos, pedirPersistencia } from "../storage/IndexedDb";
+import { chaveApresentadora, chaveFala, chaveFoto, chavePlanta, chaveTrilha, excluirProjeto, gravarAnexo, gravarProjeto, lerProjeto, listarProjetos, pedirPersistencia } from "../storage/IndexedDb";
 import { blobDaFoto, blobDaPlanta, gravarTodosAnexos, limparAnexos, restaurarAnexos } from "./anexos";
 import { ErroProjeto, exportar4dstudio, importar4dstudio, type ArquivosAnexos, type RegistroProjeto } from "../storage/projeto";
 import { useProjeto, type Estado } from "../state/projectStore";
@@ -153,7 +153,9 @@ export async function abrirProjeto(id: string): Promise<boolean> {
   }
   const prefixoFala = chaveFala(r.id, "");
   const videosDeFala = new Map([...lido.anexos].filter(([k]) => k.startsWith(prefixoFala)).map(([k, b]) => [k.slice(prefixoFala.length), b]));
-  restaurarAnexos(fotosDoProjeto, r.planta ? lido.anexos.get(chavePlanta(r.id)) ?? null : null, lido.anexos.get(chaveApresentadora(r.id)) ?? null, videosDeFala);
+  const prefixoTrilha = chaveTrilha(r.id, "");
+  const audiosDeTrilha = new Map([...lido.anexos].filter(([k]) => k.startsWith(prefixoTrilha)).map(([k, b]) => [k.slice(prefixoTrilha.length), b]));
+  restaurarAnexos(fotosDoProjeto, r.planta ? lido.anexos.get(chavePlanta(r.id)) ?? null : null, lido.anexos.get(chaveApresentadora(r.id)) ?? null, videosDeFala, audiosDeTrilha);
   let ok: boolean;
   if (r.modelo.tipo === "PARAMETRICO") ok = carregarParametrico(r.modelo.parametros);
   else if (lido.ifc) ok = await carregarIfc(r.modelo.arquivo, await lido.ifc.arrayBuffer(), r.demo);

@@ -64,6 +64,24 @@ export interface VideoPlanilha {
   passeio?: Passeio;
 }
 
+/** Aba Sequência (ADR-34): a ordem do vídeo; vazia = ordem padrão (fotos pela data). */
+export type TipoLinhaSequencia = "fala" | "narracao" | "foto";
+export interface LinhaSequencia {
+  ordem: number;
+  tipo: TipoLinhaSequencia;
+  arquivo: string;
+  /** Só foto: de 2 a 6 s. */
+  duracaoS?: number;
+}
+
+/** Aba Trilhas (ADR-34): onde cada trilha entra ("inicio", "final" ou o arquivo do item antes do qual entra) e o volume. */
+export interface LinhaTrilha {
+  arquivo: string;
+  entra: string;
+  /** 0 a 100. */
+  volume?: number;
+}
+
 export const SECOES_DOCUMENTO = ["ficha", "etapas", "imagens", "fotos", "video"] as const;
 export type SecaoDocumento = (typeof SECOES_DOCUMENTO)[number];
 
@@ -90,6 +108,8 @@ export interface ProjetoPlanilha {
   vinculos: Excecao[];
   falas: LinhaFala[];
   fotos: LinhaFoto[];
+  sequencia: LinhaSequencia[];
+  trilhas: LinhaTrilha[];
   video: VideoPlanilha;
   documento: DocumentoPlanilha;
 }
@@ -113,6 +133,7 @@ export const ROTULO_FORMATO: Record<FormatoVideo, string> = { vertical: "vertica
 export const ROTULO_ANIMACAO: Record<ModoAnimacao, string> = { progressivo: "Progressivo", aparecimento: "Aparecimento", fade: "Fade-in", crescimento: "Crescimento", fases: "Por fases" };
 export const ROTULO_APARENCIA: Record<Aparencia3D, string> = { realista: "Realista", tecnica: "Técnica" };
 export const ROTULO_PASSEIO: Record<Passeio, string> = { externo: "externo", interno: "interno", ambos: "ambos" };
+export const ROTULO_TIPO_SEQUENCIA: Record<TipoLinhaSequencia, string> = { fala: "fala", narracao: "narração", foto: "foto" };
 export const ROTULO_COBERTURA = { "duas-aguas": "duas águas", "uma-agua": "uma água", plana: "plana" } as const;
 
 /** Campos das abas de campo e valor, na ordem da planilha. */
@@ -158,4 +179,4 @@ export const CAMPOS_DOCUMENTO = {
   video: "Referência ao vídeo",
 } as const;
 
-export const ABAS = { obra: "Obra", modelo: "Modelo", cronograma: "Cronograma", vinculos: "Vínculos", falas: "Falas", fotos: "Fotos", video: "Vídeo", documento: "Documento" } as const;
+export const ABAS = { obra: "Obra", modelo: "Modelo", cronograma: "Cronograma", vinculos: "Vínculos", falas: "Falas", fotos: "Fotos", sequencia: "Sequência", trilhas: "Trilhas", video: "Vídeo", documento: "Documento" } as const;

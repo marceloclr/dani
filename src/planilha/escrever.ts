@@ -5,7 +5,7 @@ import { MUNICIPIOS, OUTRO_MUNICIPIO, NOME_OUTRO } from "../fourd/feriados";
 import { NOME_LUZ } from "../rendering/iluminacao";
 import {
   ABAS, CAMPOS_DOCUMENTO, CAMPOS_MODELO, CAMPOS_OBRA, CAMPOS_VIDEO, ROTULO_ACAO, ROTULO_ANIMACAO, ROTULO_APARENCIA, ROTULO_CENA, ROTULO_COBERTURA,
-  ROTULO_FORMATO, ROTULO_PASSEIO, ROTULO_RECORTE, SECOES_DOCUMENTO, type ProjetoPlanilha,
+  ROTULO_FORMATO, ROTULO_PASSEIO, ROTULO_RECORTE, ROTULO_TIPO_SEQUENCIA, SECOES_DOCUMENTO, type ProjetoPlanilha,
 } from "./tipos";
 
 type Celula = string | number | { data: number } | null;
@@ -42,6 +42,8 @@ export function linhasDaPlanilha(p: ProjetoPlanilha): [string, Celula[][]][] {
       ...p.falas.map((f) => [f.ordem, f.arquivo, f.assunto, ROTULO_CENA[f.cena], ROTULO_RECORTE[f.recorte], f.inicioS ?? null, f.fimS ?? null]),
     ]],
     [ABAS.fotos, [["arquivo", "data", "local", "descricao", "etapa"], ...p.fotos.map((f) => [f.arquivo, data(f.dia), f.local, f.descricao, f.etapa])]],
+    [ABAS.sequencia, [["ordem", "tipo", "arquivo", "duracao_s"], ...p.sequencia.map((s) => [s.ordem, ROTULO_TIPO_SEQUENCIA[s.tipo], s.arquivo, s.duracaoS ?? null])]],
+    [ABAS.trilhas, [["arquivo", "entra", "volume"], ...p.trilhas.map((t) => [t.arquivo, t.entra === "inicio" ? "início" : t.entra === "final" ? "final" : `antes de ${t.entra}`, t.volume ?? null])]],
     [ABAS.video, ficha([
       [CAMPOS_VIDEO.formato, p.video.formato ? ROTULO_FORMATO[p.video.formato] : null], [CAMPOS_VIDEO.segundos, p.video.segundos ?? null],
       [CAMPOS_VIDEO.fps, p.video.fps ? String(p.video.fps) : null], [CAMPOS_VIDEO.qualidade, p.video.qualidade ? (p.video.qualidade === "maxima" ? "máxima" : "normal") : null],

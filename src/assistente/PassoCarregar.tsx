@@ -1,12 +1,11 @@
 // Passo 1 do assistente (ADR-30): um cartão por tipo de arquivo, cada um com o que foi recebido e o que falta.
-import { useRef, useState, type ReactNode } from "react";
-import { adicionarFalas, adicionarFotos } from "../app/anexos";
+import { useRef, useState, useSyncExternalStore, type ReactNode } from "react";
+import { adicionarFalas, adicionarFotos, adicionarTrilhas, aoMudarTrilhas, arquivosDeTrilha } from "../app/anexos";
 import { abrirPlanilha, usarCasaDaPlanilha } from "../app/planilha";
 import { abrirIfcComoProjeto } from "../app/projetos";
 import { formatarBR } from "../fourd/tempo";
 import { useProjeto } from "../state/projectStore";
 import type { FalasDoVideo } from "../app/falas";
-import { MARCA_S } from "../rendering/montagem";
 
 type Situacao = "ok" | "falta" | "opcional" | "aviso";
 const COR: Record<Situacao, string> = { ok: "var(--musgo)", falta: "var(--carmim)", opcional: "var(--neutro)", aviso: "var(--ocre)" };
@@ -117,6 +116,16 @@ export function PassoCarregar({ falas }: { falas: FalasDoVideo }) {
   const fotosCitadas = planilha?.fotos ?? [];
   const recebidasFotos = new Set(fotos.map((f) => f.arquivo.toLowerCase()));
   const fotosFaltando = fotosCitadas.filter((f) => !recebidasFotos.has(f.arquivo.toLowerCase()));
+  const trilhas = useSyncExternalStore(aoMudarTrilhas, arquivosDeTrilha);
+  // tempo de voz (falas e narrações), sem respiro nem marca
+  const tempoDeVoz = falas.trechos.reduce((s, t) => s + t.fimS - t.inicioS, 0);
+  const nVideos = falas.trechos.filter((t) => !t.semVideo).length, nNarracoes = falas.trechos.length - nVideos;
+  const contagem = [nVideos ? `${nVideos} vídeo${nVideos > 1 ? "s" : ""}` : "", nNarracoes ? `${nNarracoes} narraç${nNarracoes > 1 ? "ões" : "ão"}` : ""].filter(Boolean).join(", ");
+  // linhas da lista: as da aba Falas (com as que faltam) e as narrações que ela não cita (ADR-34)
+  const citadasNaAba = new Set((planilha?.falas ?? []).map((l) => l.arquivo.toLowerCase()));
+  const linhasDaLista = falas.automaticas
+    ? falas.trechos.map((t) => t.linha)
+    : [...(planilha?.falas ?? []), ...falas.trechos.filter((t) => !citadasNaAba.has(t.linha.arquivo.toLowerCase())).map((t) => t.linha)];
 
   const abrir = async ([f]: File[]) => {
     setAvisos("planilha", []);
@@ -129,7 +138,7 @@ export function PassoCarregar({ falas }: { falas: FalasDoVideo }) {
     <div className="passo-carregar" data-testid="passo-carregar">
       <CartaoArquivo
         id="planilha"
-        titulo="Planilha da obra"
+        titulo="Planilha"
         situacao={!planilha ? "falta" : erros ? "aviso" : "ok"}
         estado={!planilha ? "obrigatória" : `${planilha.arquivo} · ${cronograma?.tarefas.length ?? 0} etapas${erros ? ` · ${erros} erro${erros > 1 ? "s" : ""}` : ""}`}
         aceitar=".xlsx"
@@ -189,28 +198,28 @@ export function PassoCarregar({ falas }: { falas: FalasDoVideo }) {
 
       <CartaoArquivo
         id="falas"
-        titulo="Vídeos da engenheira"
+        titulo="Apresentação"
         situacao={!falas.trechos.length && !falas.faltando.length ? "opcional" : falas.faltando.length ? "falta" : falas.naoCitados.length ? "aviso" : "ok"}
         estado={
-          !falas.trechos.length && !falas.faltando.length ? "nenhum vídeo"
-            : falas.automaticas ? `${falas.trechos.length} vídeo${falas.trechos.length > 1 ? "s" : ""} · ${seg(falas.totalS - MARCA_S)}`
-              : `${falas.trechos.length} de ${falas.trechos.length + falas.faltando.length}${falas.trechos.length ? ` · ${seg(falas.totalS - MARCA_S)}` : ""}`
+          !falas.trechos.length && !falas.faltando.length ? "nenhum arquivo"
+            : falas.automaticas ? `${contagem} · ${seg(tempoDeVoz)}`
+              : `${falas.trechos.length} de ${falas.trechos.length + falas.faltando.length}${falas.trechos.length ? ` · ${seg(tempoDeVoz)}` : ""}`
         }
-        aceitar="video/mp4,video/quicktime,video/webm,.mp4,.mov,.m4v,.webm"
+        aceitar="video/mp4,video/quicktime,video/webm,.mp4,.mov,.m4v,.webm,audio/*,.mp3,.m4a,.aac,.wav,.ogg,.opus"
         multiplos
-        rotulo="Enviar vídeos"
-        dica="Um ou mais vídeos (MP4, MOV ou WebM). Cada um é aberto aqui para conferir formato, imagem e duração. Com a aba Falas preenchida, o nome do arquivo deve ser o da coluna arquivo."
+        rotulo="Enviar vídeos ou áudios"
+        dica="Vídeos da engenheira falando (MP4, MOV ou WebM) e/ou áudios de narração (MP3, M4A, WAV ou OGG): a narração toca sobre a obra, sem a pessoa. Cada arquivo é aberto aqui para conferir formato e duração. Com a aba Falas preenchida, o nome do arquivo deve ser o da coluna arquivo. A ordem se ajusta no passo Conferir."
         aoEscolher={async (f) => setAvisos("falas", (await adicionarFalas(f)).avisos)}
         avisos={avisos.falas}
       >
         {(falas.trechos.length > 0 || falas.faltando.length > 0 || falas.naoCitados.length > 0) && (
           <ol className="lista-arquivos" data-testid="lista-falas">
-            {(falas.automaticas ? falas.trechos.map((t) => t.linha) : planilha?.falas ?? []).map((l) => {
+            {linhasDaLista.map((l) => {
               const t = falas.trechos.find((x) => x.linha.arquivo.toLowerCase() === l.arquivo.toLowerCase());
               return (
                 <li key={l.arquivo} data-ok={!!t}>
                   <span className="mono">{l.arquivo}</span>
-                  <span className="tenue">{t ? seg(t.fimS - t.inicioS) : "falta"}</span>
+                  <span className="tenue">{t ? `${t.semVideo ? "narração · " : ""}${seg(t.fimS - t.inicioS)}` : "falta"}</span>
                 </li>
               );
             })}
@@ -222,21 +231,45 @@ export function PassoCarregar({ falas }: { falas: FalasDoVideo }) {
             ))}
           </ol>
         )}
-        {falas.automaticas && <p className="nota-cartao">Aba Falas vazia: os vídeos entram na ordem de envio.</p>}
+        {falas.automaticas && <p className="nota-cartao">Aba Falas vazia: os arquivos entram na ordem de envio.</p>}
       </CartaoArquivo>
 
       <CartaoArquivo
         id="fotos"
-        titulo="Fotos da obra"
+        titulo="Fotos"
         situacao={!fotosCitadas.length && !fotos.length ? "opcional" : fotosFaltando.length ? "aviso" : "ok"}
         estado={fotosCitadas.length ? `${fotosCitadas.length - fotosFaltando.length} de ${fotosCitadas.length}` : fotos.length ? `${fotos.length}` : "opcional"}
         aceitar="image/jpeg,image/png,image/webp"
         multiplos
         rotulo="Enviar fotos"
-        dica="Fotos JPEG, PNG ou WebP. Data, local, descrição e etapa vêm da aba Fotos, pelo nome do arquivo."
+        dica="Fotos JPEG, PNG ou WebP. Data, local, descrição e etapa vêm da aba Fotos, pelo nome do arquivo. No vídeo, cada foto entra emoldurada, com data e etapa, no ponto da obra do dia dela (a ordem se ajusta no Conferir)."
         aoEscolher={async (f) => setAvisos("fotos", (await adicionarFotos(f)).avisos)}
         avisos={avisos.fotos}
       />
+
+      <CartaoArquivo
+        id="trilhas"
+        titulo="Trilha sonora"
+        situacao={trilhas.size ? "ok" : "opcional"}
+        estado={trilhas.size ? `${trilhas.size} trilha${trilhas.size > 1 ? "s" : ""}` : "opcional"}
+        aceitar="audio/*,.mp3,.m4a,.aac,.wav,.ogg,.opus"
+        multiplos
+        rotulo="Enviar trilhas"
+        dica="Músicas de fundo (MP3, M4A, WAV ou OGG): uma para o início, uma para o final e, se quiser, outras no meio. O volume abaixa sozinho quando há voz e some no fim do vídeo. Onde cada uma entra se ajusta no Conferir. Use músicas com licença para redes sociais."
+        aoEscolher={async (f) => setAvisos("trilhas", (await adicionarTrilhas(f)).avisos)}
+        avisos={avisos.trilhas}
+      >
+        {trilhas.size > 0 && (
+          <ol className="lista-arquivos" data-testid="lista-trilhas">
+            {[...trilhas.values()].map((t) => (
+              <li key={t.nome} data-ok>
+                <span className="mono">{t.nome}</span>
+                <span className="tenue">{seg(t.duracaoS)}</span>
+              </li>
+            ))}
+          </ol>
+        )}
+      </CartaoArquivo>
 
     </div>
   );

@@ -361,6 +361,31 @@ button.link { appearance: none; border: 0; background: none; padding: 0; font: i
 
 .passo-conferir { display: grid; grid-template-columns: minmax(260px, 340px) minmax(0, 1fr); gap: 18px; align-items: start; }
 .conferir-dados .bloco { margin-bottom: 12px; }
+/* sequência do vídeo (ADR-34): ordem das falas, narrações e fotos, e as trilhas */
+.lista-sequencia { margin: 0 0 8px; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 4px; font-size: 12.5px; }
+.item-sequencia { display: grid; grid-template-columns: 18px minmax(0, 1fr) auto auto; gap: 6px; align-items: center; padding: 5px 6px; border: 1px solid var(--linha); border-left: 3px solid var(--ardosia); border-radius: var(--raio-p); background: var(--carta); cursor: grab; }
+.item-sequencia.tipo-narracao { border-left-color: var(--petroleo); }
+.item-sequencia.tipo-foto { border-left-color: var(--latao); }
+.item-sequencia.tipo-obra { border-left-color: var(--musgo); }
+.item-sequencia.tipo-fim { border-left-color: var(--grafite); background: var(--carta-2); cursor: default; grid-template-columns: 18px minmax(0, 1fr) auto; }
+.item-sequencia.arrastando { opacity: .45; }
+.icone-item { color: var(--tinta-3); text-align: center; }
+.nome-item { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mover-item { display: flex; gap: 2px; }
+.btn-icone { appearance: none; border: 1px solid var(--linha); background: var(--carta-2); color: var(--tinta-2); border-radius: var(--raio-p); min-width: 26px; height: 24px; padding: 0 6px; font: 500 12px var(--fonte-corpo); cursor: pointer; }
+.btn-icone:hover:not(:disabled) { border-color: var(--linha-forte); color: var(--tinta); }
+.btn-icone:disabled { opacity: .35; cursor: not-allowed; }
+.btn-icone:focus-visible { outline: 2px solid var(--acento-medio); outline-offset: 1px; }
+.duracao-foto { font: 500 12px var(--fonte-corpo); }
+.btn.btn-pequeno { padding: 4px 9px; font-size: 12px; }
+.titulo-trilhas { margin: 12px 0 6px; font: 600 12px var(--fonte-corpo); letter-spacing: .08em; text-transform: uppercase; color: var(--tinta-3); }
+.lista-trilhas { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 8px; font-size: 12.5px; }
+.lista-trilhas li { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; padding: 6px; border: 1px solid var(--linha); border-radius: var(--raio-p); background: var(--carta); }
+.lista-trilhas .nome-trilha { flex-basis: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lista-trilhas select { max-width: 170px; }
+.lista-trilhas input[type="range"] { width: 90px; accent-color: var(--latao); }
+.bloco-cena.tipo-foto { background: var(--latao); }
+.previa-foto { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; pointer-events: none; }
 .ficha { display: grid; grid-template-columns: auto 1fr; gap: 5px 12px; margin: 0; font-size: 13px; }
 .ficha dt { color: var(--tinta-3); }
 .ficha dd { margin: 0; }

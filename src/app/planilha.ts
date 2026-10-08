@@ -1,12 +1,13 @@
 // Planilha única no app (ADR-29): abrir aplica cada aba ao estado; exportar faz o caminho inverso, para levar
 // à planilha o que foi ajustado na área de Gestão.
 import { carregarParametrico } from "./carregamento";
-import { arquivosDeFala } from "./anexos";
+import { arquivosDeFala, arquivosDeTrilha } from "./anexos";
 import { falasAutomaticas } from "./falas";
+import { idFoto, idVoz, VOLUME_PADRAO, type TrilhaSequencia } from "./sequencia";
 import { criarProjeto, nomeSeguro } from "./projetos";
 import { lerPlanilha } from "../planilha/ler";
 import { escreverPlanilha } from "../planilha/escrever";
-import { DOCUMENTO_PADRAO, OBRA_VAZIA, type ProblemaPlanilha, type ProjetoPlanilha, type VideoPlanilha } from "../planilha/tipos";
+import { DOCUMENTO_PADRAO, OBRA_VAZIA, type LinhaSequencia, type LinhaTrilha, type ProblemaPlanilha, type ProjetoPlanilha, type VideoPlanilha } from "../planilha/tipos";
 import type { Problema } from "../importers/cronograma";
 import { useProjeto, type ConfigVideo, type Estado } from "../state/projectStore";
 import { CLIENTE } from "./marca";
@@ -32,6 +33,27 @@ function videoDaPlanilha(v: VideoPlanilha): Partial<ConfigVideo> {
   if (v.passeio) out.passeio = v.passeio;
   // por enquanto a duração usa as opções do painel Vídeo (a mais próxima); vazio = acompanha a fala
   if (typeof v.segundos === "number") out.segundos = DURACOES.reduce((a, b) => (Math.abs(b - v.segundos!) < Math.abs(a - v.segundos!) ? b : a));
+  return out;
+}
+
+const ehImagem = (arquivo: string) => /\.(jpe?g|png|webp)$/i.test(arquivo);
+
+/** Abas Sequência e Trilhas → ordem, duração das fotos e trilhas do vídeo (ADR-34). */
+export function sequenciaDaPlanilha(seq: LinhaSequencia[], trilhas: LinhaTrilha[]): Pick<ConfigVideo, "sequencia" | "duracoesFoto" | "trilhas"> {
+  const out: Pick<ConfigVideo, "sequencia" | "duracoesFoto" | "trilhas"> = {};
+  if (seq.length) {
+    out.sequencia = seq.map((l) => (l.tipo === "foto" ? idFoto(l.arquivo) : idVoz(l.arquivo)));
+    const d = Object.fromEntries(seq.filter((l) => l.tipo === "foto" && l.duracaoS).map((l) => [idFoto(l.arquivo), l.duracaoS!]));
+    if (Object.keys(d).length) out.duracoesFoto = d;
+  }
+  if (trilhas.length) {
+    const fotosDaSeq = new Set(seq.filter((l) => l.tipo === "foto").map((l) => l.arquivo.toLowerCase()));
+    out.trilhas = trilhas.map((t): TrilhaSequencia => ({
+      nome: t.arquivo,
+      entra: t.entra === "inicio" || t.entra === "final" ? t.entra : fotosDaSeq.has(t.entra.toLowerCase()) || ehImagem(t.entra) ? idFoto(t.entra) : idVoz(t.entra),
+      volume: t.volume ?? VOLUME_PADRAO,
+    }));
+  }
   return out;
 }
 
@@ -61,7 +83,7 @@ export function aplicarPlanilha(p: ProjetoPlanilha, nome: string, problemas: Pro
   if (!p.obra.arquivoIfc && p.modelo && (st.tipoModelo !== "PARAMETRICO" || JSON.stringify(st.parametros) !== JSON.stringify(p.modelo))) novoParametrico = carregarParametrico(p.modelo);
   // IFC citado e ainda não carregado: o cartão Projeto IFC do assistente mostra o que falta
   const s = useProjeto.getState();
-  const video = videoDaPlanilha(p.video);
+  const video = { ...videoDaPlanilha(p.video), ...sequenciaDaPlanilha(p.sequencia, p.trilhas) };
   if (p.obra.rumoFrente !== null) video.sol = { ...s.video.sol, norteGraus: p.obra.rumoFrente };
   if (p.cronograma) s.definirCronograma(p.cronograma, nome, "Planilha da obra", avisos.map(comoProblema), false);
   else s.definirProblemasImportacao(avisos.map(comoProblema));
@@ -86,6 +108,26 @@ export async function usarCasaDaPlanilha(): Promise<boolean> {
   return true;
 }
 
+/** Ordem e trilhas do vídeo → abas Sequência e Trilhas (ADR-34); sem ordem salva, a aba fica vazia (ordem padrão). */
+function sequenciaDoEstado(s: Estado): Pick<ProjetoPlanilha, "sequencia" | "trilhas"> {
+  // os ids guardam o nome em minúsculas: o nome original vem dos arquivos recebidos e da planilha
+  const nomes = new Map<string, string>();
+  for (const f of arquivosDeFala().values()) nomes.set(idVoz(f.nome), f.nome);
+  for (const l of s.planilha?.falas ?? []) if (!nomes.has(idVoz(l.arquivo))) nomes.set(idVoz(l.arquivo), l.arquivo);
+  for (const f of s.fotos) nomes.set(idFoto(f.arquivo), f.arquivo);
+  const nomeDe = (id: string) => nomes.get(id) ?? id.replace(/^(voz|foto):/, "");
+  const sequencia: LinhaSequencia[] = (s.video.sequencia ?? []).filter((id) => id !== "obra").map((id, i) => {
+    const foto = id.startsWith("foto:");
+    const l: LinhaSequencia = { ordem: i + 1, tipo: foto ? "foto" : arquivosDeFala().get(id.slice(4))?.largura === 0 ? "narracao" : "fala", arquivo: nomeDe(id) };
+    const d = s.video.duracoesFoto?.[id];
+    if (foto && d) l.duracaoS = d;
+    return l;
+  });
+  const cfg = s.video.trilhas ?? [...arquivosDeTrilha().values()].map((t) => ({ nome: t.nome, entra: "inicio", volume: VOLUME_PADRAO }));
+  const trilhas: LinhaTrilha[] = cfg.map((t) => ({ arquivo: t.nome, entra: t.entra === "inicio" || t.entra === "final" ? t.entra : nomeDe(t.entra), volume: t.volume }));
+  return { sequencia, trilhas };
+}
+
 /** Estado atual → planilha (o caminho de volta). */
 export function planilhaDoEstado(s: Estado = useProjeto.getState()): ProjetoPlanilha {
   const pl = s.planilha;
@@ -104,6 +146,7 @@ export function planilhaDoEstado(s: Estado = useProjeto.getState()): ProjetoPlan
     falas: pl?.falas.length ? pl.falas : falasAutomaticas(arquivosDeFala()),
     // fotos já enviadas valem mais que as só citadas na planilha
     fotos: s.fotos.length ? s.fotos.map((f) => ({ arquivo: f.arquivo, dia: f.dia, local: f.local, descricao: f.descricao, etapa: f.etapa })) : pl?.fotos ?? [],
+    ...sequenciaDoEstado(s),
     video: {
       formato: s.video.formato, segundos: s.video.segundos, fps: s.video.fps, qualidade: s.video.qualidade ?? "normal", aparencia: s.aparencia3d,
       luz: s.video.luz ?? "dia", animacao: s.modoAnimacao, assinatura: s.video.assinatura !== false, passeio: s.video.passeio ?? "externo",

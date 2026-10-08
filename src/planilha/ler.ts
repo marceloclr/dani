@@ -10,8 +10,9 @@ import type { AcaoTarefa, Excecao } from "../types";
 import type { ParametrosCasa } from "../bim/parametrico";
 import {
   ABAS, CAMPOS_DOCUMENTO, CAMPOS_MODELO, CAMPOS_OBRA, CAMPOS_VIDEO, DOCUMENTO_PADRAO, OBRA_VAZIA, ROTULO_ACAO, ROTULO_ANIMACAO, ROTULO_APARENCIA,
-  ROTULO_CENA, ROTULO_COBERTURA, ROTULO_FORMATO, ROTULO_PASSEIO, ROTULO_RECORTE, SECOES_DOCUMENTO,
-  type CenaFala, type DadosObra, type DocumentoPlanilha, type LinhaFala, type LinhaFoto, type ProblemaPlanilha, type ProjetoPlanilha, type VideoPlanilha,
+  ROTULO_CENA, ROTULO_COBERTURA, ROTULO_FORMATO, ROTULO_PASSEIO, ROTULO_RECORTE, ROTULO_TIPO_SEQUENCIA, SECOES_DOCUMENTO,
+  type CenaFala, type DadosObra, type DocumentoPlanilha, type LinhaFala, type LinhaFoto, type LinhaSequencia, type LinhaTrilha, type ProblemaPlanilha, type ProjetoPlanilha,
+  type TipoLinhaSequencia, type VideoPlanilha,
 } from "./tipos";
 
 type Linha = Record<string, unknown>;
@@ -225,6 +226,44 @@ export function interpretarAbas(abas: Abas, sistema1904 = false): { projeto: Pro
     fotos.push({ arquivo, dia: dia ?? null, local: texto(col(l, "local")), descricao: texto(col(l, "descricao", "descrição")), etapa });
   });
 
+  // ---------- Sequência (ADR-34) ----------
+  const sequencia: LinhaSequencia[] = [];
+  (aba(abas, ABAS.sequencia) ?? []).forEach((l, i) => {
+    const linha = i + 2;
+    const arquivo = texto(col(l, "arquivo"));
+    if (!arquivo) return;
+    const tipo = escolha<TipoLinhaSequencia>(ROTULO_TIPO_SEQUENCIA, col(l, "tipo"));
+    if (!tipo) {
+      p("erro", ABAS.sequencia, `Tipo "${texto(col(l, "tipo"))}" fora da lista (fala, narração, foto).`, linha);
+      return;
+    }
+    const ordem = numero(col(l, "ordem"));
+    const d = numero(col(l, "duracao_s", "duração_s", "duracao"));
+    if (d !== null && (Number.isNaN(d) || d < 2 || d > 6)) p("erro", ABAS.sequencia, "duracao_s: de 2 a 6 segundos (só para foto).", linha);
+    const item: LinhaSequencia = { ordem: Number.isFinite(ordem) && ordem !== null ? ordem : sequencia.length + 1, tipo, arquivo };
+    if (tipo === "foto" && d !== null && !Number.isNaN(d) && d >= 2 && d <= 6) item.duracaoS = d;
+    sequencia.push(item);
+  });
+  sequencia.sort((a, b) => a.ordem - b.ordem);
+
+  // ---------- Trilhas (ADR-34) ----------
+  const trilhas: LinhaTrilha[] = [];
+  (aba(abas, ABAS.trilhas) ?? []).forEach((l, i) => {
+    const linha = i + 2;
+    const arquivo = texto(col(l, "arquivo"));
+    if (!arquivo) return;
+    const e = texto(col(l, "entra"));
+    const n = normalizar(e);
+    const antes = /^antes de\s+(.+)$/i.exec(e);
+    const entra = !n || n === "inicio" || n === "no inicio" ? "inicio" : n === "final" || n === "no final" ? "final" : antes ? antes[1].trim() : null;
+    if (entra === null) p("erro", ABAS.trilhas, `Entra "${e}" fora da lista (início, final ou "antes de <arquivo>").`, linha);
+    const v = numero(col(l, "volume"));
+    if (v !== null && (Number.isNaN(v) || v < 0 || v > 100)) p("erro", ABAS.trilhas, "volume: de 0 a 100.", linha);
+    const t: LinhaTrilha = { arquivo, entra: entra ?? "inicio" };
+    if (v !== null && !Number.isNaN(v) && v >= 0 && v <= 100) t.volume = v;
+    trilhas.push(t);
+  });
+
   // ---------- Vídeo ----------
   const video: VideoPlanilha = {};
   const lv = aba(abas, ABAS.video);
@@ -278,7 +317,7 @@ export function interpretarAbas(abas: Abas, sistema1904 = false): { projeto: Pro
     }
   }
 
-  return { projeto: { obra, modelo, cronograma, vinculos, falas, fotos, video, documento }, problemas };
+  return { projeto: { obra, modelo, cronograma, vinculos, falas, fotos, sequencia, trilhas, video, documento }, problemas };
 }
 
 /** A planilha é a única do projeto (tem as abas Obra e Cronograma), e não um cronograma avulso? */

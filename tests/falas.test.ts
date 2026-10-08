@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { MARCA_S, cenaNoTempo, duracoes, roteiroDasFalas } from "../src/rendering/montagem";
+import { MARCA_S, RESPIRO_S, cenaNoTempo, duracoes, roteiroDasFalas } from "../src/rendering/montagem";
 
 describe("roteiro a partir das falas (ADR-30)", () => {
   it("terreno, sobre a obra e só a voz: cenas na ordem das falas e marca no fim", () => {
@@ -8,7 +8,7 @@ describe("roteiro a partir das falas (ADR-30)", () => {
       { cena: "sobre-obra", duracaoS: 14 },
       { cena: "voz", duracaoS: 12 },
     ]);
-    expect(totalS).toBe(36 + MARCA_S);
+    expect(totalS).toBe(36 + RESPIRO_S + MARCA_S); // ADR-34: respiro de 1 s antes da marca
     expect(cenas.reduce((s, c) => s + c.peso, 0)).toBeCloseTo(1);
     const seg = duracoes(cenas, totalS);
     // abertura + revelação ocupam exatamente a primeira fala
@@ -20,7 +20,7 @@ describe("roteiro a partir das falas (ADR-30)", () => {
     expect(cenaNoTempo(cenas, 24.01, totalS).cena.pessoa).toBe("oculta");
     const passeio = cenas[cenas.length - 2];
     expect(passeio).toMatchObject({ camera: "orbita", percurso: "volta", rotulo: "Volta por fora", obra: [1, 1], pessoa: "oculta" }); // padrão: externo
-    expect(seg[cenas.length - 2]).toBeCloseTo(12 * 0.4);
+    expect(seg[cenas.length - 2]).toBeCloseTo(12 * 0.4 + RESPIRO_S); // a última cena ganha o respiro
     expect(cenas[cenas.length - 1].tipo).toBe("marca");
     expect(seg[cenas.length - 1]).toBeCloseTo(MARCA_S);
   });
@@ -74,7 +74,7 @@ describe("falas da planilha × arquivos recebidos", async () => {
     expect(r.trechos.map((t) => [t.inicioS, t.fimS])).toEqual([[1, 9], [0, 12]]);
     expect(r.avisos.join(" ")).toMatch(/passa do fim/);
     expect(r.avisos.join(" ")).toMatch(/recortes diferentes/);
-    expect(r.totalS).toBeCloseTo(8 + 12 + 2.5);
+    expect(r.totalS).toBeCloseTo(8 + 12 + RESPIRO_S + 2.5);
     expect(r.cfg).toMatchObject({ arquivo: "2 falas", recorte: "ia", largura: 1080, altura: 1920, duracaoS: r.totalS, acompanharFala: true });
   });
 });
@@ -89,7 +89,7 @@ describe("aba Falas vazia", async () => {
     const r = montarFalas([], recebidos);
     expect(r.automaticas).toBe(true);
     expect(r.trechos.map((t) => [t.linha.arquivo, t.linha.cena, t.linha.recorte])).toEqual([["B.mp4", "sobre-obra", "ia"], ["a.mp4", "sobre-obra", "ia"]]);
-    expect(r.totalS).toBeCloseTo(12 + 2.5);
+    expect(r.totalS).toBeCloseTo(12 + RESPIRO_S + 2.5);
     expect(r.naoCitados).toEqual([]);
   });
   it("com a aba preenchida, o vídeo que ela não cita fica de fora e é apontado", () => {
@@ -102,24 +102,24 @@ describe("aba Falas vazia", async () => {
 });
 
 describe("passeio externo, interno ou ambos (ADR-32)", async () => {
-  const { roteiroDasFalas, CAMERAS_TOMADA, duracoes, MARCA_S, trechoInterno, ANTES_DA_PORTA_M, PASSEIO_DESDE_PORTA_M, VELOCIDADE_INTERNA } = await import("../src/rendering/montagem");
+  const { roteiroDasFalas, CAMERAS_TOMADA, duracoes, MARCA_S, RESPIRO_S, trechoInterno, ANTES_DA_PORTA_M, PASSEIO_DESDE_PORTA_M, VELOCIDADE_INTERNA } = await import("../src/rendering/montagem");
   const fala = [{ cena: "sobre-obra" as const, duracaoS: 20 }];
   const fim = (passeio: "externo" | "interno" | "ambos") => {
     const { cenas, totalS } = roteiroDasFalas(fala, { passeio });
     const seg = duracoes(cenas, totalS);
     return cenas.map((c, i) => ({ c, s: seg[i] })).filter((x) => x.c.percurso);
   };
-  it("externo: uma volta por fora de 8 s (40 % de 20 s); interno: por dentro, 10 s; ambos: fora 4,4 s e depois dentro 6,6 s", () => {
+  it("externo: uma volta por fora de 8 s (40 % de 20 s); interno: por dentro, 10 s; ambos: fora 4,4 s e depois dentro 6,6 s (+ o respiro na última)", () => {
     const e = fim("externo"), i = fim("interno"), a = fim("ambos");
     expect(e.map((x) => [x.c.percurso, x.c.camera])).toEqual([["volta", "orbita"]]);
-    expect(e[0].s).toBeCloseTo(8);
+    expect(e[0].s).toBeCloseTo(8 + RESPIRO_S);
     expect(i.map((x) => [x.c.percurso, x.c.camera, x.c.rotulo])).toEqual([["interno", "drone", "Por dentro"]]);
-    expect(i[0].s).toBeCloseTo(10);
+    expect(i[0].s).toBeCloseTo(10 + RESPIRO_S);
     expect(a.map((x) => x.c.percurso)).toEqual(["volta", "interno"]);
     expect(a[0].s).toBeCloseTo(11 * 0.4);
-    expect(a[1].s).toBeCloseTo(11 * 0.6);
-    // total sempre = falas + marca
-    for (const p of ["externo", "interno", "ambos"] as const) expect(roteiroDasFalas(fala, { passeio: p }).totalS).toBe(20 + MARCA_S);
+    expect(a[1].s).toBeCloseTo(11 * 0.6 + RESPIRO_S);
+    // total sempre = falas + respiro + marca
+    for (const p of ["externo", "interno", "ambos"] as const) expect(roteiroDasFalas(fala, { passeio: p }).totalS).toBe(20 + RESPIRO_S + MARCA_S);
   });
   it("tomadas começam pela isométrica, sem vista de cima nem lateral", () => {
     expect(CAMERAS_TOMADA[0]).toBe("isometrica");
@@ -134,5 +134,54 @@ describe("passeio externo, interno ou ambos (ADR-32)", async () => {
     expect((trechoInterno(1, voo, 8) - trechoInterno(0, voo, 8)) * mPorU).toBeCloseTo(VELOCIDADE_INTERNA * 8);
     // cena longa demais para o caminho: para na volta final
     expect(trechoInterno(1, voo, 60)).toBeCloseTo(0.6);
+  });
+});
+
+describe("sequência do vídeo (ADR-34)", async () => {
+  const { montarFalas } = await import("../src/app/falas");
+  const { MARCA_S: MARCA, RESPIRO_S: RESPIRO } = await import("../src/rendering/montagem");
+  type Arq = [string, { nome: string; blob: Blob; duracaoS: number; largura: number; altura: number }];
+  const video = (nome: string, duracaoS: number): Arq => [nome.toLowerCase(), { nome, blob: new Blob([nome]), duracaoS, largura: 1080, altura: 1920 }];
+  const audio = (nome: string, duracaoS: number): Arq => [nome.toLowerCase(), { nome, blob: new Blob([nome]), duracaoS, largura: 0, altura: 0 }];
+  const foto = (nome: string, obra: number | null) => ({ nome, blob: new Blob([nome]), obra, data: "10/03/2026", etapa: "Fundação", descricao: "Sapatas" });
+  const linha = (ordem: number, arquivo: string) => ({ ordem, arquivo, assunto: "", cena: "sobre-obra" as const, recorte: "ia" as const });
+
+  it("narração que a aba Falas não cita entra depois das falas, sem a pessoa; vídeo não citado continua de fora", () => {
+    const r = montarFalas([linha(1, "a.mp4")], new Map([video("a.mp4", 10), audio("narra.mp3", 6), video("extra.mp4", 4)]));
+    expect(r.itens.map((i) => [i.tipo, i.nome])).toEqual([["fala", "a.mp4"], ["narracao", "narra.mp3"]]);
+    expect(r.naoCitados).toEqual(["extra.mp4"]);
+    expect(r.linhaDoTempo.map((t) => !!t.semVideo)).toEqual([false, true]);
+    expect(r.totalS).toBeCloseTo(16 + RESPIRO + MARCA);
+    // a pessoa (camada) só existe com vídeo de fala
+    expect(r.cfg?.largura).toBe(1080);
+    expect(montarFalas([], new Map([audio("so.mp3", 5)])).cfg).toBeNull();
+  });
+
+  it("fotos pela data entre as vozes, com lacuna em silêncio e cena de foto na obra do dia dela", () => {
+    const r = montarFalas([], new Map([video("a.mp4", 10), video("b.mp4", 10)]), {}, "externo", { fotos: [foto("tarde.jpg", 0.9), foto("cedo.jpg", 0.3)] });
+    expect(r.itens.map((i) => i.nome)).toEqual(["a.mp4", "cedo.jpg", "b.mp4", "tarde.jpg"]);
+    expect(r.linhaDoTempo.map((t) => [t.arquivo === null, t.fimS - t.inicioS])).toEqual([[false, 10], [true, 3], [false, 10], [true, 3]]);
+    expect(r.totalS).toBeCloseTo(26 + RESPIRO + MARCA);
+    const cenasFoto = r.cenas.filter((c) => c.tipo === "foto");
+    expect(cenasFoto.map((c) => [c.foto, c.obra[0], c.camera])).toEqual([[0, 0.3, "isometrica"], [1, 0.9, "isometrica"]]);
+    expect(r.fotos.map((f) => f.nome)).toEqual(["cedo.jpg", "tarde.jpg"]);
+  });
+
+  it("ordem salva e duração da foto valem; sem voz, a obra em silêncio pelo tempo da aba Vídeo; trilhas com o segundo em que entram", () => {
+    const r = montarFalas([], new Map(), {}, "externo", {
+      fotos: [foto("f.jpg", 0.5)],
+      ordem: ["foto:f.jpg", "obra"],
+      duracoesFoto: { "foto:f.jpg": 5 },
+      trilhas: [{ nome: "abre.mp3", blob: new Blob(["a"]), duracaoS: 30 }, { nome: "fecha.mp3", blob: new Blob(["f"]), duracaoS: 30 }],
+      semVozS: 15,
+    });
+    expect(r.itens.map((i) => [i.id, i.duracaoS])).toEqual([["foto:f.jpg", 5], ["obra", 15]]);
+    expect(r.totalS).toBeCloseTo(20 + RESPIRO + MARCA);
+    expect(r.trilhas.map((t) => [t.nome, t.entra, t.iniS])).toEqual([["abre.mp3", "inicio", 0], ["fecha.mp3", "final", 5]]);
+    expect(r.linhaDoTempo.every((t) => t.arquivo === null)).toBe(true);
+  });
+
+  it("nada enviado: sem itens (o assistente usa o roteiro sem pessoa)", () => {
+    expect(montarFalas([], new Map()).itens).toEqual([]);
   });
 });

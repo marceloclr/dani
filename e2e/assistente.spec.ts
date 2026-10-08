@@ -51,7 +51,7 @@ test("assistente: planilha, IFC e duas falas → conferir → MP4 com a voz das 
   // conferir: ficha, faixa de cenas pelas falas e a prévia no formato do vídeo
   await page.getByTestId("avancar").click();
   await expect(page.getByTestId("ficha-conferir")).toContainText("02/03/2026 a 26/11/2026");
-  await expect(page.getByTestId("ficha-conferir")).toContainText("2 · 12,5 s de vídeo");
+  await expect(page.getByTestId("ficha-conferir")).toContainText("2 · 13,5 s de vídeo") // falas + respiro de 1 s + marca (ADR-34);
   const cenas = page.getByTestId("faixa-cenas-assistente").locator("button");
   await expect(cenas.first()).toHaveText("Fala no terreno");
   await expect(cenas.last()).toHaveText("Marca");
@@ -84,7 +84,7 @@ test("assistente: planilha, IFC e duas falas → conferir → MP4 com a voz das 
   const caminho = await download.path();
   const j = JSON.parse(execFileSync("ffprobe", ["-v", "error", "-show_entries", "stream=codec_type:format=duration", "-of", "json", caminho]).toString());
   expect(j.streams.map((s: { codec_type: string }) => s.codec_type).sort()).toEqual(["audio", "video"]);
-  expect(Number(j.format.duration)).toBeCloseTo(12.5, 0);
+  expect(Number(j.format.duration)).toBeCloseTo(13.5, 0);
   // voz nos 10 primeiros segundos (as duas falas) e silêncio na marca
   const vol = (ini: number, dur: number) => Number(/mean_volume: (-?[\d.]+) dB/.exec(spawnSync("ffmpeg", ["-hide_banner", "-ss", String(ini), "-t", String(dur), "-i", caminho, "-af", "volumedetect", "-vn", "-f", "null", "-"]).stderr.toString())?.[1] ?? -99);
   expect(vol(0.2, 9.5)).toBeGreaterThan(-30);
@@ -105,7 +105,7 @@ test("Gestão e ajustes guarda o estúdio completo e volta ao assistente", async
 test("cada arquivo é conferido no envio: vídeo com a aba Falas vazia entra na hora; arquivo inválido é apontado no cartão", async ({ page }) => {
   await page.goto("/");
   await page.getByTestId("entrada-planilha").setInputFiles("public/modelos/obra-dani.xlsx"); // aba Falas vazia
-  await expect(page.getByTestId("estado-falas")).toHaveText("nenhum vídeo");
+  await expect(page.getByTestId("estado-falas")).toHaveText("nenhum arquivo");
   await page.getByTestId("entrada-falas").setInputFiles({ name: "minha-fala.mp4", mimeType: "video/mp4", buffer: FALA });
   await expect(page.getByTestId("estado-falas")).toHaveText("1 vídeo · 8 s", { timeout: 30_000 });
   await expect(page.getByTestId("lista-falas")).toContainText("minha-fala.mp4");
@@ -129,5 +129,87 @@ test("sem o IFC citado: a tela diz o que falta e segue com a casa da aba Modelo"
   await expect(page.getByTestId("estado-falas")).toHaveText("1 vídeo · 8 s"); // a fala enviada antes continua
   await page.getByTestId("avancar").click();
   await expect(page.getByTestId("passo-conferir")).toBeVisible();
-  await expect(page.getByTestId("ficha-conferir")).toContainText("1 · 10,5 s de vídeo");
+  await expect(page.getByTestId("ficha-conferir")).toContainText("1 · 11,5 s de vídeo");
+});
+
+/** WAV PCM 16 bits mono com um tom (s segundos, f Hz). */
+function wav(s: number, f: number, taxa = 48000): Buffer {
+  const n = Math.round(s * taxa);
+  const b = Buffer.alloc(44 + n * 2);
+  b.write("RIFF", 0);
+  b.writeUInt32LE(36 + n * 2, 4);
+  b.write("WAVEfmt ", 8);
+  b.writeUInt32LE(16, 16);
+  b.writeUInt16LE(1, 20);
+  b.writeUInt16LE(1, 22);
+  b.writeUInt32LE(taxa, 24);
+  b.writeUInt32LE(taxa * 2, 28);
+  b.writeUInt16LE(2, 32);
+  b.writeUInt16LE(16, 34);
+  b.write("data", 36);
+  b.writeUInt32LE(n * 2, 40);
+  for (let i = 0; i < n; i++) b.writeInt16LE(Math.round(Math.sin((2 * Math.PI * f * i) / taxa) * 12000), 44 + i * 2);
+  return b;
+}
+
+test("sequência (ADR-34): narração, foto emoldurada e trilha, na ordem escolhida, sem final seco", async ({ page }) => {
+  await page.goto("/");
+  // títulos dos cartões
+  for (const [id, t] of [["planilha", "Planilha"], ["ifc", "Projeto IFC"], ["falas", "Apresentação"], ["fotos", "Fotos"], ["trilhas", "Trilha sonora"]]) await expect(page.getByTestId(`cartao-${id}`).locator("h3")).toHaveText(t);
+  const wb = XLSX.read(readFileSync("public/modelos/obra-dani.xlsx"), { type: "buffer" });
+  const video = wb.Sheets["Vídeo"];
+  const linhas = XLSX.utils.sheet_to_json<Record<string, unknown>>(video, { defval: "" });
+  const trocar = (campo: string, valor: string) => (video[XLSX.utils.encode_cell({ r: linhas.findIndex((l) => l.campo === campo) + 1, c: 1 })] = { t: "s", v: valor });
+  trocar("Aparência", "Técnica");
+  trocar("Quadros por segundo", "24");
+  trocar("Formato", "horizontal 16:9");
+  await page.getByTestId("entrada-planilha").setInputFiles({ name: "obra-dani.xlsx", mimeType: "application/octet-stream", buffer: XLSX.write(wb, { type: "buffer", bookType: "xlsx" }) as Buffer });
+  await page.getByTestId("entrada-ifc").setInputFiles("public/modelos/sobrado-exemplo.ifc");
+  await expect(page.getByTestId("estado-ifc")).toHaveText("sobrado-exemplo.ifc · 157 elementos", { timeout: 90_000 });
+  // narração (áudio) no cartão Apresentação, uma foto e uma trilha
+  await page.getByTestId("entrada-falas").setInputFiles({ name: "narracao.wav", mimeType: "audio/wav", buffer: wav(4, 440) });
+  await expect(page.getByTestId("estado-falas")).toHaveText("1 narração · 4 s", { timeout: 30_000 });
+  const png = await page.evaluate(() => {
+    const c = document.createElement("canvas");
+    c.width = 400;
+    c.height = 300;
+    const g = c.getContext("2d")!;
+    g.fillStyle = "#8a5240";
+    g.fillRect(0, 0, 400, 300);
+    g.fillStyle = "#f5f0e6";
+    g.fillRect(100, 80, 200, 140);
+    return c.toDataURL("image/png").split(",")[1];
+  });
+  await page.getByTestId("entrada-fotos").setInputFiles({ name: "obra.png", mimeType: "image/png", buffer: Buffer.from(png, "base64") });
+  await expect(page.getByTestId("estado-fotos")).toHaveText("1");
+  await page.getByTestId("entrada-trilhas").setInputFiles({ name: "trilha.wav", mimeType: "audio/wav", buffer: wav(6, 220) });
+  await expect(page.getByTestId("estado-trilhas")).toHaveText("1 trilha", { timeout: 30_000 });
+
+  // conferir: a sequência com a narração e a foto; a foto sobe para o começo
+  await page.getByTestId("avancar").click();
+  const itens = page.getByTestId("sequencia-video").locator("li[draggable]");
+  await expect(itens).toHaveCount(2);
+  await expect(itens.first()).toHaveAttribute("data-testid", "item-voz:narracao.wav");
+  await page.getByTestId("subir-foto:obra.png").click();
+  await expect(itens.first()).toHaveAttribute("data-testid", "item-foto:obra.png");
+  await expect(page.getByTestId("entra-trilha.wav")).toHaveValue("inicio");
+  await expect(page.getByTestId("ficha-conferir")).toContainText("Trilhas");
+  const cenas = page.getByTestId("faixa-cenas-assistente").locator("button");
+  await expect(cenas.first()).toHaveText("Foto");
+  await cenas.first().click();
+  await expect(page.getByTestId("previa-foto")).toBeVisible();
+
+  // gerar: foto (3 s) + narração (4 s) + respiro (1 s) + marca (2,5 s) = 10,5 s, com áudio e o fim em silêncio
+  await page.getByTestId("avancar").click();
+  await page.getByTestId("assistente-saida").selectOption("mp4-whatsapp");
+  const baixado = page.waitForEvent("download", { timeout: 240_000 });
+  await page.getByTestId("assistente-gerar").click();
+  const caminho = await (await baixado).path();
+  const j = JSON.parse(execFileSync("ffprobe", ["-v", "error", "-show_entries", "stream=codec_type:format=duration", "-of", "json", caminho]).toString());
+  expect(j.streams.map((s: { codec_type: string }) => s.codec_type).sort()).toEqual(["audio", "video"]);
+  expect(Number(j.format.duration)).toBeCloseTo(10.5, 0);
+  const vol = (ini: number, dur: number) => Number(/mean_volume: (-?[\d.]+) dB/.exec(spawnSync("ffmpeg", ["-hide_banner", "-ss", String(ini), "-t", String(dur), "-i", caminho, "-af", "volumedetect", "-vn", "-f", "null", "-"]).stderr.toString())?.[1] ?? -99);
+  expect(vol(1.2, 1.5)).toBeGreaterThan(-40); // só a trilha, na foto
+  expect(vol(4, 2)).toBeGreaterThan(-30); // a narração por cima
+  expect(vol(10.25, 0.2)).toBeLessThan(-50); // o fim em silêncio, sem corte seco
 });

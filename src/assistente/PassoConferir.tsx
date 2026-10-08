@@ -11,6 +11,8 @@ import { NOME_CENA, NOME_PASSEIO, duracoes, type Cena } from "../rendering/monta
 import { localizarNaSequencia, previaApresentadora, quadroDaFala } from "../rendering/apresentadora";
 import { RESOLUCOES, useProjeto, type FormatoVideo } from "../state/projectStore";
 import type { FalasDoVideo } from "../app/falas";
+import { desenharFotoEmoldurada } from "../rendering/fotoNoVideo";
+import { SequenciaDoVideo } from "./SequenciaDoVideo";
 
 const FORMATOS: { id: FormatoVideo; rotulo: string }[] = [
   { id: "vertical", rotulo: "9:16" },
@@ -42,6 +44,7 @@ export function PassoConferir({ falas, cenas, segundos }: { falas: FalasDoVideo;
     return () => clearTimeout(id);
   }, []);
   const [pessoa, setPessoa] = useState<string | null>(null);
+  const [fotoPrevia, setFotoPrevia] = useState<string | null>(null);
   const seg_ = duracoes(cenas, segundos);
   const inicio = (i: number) => seg_.slice(0, i).reduce((a, b) => a + b, 0);
 
@@ -52,16 +55,34 @@ export function PassoConferir({ falas, cenas, segundos }: { falas: FalasDoVideo;
     const c = obterCena();
     if (c) mostrarNaMontagem(c, cenas, t, segundos);
     setPessoa(null);
+    setFotoPrevia(null);
     const cena = cenas[atual];
-    if (cena && cena.pessoa !== "oculta" && falas.trechos.length && falas.cfg) {
-      const l = localizarNaSequencia(falas.trechos, t);
-      const tr = falas.trechos[l.indice];
+    // foto (ADR-34): a mesma moldura do vídeo, no meio da cena
+    const foto = cena?.tipo === "foto" && cena.foto !== undefined ? falas.fotos[cena.foto] : null;
+    if (foto) {
+      void createImageBitmap(foto.blob, { imageOrientation: "from-image" })
+        .then((img) => {
+          const c = document.createElement("canvas");
+          c.width = Math.round(largura / 2);
+          c.height = Math.round(altura / 2);
+          desenharFotoEmoldurada(c.getContext("2d")!, img, { data: foto.data, etapa: foto.etapa, descricao: foto.descricao }, seg_[atual] * 0.5, seg_[atual]);
+          img.close();
+          if (vivo) setFotoPrevia(c.toDataURL("image/png"));
+        })
+        .catch(() => undefined);
+    }
+    const linha = falas.linhaDoTempo;
+    const l = linha.length ? localizarNaSequencia(linha, t) : null;
+    const tr = l ? linha[l.indice] : null;
+    // narrações e fotos (ADR-34) não têm a pessoa
+    if (cena && cena.pessoa !== "oculta" && l && tr?.arquivo && !tr.semVideo && falas.cfg) {
+      const arquivo = tr.arquivo;
       // no quadro inteiro, o vídeo original; recortada, a mesma composição do vídeo (IA ou fundo verde), em tamanho reduzido
       // na revelação, ela fica no mesmo lugar do quadro original, já sobre a obra (o fim da cortina)
       const cfg = cena.tipo === "revelacao" ? { ...falas.cfg, posicao: "centro" as const, alturaFracao: 1 } : falas.cfg;
       const pronto = cena.tipo === "fala"
-        ? quadroDaFala(tr.arquivo, l.tArquivo).then((q) => q.toDataURL("image/jpeg", 0.8))
-        : previaApresentadora(tr.arquivo, { ...cfg, duracaoS: tr.fimS + 0.1 }, Math.round(largura / 3), Math.round(altura / 3), l.tArquivo, true).then((q) => q.toDataURL("image/png"));
+        ? quadroDaFala(arquivo, l.tArquivo).then((q) => q.toDataURL("image/jpeg", 0.8))
+        : previaApresentadora(arquivo, { ...cfg, duracaoS: tr.fimS + 0.1 }, Math.round(largura / 3), Math.round(altura / 3), l.tArquivo, true).then((q) => q.toDataURL("image/png"));
       void pronto.then((u) => vivo && setPessoa(u)).catch(() => undefined);
     }
     return () => {
@@ -104,8 +125,11 @@ export function PassoConferir({ falas, cenas, segundos }: { falas: FalasDoVideo;
             <dd className="num">{falas.trechos.length ? `${falas.trechos.length} · ${seg(falas.totalS)} de vídeo` : "nenhuma"}</dd>
             <dt>Fotos</dt>
             <dd className="num">{nFotos}</dd>
+            <dt>Trilhas</dt>
+            <dd className="num">{falas.trilhas.length || "nenhuma"}</dd>
           </dl>
         </section>
+        <SequenciaDoVideo falas={falas} />
         {avisos.length > 0 && (
           <section className="bloco tenor-alerta" style={{ ["--acento" as string]: "var(--ocre)" }}>
             <header>
@@ -172,6 +196,7 @@ export function PassoConferir({ falas, cenas, segundos }: { falas: FalasDoVideo;
           <Viewport simples />
           {cena?.tipo === "marca" && <div className="previa-marca">DANIELLA POMPEU</div>}
           {pessoa && cena?.pessoa !== "oculta" && <img className="previa-pessoa" src={pessoa} alt="" data-testid="previa-pessoa" />}
+          {fotoPrevia && cena?.tipo === "foto" && <img className="previa-foto" src={fotoPrevia} alt="" data-testid="previa-foto" />}
         </div>
 
         <ol className="faixa-cenas" aria-label="Cenas do vídeo" data-testid="faixa-cenas-assistente">

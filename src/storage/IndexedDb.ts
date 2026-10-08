@@ -43,6 +43,8 @@ export const chavePlanta = (projetoId: string) => `${projetoId}/planta`;
 export const chaveApresentadora = (projetoId: string) => `${projetoId}/apresentadora`;
 /** Vídeos das falas da planilha (ADR-30), pelo nome do arquivo em minúsculas. Também ficam fora do .4dstudio. */
 export const chaveFala = (projetoId: string, nome: string) => `${projetoId}/fala/${nome.toLowerCase()}`;
+/** Trilha sonora do vídeo (ADR-34), pelo nome do arquivo. */
+export const chaveTrilha = (projetoId: string, nome: string) => `${projetoId}/trilha/${nome.toLowerCase()}`;
 
 export async function listarProjetos(): Promise<RegistroProjeto[]> {
   const todos = await (await abrir()).getAll("projetos");

@@ -3,7 +3,7 @@
 import { poseDoPreset, type Enquadramento, type Pose, type Preset } from "./cameras";
 import type { QuadroCamera, Voo } from "./drone";
 
-export type TipoCena = "fala" | "revelacao" | "obra" | "marca";
+export type TipoCena = "fala" | "revelacao" | "obra" | "foto" | "marca";
 export type CameraCena = "drone" | Preset;
 export type PessoaNaCena = "cheia" | "recortada" | "oculta";
 
@@ -24,13 +24,15 @@ export interface Cena {
   percurso?: "volta" | "interno";
   /** Nome na faixa de cenas (senão, o do tipo). */
   rotulo?: string;
+  /** Cena de foto (ADR-34): índice da foto na lista de fotos do vídeo. */
+  foto?: number;
 }
 
 /** Passeio pela obra pronta no fim do vídeo do assistente (ADR-32). */
 export type Passeio = "externo" | "interno" | "ambos";
 export const NOME_PASSEIO: Record<Passeio, string> = { externo: "Externo", interno: "Interno", ambos: "Ambos" };
 
-export const NOME_CENA: Record<TipoCena, string> = { fala: "Fala no terreno", revelacao: "Revelação", obra: "Obra", marca: "Marca" };
+export const NOME_CENA: Record<TipoCena, string> = { fala: "Fala no terreno", revelacao: "Revelação", obra: "Obra", foto: "Foto", marca: "Marca" };
 
 /** Esmaecimento da obra para a marca (ADR-33): segundos e curva (suave nas pontas). */
 export const ESMAECER_MARCA_S = 0.4;
@@ -223,6 +225,11 @@ export type CenaDaFala = "terreno" | "sobre-obra" | "voz";
 export const MARCA_S = 2.5;
 /** Duração aproximada de cada tomada sobre a obra: cortes a cada 3 a 4 s, como nos Reels. */
 export const TOMADA_S = 3.5;
+/** Respiro depois da última voz (ADR-34): a câmera continua andando antes da marca; o vídeo não acaba de repente. */
+export const RESPIRO_S = 1;
+
+/** Um item do roteiro: uma voz (fala, narração ou obra em silêncio) ou uma foto (ADR-34). */
+export type ItemRoteiro = { cena: CenaDaFala; duracaoS: number } | { cena: "foto"; duracaoS: number; foto: number; obra: number | null };
 /** Câmeras das tomadas sobre a obra, em rodízio. */
 // sem a vista de cima: de cima, por dentro, a obra vira um piso branco sem leitura (ADR-31)
 // começa pela isométrica (mostra o lote inteiro); sem a lateral, que costuma ser parede cega (ADR-32)
@@ -236,19 +243,29 @@ export const CAMERAS_TOMADA: Preset[] = ["isometrica", "externa", "frontal", "or
  *   todas essas falas (do terreno à pronta), com ela recortada no canto ou fora do quadro;
  * - a última fala sobre a obra, se tiver 6 s ou mais, termina com o passeio do drone pela obra pronta (40 %, até 10 s).
  */
-export function roteiroDasFalas(falas: { cena: CenaDaFala; duracaoS: number }[], opcoes: { passeio?: Passeio } = {}): { cenas: Cena[]; totalS: number } {
+export function roteiroDasFalas(itens: ItemRoteiro[], opcoes: { passeio?: Passeio } = {}): { cenas: Cena[]; totalS: number } {
   const passeio = opcoes.passeio ?? "externo";
-  const soma = falas.reduce((s, f) => s + Math.max(0, f.duracaoS), 0);
-  if (!falas.length || !(soma > 0)) return { cenas: roteiroReels(false), totalS: 30 };
-  const totalS = soma + MARCA_S;
+  const soma = itens.reduce((s, f) => s + Math.max(0, f.duracaoS), 0);
+  if (!itens.length || !(soma > 0)) return { cenas: roteiroReels(false), totalS: 30 };
+  // ADR-34: depois da última voz, o respiro (a câmera continua) e a marca
+  const totalS = soma + RESPIRO_S + MARCA_S;
+  // as fotos não contam no avanço da obra nem guardam o passeio: só as vozes
+  const falas = itens.map((f) => (f.cena === "foto" ? { cena: "foto" as const, duracaoS: 0 } : f));
   const brutas: { tipo: TipoCena; s: number; camera: CameraCena; obra: [number, number]; pessoa: PessoaNaCena; extra?: Partial<Cena> }[] = [];
   // a última fala sobre a obra guarda o fim para o passeio pela obra pronta
   let ultimaObra = -1;
-  falas.forEach((f, i) => (f.cena !== "terreno" ? (ultimaObra = i) : undefined));
+  falas.forEach((f, i) => (f.cena !== "terreno" && f.cena !== "foto" ? (ultimaObra = i) : undefined));
   const passeioS = ultimaObra >= 0 ? duracaoDoPasseio(passeio, falas[ultimaObra].duracaoS) : 0;
   const tempoObra = falas.reduce((s, f) => (f.cena === "terreno" ? s : s + f.duracaoS), 0) - passeioS;
   let progresso = 0, rodizio = 0;
-  falas.forEach((f, i) => {
+  itens.forEach((item, i) => {
+    // foto (ADR-34): a obra parada no dia da foto (ou onde o vídeo está), vista de cima, com a foto emoldurada
+    if (item.cena === "foto") {
+      const f = item.obra ?? progresso;
+      if (item.duracaoS > 0) brutas.push({ tipo: "foto", s: item.duracaoS, camera: "isometrica", obra: [f, f], pessoa: "oculta", extra: { foto: item.foto } });
+      return;
+    }
+    const f = item;
     const d = Math.max(0, f.duracaoS);
     if (!(d > 0)) return;
     if (f.cena === "terreno") {
@@ -268,6 +285,8 @@ export function roteiroDasFalas(falas: { cena: CenaDaFala; duracaoS: number }[],
     if (i === ultimaObra && passeioS > 0)
       for (const p of cenasDoPasseio(passeio)) brutas.push({ tipo: "obra", s: passeioS * p.parte, camera: p.camera, obra: [1, 1], pessoa, extra: { percurso: p.percurso, rotulo: p.rotulo } });
   });
+  // respiro: a última cena dura mais RESPIRO_S (a câmera continua andando; a pessoa já não fala)
+  if (brutas.length) brutas[brutas.length - 1].s += RESPIRO_S;
   brutas.push({ tipo: "marca", s: MARCA_S, camera: "frontal", obra: [1, 1], pessoa: "oculta" });
   return { cenas: brutas.map((b, i) => cena(`f${i}`, b.tipo, b.s / totalS, b.camera, b.obra, b.pessoa, b.extra)), totalS };
 }

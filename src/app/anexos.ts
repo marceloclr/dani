@@ -1,7 +1,7 @@
 // Anexos da obra (ADR-14): fotos, planta e o vídeo da apresentadora (ADR-24). Os arquivos (Blobs) ficam aqui; o estado guarda só os dados.
 import { dataExif, lerFotosCsv } from "../importers/fotos";
 import { lerData } from "../fourd/tempo";
-import { chaveApresentadora, chaveFala, chaveFoto, chavePlanta, excluirAnexo, gravarAnexo } from "../storage/IndexedDb";
+import { chaveApresentadora, chaveFala, chaveFoto, chavePlanta, chaveTrilha, excluirAnexo, gravarAnexo } from "../storage/IndexedDb";
 import { APRESENTADORA_PADRAO } from "../rendering/composicao";
 import { useProjeto } from "../state/projectStore";
 import type { FotoObra, PlantaSobreposta } from "../types";
@@ -22,6 +22,14 @@ export interface ArquivoDeFala {
 }
 let falas = new Map<string, ArquivoDeFala>();
 const ouvintesFalas = new Set<() => void>();
+/** Trilhas sonoras (ADR-34): arquivo e duração, pelo nome em minúsculas. */
+export interface ArquivoDeTrilha {
+  nome: string;
+  blob: Blob;
+  duracaoS: number;
+}
+let trilhas = new Map<string, ArquivoDeTrilha>();
+const ouvintesTrilhas = new Set<() => void>();
 const ouvintesPlanta = new Set<() => void>();
 
 const novoId = () => (crypto.randomUUID ? crypto.randomUUID() : `f-${Date.now()}-${Math.random().toString(36).slice(2)}`).slice(0, 13);
@@ -39,6 +47,16 @@ export function aoMudarFalas(f: () => void): () => void {
 function trocarFalas(m: Map<string, ArquivoDeFala>): void {
   falas = m;
   ouvintesFalas.forEach((f) => f());
+}
+/** Trilhas recebidas (o mapa é trocado a cada mudança: serve ao useSyncExternalStore). */
+export const arquivosDeTrilha = () => trilhas;
+export function aoMudarTrilhas(f: () => void): () => void {
+  ouvintesTrilhas.add(f);
+  return () => ouvintesTrilhas.delete(f);
+}
+function trocarTrilhas(m: Map<string, ArquivoDeTrilha>): void {
+  trilhas = m;
+  ouvintesTrilhas.forEach((f) => f());
 }
 
 /** O painel do vídeo se inscreve para saber quando o arquivo da apresentadora chega ou sai. */
@@ -83,6 +101,7 @@ export function limparAnexos(): void {
   definirImagemPlanta(null);
   definirApresentadora(null);
   trocarFalas(new Map());
+  trocarTrilhas(new Map());
 }
 
 function definirImagemPlanta(b: Blob | null): void {
@@ -93,13 +112,14 @@ function definirImagemPlanta(b: Blob | null): void {
 }
 
 /** Restaura anexos lidos do IndexedDB ou de um .4dstudio. */
-export function restaurarAnexos(fotosDoProjeto: Map<string, Blob>, imagemPlanta: Blob | null, videoApresentadora: Blob | null = null, videosDeFala: Map<string, Blob> = new Map()): void {
+export function restaurarAnexos(fotosDoProjeto: Map<string, Blob>, imagemPlanta: Blob | null, videoApresentadora: Blob | null = null, videosDeFala: Map<string, Blob> = new Map(), audiosDeTrilha: Map<string, Blob> = new Map()): void {
   limparAnexos();
   fotosDoProjeto.forEach((b, id) => fotos.set(id, b));
   definirImagemPlanta(imagemPlanta);
   definirApresentadora(videoApresentadora);
   // duração e tamanho são lidos de novo (rápido: só o cabeçalho do arquivo)
   if (videosDeFala.size) void lerFalas([...videosDeFala].map(([nome, b]) => new File([b], nome, { type: b.type }))).then((r) => trocarFalas(new Map([...falas, ...r.lidas])));
+  if (audiosDeTrilha.size) void lerTrilhas([...audiosDeTrilha].map(([nome, b]) => new File([b], nome, { type: b.type }))).then((r) => trocarTrilhas(new Map([...trilhas, ...r.lidas])));
 }
 
 /** Grava todos os anexos atuais no projeto (ao criar ou duplicar). */
@@ -108,6 +128,7 @@ export async function gravarTodosAnexos(projetoId: string): Promise<void> {
   if (planta) await gravarAnexo(projetoId, chavePlanta(projetoId), planta);
   if (apresentadora) await gravarAnexo(projetoId, chaveApresentadora(projetoId), apresentadora);
   for (const f of falas.values()) await gravarAnexo(projetoId, chaveFala(projetoId, f.nome), f.blob);
+  for (const t of trilhas.values()) await gravarAnexo(projetoId, chaveTrilha(projetoId, t.nome), t.blob);
 }
 
 const projetoAberto = () => useProjeto.getState().projetoId;
@@ -264,15 +285,31 @@ export async function removerApresentadora(): Promise<void> {
   if (pid) await excluirAnexo(chaveApresentadora(pid));
 }
 
-const ehVideo = (f: File) => !f.type || TIPOS_VIDEO.test(f.type) || /\.(mp4|mov|m4v|webm)$/i.test(f.name);
+/** Áudios de narração e de trilha (ADR-34). */
+const ehAudio = (f: File) => /^audio\//.test(f.type) || /\.(mp3|m4a|aac|wav|ogg|oga|opus|flac)$/i.test(f.name);
+const ehVideo = (f: File) => !ehAudio(f) && (!f.type || TIPOS_VIDEO.test(f.type) || /\.(mp4|mov|m4v|webm)$/i.test(f.name));
+
+/** Duração de um áudio, decodificado pelo próprio navegador; null se não abrir. */
+async function duracaoDoAudio(f: Blob): Promise<number | null> {
+  const { audioDaFala } = await import("../rendering/apresentadora");
+  const b = await audioDaFala(f);
+  return b && b.duration > 0 ? b.duration : null;
+}
 
 async function lerFalas(arquivos: File[]): Promise<{ lidas: Map<string, ArquivoDeFala>; avisos: string[] }> {
   const { lerInfoDaFala } = await import("../rendering/apresentadora");
   const lidas = new Map<string, ArquivoDeFala>();
   const avisos: string[] = [];
   for (const f of arquivos) {
+    // áudio = narração (ADR-34): só a voz, sem imagem (largura 0)
+    if (ehAudio(f)) {
+      const d = await duracaoDoAudio(f);
+      if (d) lidas.set(f.name.toLowerCase(), { nome: f.name, blob: f, duracaoS: d, largura: 0, altura: 0 });
+      else avisos.push(`"${f.name}" não abriu neste navegador (use MP3, M4A, WAV ou OGG).`);
+      continue;
+    }
     if (!ehVideo(f)) {
-      avisos.push(`"${f.name}" não é um vídeo (use MP4, MOV ou WebM).`);
+      avisos.push(`"${f.name}" não é um vídeo nem um áudio (use MP4, MOV, WebM, MP3, M4A, WAV ou OGG).`);
       continue;
     }
     try {
@@ -301,4 +338,36 @@ export async function removerFala(nome: string): Promise<void> {
   trocarFalas(m);
   const pid = projetoAberto();
   if (pid) await excluirAnexo(chaveFala(pid, nome));
+}
+
+async function lerTrilhas(arquivos: File[]): Promise<{ lidas: Map<string, ArquivoDeTrilha>; avisos: string[] }> {
+  const lidas = new Map<string, ArquivoDeTrilha>();
+  const avisos: string[] = [];
+  for (const f of arquivos) {
+    if (!ehAudio(f)) {
+      avisos.push(`"${f.name}" não é um áudio (use MP3, M4A, WAV ou OGG).`);
+      continue;
+    }
+    const d = await duracaoDoAudio(f);
+    if (d) lidas.set(f.name.toLowerCase(), { nome: f.name, blob: f, duracaoS: d });
+    else avisos.push(`"${f.name}" não abriu neste navegador (use MP3, M4A, WAV ou OGG).`);
+  }
+  return { lidas, avisos };
+}
+
+/** Recebe as trilhas sonoras (ADR-34): guarda no navegador, pelo nome. */
+export async function adicionarTrilhas(arquivos: File[]): Promise<{ adicionadas: number; avisos: string[] }> {
+  const { lidas, avisos } = await lerTrilhas(arquivos);
+  trocarTrilhas(new Map([...trilhas, ...lidas]));
+  const pid = projetoAberto();
+  if (pid) for (const t of lidas.values()) await gravarAnexo(pid, chaveTrilha(pid, t.nome), t.blob);
+  return { adicionadas: lidas.size, avisos };
+}
+
+export async function removerTrilha(nome: string): Promise<void> {
+  const m = new Map(trilhas);
+  m.delete(nome.toLowerCase());
+  trocarTrilhas(m);
+  const pid = projetoAberto();
+  if (pid) await excluirAnexo(chaveTrilha(pid, nome));
 }

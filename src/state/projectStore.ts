@@ -1,4 +1,5 @@
 // Estado do projeto (Zustand). Geometria pesada fica na cena (rendering/Cena.ts), não aqui.
+import type { TrilhaSequencia } from "../app/sequencia";
 import { create } from "zustand";
 import type { AcaoTarefa, Cronograma, ElementoMeta, Excecao, ModoAnimacao, PoliticaSemTarefa, Regra, Vinculo } from "../types";
 import type { PontoRoteiro } from "../rendering/cameras";
@@ -54,6 +55,12 @@ export interface ConfigVideo {
   qualidade?: "normal" | "maxima";
   /** Passeio final no vídeo do assistente (ADR-32): externo (padrão), interno ou ambos. */
   passeio?: Passeio;
+  /** Ordem dos itens do vídeo do assistente (ids: "voz:…", "foto:…", "obra"), ajustada no Conferir (ADR-34). */
+  sequencia?: string[];
+  /** Duração de cada foto no vídeo (s), pelo id. */
+  duracoesFoto?: Record<string, number>;
+  /** Trilhas sonoras: onde cada uma entra e o volume (ADR-34). */
+  trilhas?: TrilhaSequencia[];
 }
 
 /** Tarefa em edição, com datas absolutas (dia civil). */

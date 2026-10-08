@@ -27,6 +27,8 @@ describe("planilha única (ADR-29)", () => {
     expect(p.documento.titulo).toBe("Relatório de acompanhamento da obra");
     expect(Object.values(p.documento.secoes).every(Boolean)).toBe(true);
     expect(p.falas).toEqual([]);
+    expect(p.sequencia).toEqual([]);
+    expect(p.trilhas).toEqual([]);
   });
 
   it("aponta a aba e a linha de cada problema sem travar a leitura", () => {
@@ -69,11 +71,43 @@ describe("planilha única (ADR-29)", () => {
         { ordem: 2, arquivo: "etapas.mp4", assunto: "Etapas", cena: "sobre-obra" as const, recorte: "verde" as const },
       ],
       fotos: [{ arquivo: "obra.jpg", dia: projeto!.cronograma!.inicio + 10, local: "Frente", descricao: "Gabarito", etapa: "PRE-01" }],
+      sequencia: [
+        { ordem: 1, tipo: "foto" as const, arquivo: "obra.jpg", duracaoS: 4 },
+        { ordem: 2, tipo: "fala" as const, arquivo: "abertura.mp4" },
+        { ordem: 3, tipo: "narracao" as const, arquivo: "narracao.mp3" },
+      ],
+      trilhas: [
+        { arquivo: "abertura.mp3", entra: "inicio", volume: 60 },
+        { arquivo: "meio.mp3", entra: "narracao.mp3", volume: 70 },
+        { arquivo: "fim.mp3", entra: "final", volume: 80 },
+      ],
       documento: { ...projeto!.documento, observacoes: "Obra no prazo.", secoes: { ...projeto!.documento.secoes, fotos: false } },
     };
     const volta = await lerPlanilha(await escreverPlanilha(p));
     expect(volta.problemas.filter((x) => x.nivel === "erro")).toEqual([]);
     expect(volta.projeto).toEqual(p);
+  });
+
+  it("Sequência e Trilhas (ADR-34): tipos, duração da foto, entrada e volume, com aba e linha nos erros", () => {
+    const { projeto, problemas } = interpretarAbas({
+      Obra: [{ campo: "Nome da obra", valor: "Casa" }],
+      "Sequência": [
+        { ordem: 2, tipo: "Narração", arquivo: "n.mp3" },
+        { ordem: 1, tipo: "foto", arquivo: "f.jpg", duracao_s: 5 },
+        { ordem: 3, tipo: "desenho", arquivo: "x.png" },
+        { ordem: 4, tipo: "foto", arquivo: "g.jpg", duracao_s: 9 },
+      ],
+      Trilhas: [
+        { arquivo: "a.mp3", entra: "início", volume: 50 },
+        { arquivo: "b.mp3", entra: "antes de n.mp3" },
+        { arquivo: "c.mp3", entra: "no meio", volume: 150 },
+      ],
+    });
+    const msg = (aba: string) => problemas.filter((p) => p.aba === aba).map((p) => p.linha);
+    expect(msg("Sequência")).toEqual([4, 5]);
+    expect(projeto.sequencia.map((l) => [l.tipo, l.arquivo, l.duracaoS])).toEqual([["foto", "f.jpg", 5], ["narracao", "n.mp3", undefined], ["foto", "g.jpg", undefined]]);
+    expect(msg("Trilhas")).toEqual([4, 4]);
+    expect(projeto.trilhas.slice(0, 2)).toEqual([{ arquivo: "a.mp3", entra: "inicio", volume: 50 }, { arquivo: "b.mp3", entra: "n.mp3" }]);
   });
 
   it("recusa um cronograma avulso como planilha da obra", async () => {

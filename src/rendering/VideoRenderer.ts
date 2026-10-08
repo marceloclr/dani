@@ -9,7 +9,9 @@ import type { Pose } from "./cameras";
 import type { QuadroCamera } from "./drone";
 import { diaDoQuadro, totalDeQuadros } from "./cameras";
 import { desenharAssinatura, desenharVinheta, opacidadeVinheta, sobrepor, type Sobreposicao, type TextoMarca } from "./marcaVideo";
-import { abrirQuadros, audioDaFala, criarCamadaApresentadora, pedacosDeAudio, type CamadaApresentadora, type FonteFala, type QuadrosDaFala } from "./apresentadora";
+import { abrirQuadros, audioDaFala, criarCamadaApresentadora, pedacosDeAudio, type CamadaApresentadora, type FonteFala, type QuadrosDaFala, type TrechoDeFala } from "./apresentadora";
+import { abrirFotos, desenharFotoEmoldurada, type LegendaFoto } from "./fotoNoVideo";
+import { mixar } from "./mixagem";
 import { cantoDaAssinatura, ganhoDeNormalizacao, type ConfigApresentadora } from "./composicao";
 import { ESMAECER_MARCA_S, cenaNoTempo, obraNaCena, suaveMarca, poseDaCena, quadroDoVooNaCena, type Cena as CenaMontagem } from "./montagem";
 import type { Enquadramento } from "./cameras";
@@ -120,6 +122,15 @@ export interface PedidoVideo {
    * a fala segue contínua por baixo dos cortes.
    */
   montagem?: { cenas: CenaMontagem[]; enquadramento: Enquadramento; voo: Voo | null; cartela: TextoMarca };
+  /**
+   * Voz do vídeo (ADR-34): a linha do tempo inteira (falas, narrações e lacunas em silêncio nas fotos).
+   * Sem ela, a voz é a da apresentadora.
+   */
+  voz?: TrechoDeFala[];
+  /** Trilhas sonoras (ADR-34): o arquivo, o segundo em que entra e o volume (0 a 1). */
+  trilhas?: { blob: Blob; iniS: number; volume: number }[];
+  /** Fotos das cenas de foto (ADR-34), na ordem do índice `Cena.foto`. */
+  fotos?: { blob: Blob; legenda: LegendaFoto }[];
   sinal: AbortSignal;
   aoProgredir(p: { quadro: number; total: number; restanteS: number | null }): void;
   /** Recebe o canvas do vídeo, para pré-visualização durante a geração. */
@@ -174,14 +185,36 @@ export async function gerarVideo(cena: Cena, pedido: PedidoVideo): Promise<Arqui
     fala = await abrirQuadros(p.apresentadora.arquivo, Array.from({ length: total }, (_, i) => i / p.fps));
     const telaCheia = !!p.montagem?.cenas.some((c) => c.tipo === "fala" || c.tipo === "revelacao" || c.pessoa === "cheia");
     camada = await criarCamadaApresentadora(lr, ar, p.apresentadora.cfg, fala.largura, fala.altura, telaCheia);
-    if (p.saida !== "gif" && p.saida !== "png-zip") audio = await audioDaFala(p.apresentadora.arquivo);
-    // volume das redes: voz em −18 dBFS de média, pico até −1 dBFS (ADR-31)
-    if (audio) {
-      const canais = Array.from({ length: audio.numberOfChannels }, (_, c) => audio!.getChannelData(c));
-      const { ganho } = ganhoDeNormalizacao(canais, audio.sampleRate);
-      if (Math.abs(ganho - 1) > 0.01) for (const c of canais) for (let i = 0; i < c.length; i++) c[i] *= ganho;
-    }
   }
+  // áudio (ADR-34): a voz (linha do tempo ou a da apresentadora), normalizada, e as trilhas, mixadas no tamanho do vídeo
+  const fonteVoz: FonteFala | null = p.voz?.length ? p.voz : p.apresentadora?.arquivo ?? null;
+  if (p.saida !== "gif" && p.saida !== "png-zip" && (fonteVoz || p.trilhas?.length)) {
+    const voz = fonteVoz ? await audioDaFala(fonteVoz) : null;
+    // volume das redes: voz em −18 dBFS de média, pico até −1 dBFS (ADR-31)
+    const canaisVoz = voz ? Array.from({ length: voz.numberOfChannels }, (_, c) => voz.getChannelData(c)) : null;
+    if (canaisVoz && voz) {
+      const { ganho } = ganhoDeNormalizacao(canaisVoz, voz.sampleRate);
+      if (Math.abs(ganho - 1) > 0.01) for (const c of canaisVoz) for (let i = 0; i < c.length; i++) c[i] *= ganho;
+    }
+    const taxa = voz?.sampleRate ?? 48000;
+    const trilhas = [];
+    for (const t of p.trilhas ?? []) {
+      const b = await audioDaFala(t.blob);
+      if (b) trilhas.push({ canais: Array.from({ length: b.numberOfChannels }, (_, c) => b.getChannelData(c)), iniS: t.iniS, volume: t.volume });
+    }
+    // voz e trilhas no tamanho do vídeo: trilha sob a voz, fade-out no fim e o último 0,3 s em silêncio
+    const mix = mixar(canaisVoz, trilhas, total / p.fps, taxa);
+    audio = new AudioBuffer({ length: mix[0].length, numberOfChannels: 2, sampleRate: taxa });
+    mix.forEach((c, k) => audio!.copyToChannel(c as Float32Array<ArrayBuffer>, k));
+  }
+  // fotos das cenas de foto (ADR-34): emolduradas num canvas do tamanho do vídeo, redesenhado a cada quadro
+  const fotos = p.fotos?.length && p.montagem?.cenas.some((c) => c.tipo === "foto") ? await abrirFotos(p.fotos.map((f) => f.blob)) : [];
+  const telaFoto = fotos.length ? document.createElement("canvas") : null;
+  if (telaFoto) {
+    telaFoto.width = lr;
+    telaFoto.height = ar;
+  }
+  const camadaFoto = telaFoto ? sobrepor(telaFoto, lr, ar, "cheia") : null;
   const canto = cantoDaAssinatura(p.apresentadora ? p.apresentadora.cfg.posicao : null);
   // vertical: no topo; horizontal e quadrado: embaixo, no canto oposto ao da apresentadora
   const vertical = ar > lr;
@@ -213,10 +246,11 @@ export async function gerarVideo(cena: Cena, pedido: PedidoVideo): Promise<Arqui
       }
       desenhista.desenhar(camera, i);
     };
-    // a marca entra esmaecendo sobre o último quadro da cena de obra anterior (ADR-33)
+    // a marca entra esmaecendo sobre o último quadro da cena de obra (ou de foto) anterior (ADR-33)
     const naMarca = i / p.fps - ponto.inicio;
     const anterior = c.tipo === "marca" && naMarca < ESMAECER_MARCA_S && ponto.indice > 0 ? cenaNoTempo(m.cenas, ponto.inicio - 1e-6, total / p.fps) : null;
-    if (anterior && anterior.cena.tipo === "obra") {
+    const esmaece = !!anterior && (anterior.cena.tipo === "obra" || anterior.cena.tipo === "foto");
+    if (anterior && esmaece) {
       p.aplicarDia(obraNaCena(anterior.cena, 1) * p.diasDeObra);
       obra(anterior.cena, 1, anterior.fim - anterior.inicio);
     } else if (c.tipo === "fala" || c.tipo === "marca") {
@@ -226,13 +260,23 @@ export async function gerarVideo(cena: Cena, pedido: PedidoVideo): Promise<Arqui
     } else obra(c, u, ponto.fim - ponto.inicio);
     if (c.tipo === "marca") {
       if (cartela) {
-        cartela.definirOpacidade(anterior?.cena.tipo === "obra" ? suaveMarca(naMarca / ESMAECER_MARCA_S) : 1);
+        cartela.definirOpacidade(esmaece ? suaveMarca(naMarca / ESMAECER_MARCA_S) : 1);
         sobre(cartela);
       }
       return;
     }
+    // foto (ADR-34): a moldura sobre a obra no dia da foto
+    if (c.tipo === "foto" && camadaFoto && telaFoto && c.foto !== undefined && fotos[c.foto] && p.fotos?.[c.foto]) {
+      desenharFotoEmoldurada(telaFoto.getContext("2d")!, fotos[c.foto], p.fotos[c.foto].legenda, i / p.fps - ponto.inicio, ponto.fim - ponto.inicio);
+      camadaFoto.atualizar();
+      camadaFoto.definirOpacidade(1);
+      sobre(camadaFoto);
+      return;
+    }
     const modo = c.tipo === "fala" || c.tipo === "revelacao" ? "cheia" : c.pessoa;
-    if (camada && img && modo !== "oculta") {
+    // depois da última voz (o respiro, ADR-34), a pessoa já não aparece: o quadro dela ficaria parado
+    const falando = !fala || i / p.fps < fala.duracaoS;
+    if (camada && img && modo !== "oculta" && falando) {
       await camada.atualizar(img);
       camada.definir({ modo, revelacao: c.tipo === "revelacao" ? u : 0 });
       sobre(camada);
@@ -288,6 +332,8 @@ export async function gerarVideo(cena: Cena, pedido: PedidoVideo): Promise<Arqui
     vinheta?.dispose();
     cartela?.dispose();
     camada?.dispose();
+    camadaFoto?.dispose();
+    fotos.forEach((f) => f.close());
     fala?.dispose();
     renderer.dispose();
     renderer.forceContextLoss();

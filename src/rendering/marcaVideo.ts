@@ -157,6 +157,8 @@ export interface Sobreposicao {
   cena: THREE.Scene;
   camera: THREE.OrthographicCamera;
   definirOpacidade(o: number): void;
+  /** O canvas foi redesenhado: envia a imagem nova no próximo quadro (foto com zoom, ADR-34). */
+  atualizar(): void;
   dispose(): void;
 }
 
@@ -184,6 +186,9 @@ export function sobrepor(c: HTMLCanvasElement, largura: number, altura: number, 
     definirOpacidade: (o) => {
       mat.opacity = o;
       plano.visible = o > 0.001;
+    },
+    atualizar: () => {
+      tex.needsUpdate = true;
     },
     dispose: () => {
       tex.dispose();

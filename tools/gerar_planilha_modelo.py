@@ -44,6 +44,8 @@ LISTAS = {
     "simnao": ["sim", "não"],
     "fps": ["30", "24"],
     "passeio": ["externo", "interno", "ambos"],
+    "tiposeq": ["fala", "narração", "foto"],
+    "entra": ["início", "final"],
 }
 
 borda = Border(bottom=Side(style="thin", color=LINHA))
@@ -66,8 +68,12 @@ for c, (nome, valores) in enumerate(LISTAS.items(), start=1):
     intervalos[nome] = f"Listas!${col}$2:${col}${len(valores) + 1}"
 
 
+# listas que aceitam também texto livre (Trilhas › entra: "antes de <arquivo>")
+LISTAS_ABERTAS = {"entra"}
+
+
 def lista(ws, nome: str, alvo: str) -> None:
-    dv = DataValidation(type="list", formula1=intervalos[nome], allow_blank=True, showErrorMessage=True,
+    dv = DataValidation(type="list", formula1=intervalos[nome], allow_blank=True, showErrorMessage=nome not in LISTAS_ABERTAS,
                         errorTitle="Valor fora da lista", error="Escolha um valor da lista.")
     ws.add_data_validation(dv)
     dv.add(alvo)
@@ -129,7 +135,7 @@ TEXTO = [
     "",
     "Como usar",
     "1. Preencha as abas abaixo (o exemplo é o sobrado de demonstração: troque pelos dados da sua obra).",
-    "2. No app, passo Carregar: envie esta planilha e, em cartões separados, o IFC (opcional), os vídeos das falas e as fotos.",
+    "2. No app, passo Carregar: envie esta planilha e, em cartões separados, o IFC (opcional), a apresentação (vídeos e áudios de narração), as fotos e as trilhas sonoras.",
     "3. Passo Conferir: veja os avisos e a prévia. Passo Gerar: baixe o vídeo MP4 e o documento em PDF e DOCX.",
     "",
     "Abas",
@@ -139,6 +145,8 @@ TEXTO = [
     "Vínculos: opcional. Corrige elemento por elemento (GUID do IFC) qual etapa o constrói.",
     "Falas: um vídeo da engenheira por linha, na ordem do vídeo final. O nome do arquivo deve ser igual ao enviado.",
     "Fotos: fotos reais da obra, com data e etapa (ID da aba Cronograma).",
+    "Sequência: opcional. A ordem do vídeo (fala, narração, foto); vazia = falas na ordem e fotos pela data. Também se ajusta no passo Conferir.",
+    "Trilhas: opcional. Onde cada música entra (início, final ou \"antes de <arquivo>\") e o volume (0 a 100).",
     "Vídeo: formato, duração, qualidade e luz do vídeo.",
     "Documento: título, destinatário, observações e seções do PDF/DOCX.",
     "",
@@ -230,10 +238,26 @@ tabela(
     datas={2},
 )
 
+# ---------- Sequência (ADR-34) ----------
+tabela(
+    wb.create_sheet("Sequência"),
+    [("ordem", 8), ("tipo", 12), ("arquivo", 32), ("duracao_s", 11)],
+    [],
+    {2: "tiposeq"},
+)
+
+# ---------- Trilhas (ADR-34) ----------
+tabela(
+    wb.create_sheet("Trilhas"),
+    [("arquivo", 32), ("entra", 30), ("volume", 9)],
+    [],
+    {2: "entra"},
+)
+
 # ---------- Vídeo ----------
 ficha(wb.create_sheet("Vídeo"), [
     ("Formato", "vertical 9:16", "Vertical para Reels e Stories; horizontal para YouTube e apresentações.", "formato"),
-    ("Duração (s)", "", "Vazio = soma das falas (ou 30 s sem falas). Máximo 120 s.", None),
+    ("Duração (s)", "", "Vazio = soma das falas e narrações, mais as fotos (ou 30 s sem nada). Sem voz, mas com fotos ou trilhas: o tempo da obra. Máximo 120 s.", None),
     ("Quadros por segundo", "30", "", "fps"),
     ("Qualidade", "máxima", "Máxima renderiza com mais definição e demora mais.", "qualidade"),
     ("Aparência", "Realista", "", "aparencia"),

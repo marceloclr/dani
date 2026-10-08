@@ -862,3 +862,65 @@ O sobrado de exemplo passou a ter Fortaleza e a frente para 70° (lés-nordeste)
   - máscara: fundo com pouca certeza não vira pessoa; mancha que pula de lugar some aos poucos.
 - **Quadros do sobrado** (20/04 e pronto, vistas Externa e Isométrica): obra visível pela grade, gramado claro, rua cinza.
 - **Playwright:** a bateria inteira.
+
+## ADR-34 — Sequência do vídeo: apresentação, narração, fotos emolduradas e trilhas, na ordem do usuário
+
+**Status:** aceito em 2026-10-08.
+
+**Pedido.**
+- "Ajuste o título dos cards. Planilha, Projeto IFC, Apresentação, Fotos."
+- Perguntas: vídeo sem apresentação, trilha sonora, narração e onde as fotos entram.
+- Depois: "Faça tudo, as fotos se preocupe em usar algum tipo de borda para não aparentar amador. Na narração como fazer para o vídeo gerado não acabe repentinamente? [...] Após subir para o sistema todos os arquivos envolvidos na geração do novo vídeo o usuário poderá ordenar os audios, fotos e videos", com trilhas de início, de final e intermediárias.
+- Duração: "pela duração da apresentação/narração".
+
+**Antes:**
+- sem vídeo de fala, roteiro fixo de 30 s, sem som;
+- o único áudio era a voz das falas;
+- as fotos não entravam no vídeo;
+- a ordem vinha só da aba Falas.
+
+**Decisão.**
+1. **Cartões:** Planilha, Projeto IFC, **Apresentação** (vídeos e áudios), Fotos e o novo **Trilha sonora**.
+   - Um áudio no cartão Apresentação é uma **narração**: só a voz, com a obra na tela.
+   - Narração que a aba Falas não cita entra depois das falas; vídeo não citado continua de fora.
+2. **Sequência** (`src/app/sequencia.ts`, puro). Itens: fala, narração, foto e, sem voz, "obra em silêncio" (pelo tempo da aba Vídeo).
+   - **Ordem padrão:** as vozes na ordem; cada foto, pela data, depois da voz em que o avanço acumulado passa do avanço da obra no dia dela; fotos sem data no fim.
+   - **Ordem salva** (`ConfigVideo.sequencia`, ids `voz:`/`foto:`): itens novos entram junto do vizinho da ordem padrão.
+   - **No passo Conferir:** painel "Sequência do vídeo" com ↑ ↓ e arrastar, duração de cada foto (2 a 6 s, padrão 3) e "Restaurar ordem".
+3. **Trilhas:** cada uma entra no início, antes de um item ou no final (o começo do último item), com volume de 0 a 100 e ▶ para ouvir 5 s.
+   - **Padrão:** uma = início; duas = início e final; mais = as do meio espalhadas antes das vozes.
+4. **Roteiro** (`roteiroDasFalas` recebe a sequência):
+   - foto = cena `foto`: a obra parada no dia da foto, vista isométrica, sem contar no avanço;
+   - **respiro** de 1 s depois da última voz: a última cena continua, e a pessoa já não aparece, para não congelar o quadro;
+   - **total** = voz + fotos + 1 s + marca de 2,5 s.
+5. **Foto emoldurada** (`fotoNoVideo.ts`):
+   - véu escuro (`#1c1a17` a 55 %) sobre a obra;
+   - passe-partout cor de papel (`#f5f0e6`) com filete dourado (`#b88848`) e sombra suave;
+   - janela 4:3 (3:4 com foto em retrato, pelo EXIF);
+   - legenda em IBM Plex Sans: data · etapa em caixa-alta espaçada e a descrição em até duas linhas;
+   - zoom lento de 1 a 1,06; entra subindo 3 % em 0,35 s e sai esmaecendo em 0,3 s;
+   - tamanho: 84 % da largura no vertical, 70 % da altura no horizontal;
+   - a prévia do Conferir usa o mesmo desenho.
+6. **Áudio** (`mixagem.ts`, puro):
+   - voz pela linha do tempo (falas e narrações no seu corte, silêncio nas fotos), normalizada como no ADR-31;
+   - cada trilha do ponto em que entra até a próxima, em laço com cruzamento de 1 s, fade-in de 1 s na primeira e cruzamento de 1,5 s entre trilhas;
+   - **ducking:** −10 dB sem voz e −20 dB sob a voz (× volume), pelo envelope da voz (janelas de 50 ms, limiar de −45 dBFS, ataque de 0,15 s antecipado, soltura de 0,6 s);
+   - **fim sem corte seco:** respiro, marca esmaecendo (ADR-33), fade-out da trilha nos últimos 3 s e o último 0,3 s em silêncio;
+   - limitador: pico ≤ −1 dBFS.
+7. **Planilha:** abas novas **Sequência** (ordem, tipo, arquivo, duracao_s) e **Trilhas** (arquivo, entra = início | final | "antes de ‹arquivo›", volume).
+   - Erros saem com aba e linha.
+   - "Exportar planilha" leva a ordem e as trilhas ajustadas.
+   - As trilhas ficam no IndexedDB (`chaveTrilha`), como as falas.
+
+**Verificação.**
+- **Vitest:**
+  - sequência (ordem padrão, ordem salva, mover, trilhas, instante de entrada);
+  - mixagem (ducking, envelope, fade-out, cruzamento, laço, limitador);
+  - moldura (proporções e animação);
+  - `montarFalas` com narração, fotos, obra em silêncio e trilhas;
+  - planilha (ida e volta, erros de Sequência e Trilhas);
+  - roteiro com respiro.
+- **Playwright** (caso novo do assistente):
+  - títulos dos cartões; narração WAV, foto PNG e trilha WAV; a foto sobe para o começo; prévia da foto;
+  - MP4 de 10,5 s com áudio: trilha na foto, narração por cima e o fim em silêncio.
+- **Visual:** quadros da foto emoldurada no vertical e no horizontal.

@@ -50,9 +50,12 @@ export interface QuadrosDaFala {
 
 /** Um trecho de uma fala: o arquivo e o corte (s). Várias falas em sequência formam a voz do vídeo (ADR-30). */
 export interface TrechoDeFala {
-  arquivo: Blob;
+  /** null = lacuna em silêncio (foto ou obra sem voz, ADR-34). */
+  arquivo: Blob | null;
   inicioS: number;
   fimS: number;
+  /** Só áudio (narração) ou lacuna: não tem quadro da apresentadora (ADR-34). */
+  semVideo?: boolean;
 }
 
 /** A fala do vídeo: um arquivo só (ADR-24) ou as falas da planilha, em ordem (ADR-30). */
@@ -75,8 +78,12 @@ export async function abrirQuadros(fonte: FonteFala, tempos: number[]): Promise<
   // tamanho do primeiro (os de outro formato entram cobrindo-a, sem distorcer)
   const locais = tempos.map((t) => localizarNaSequencia(fonte, t));
   const porTrecho = fonte.map((_, i) => locais.filter((l) => l.indice === i).map((l) => Math.max(0, l.tArquivo - 0.001)));
-  const primeiro = await abrirQuadrosDoArquivo(fonte[0].arquivo, porTrecho[0].length ? porTrecho[0] : [fonte[0].inicioS]);
-  let atual: { indice: number; q: QuadrosDaFala } = { indice: 0, q: primeiro };
+  // narrações e lacunas (ADR-34) não têm quadro: a tela fica vazia (a cena não mostra a pessoa nelas)
+  const comVideo = (i: number) => !fonte[i].semVideo && !!fonte[i].arquivo;
+  const i0 = fonte.findIndex((_, i) => comVideo(i));
+  if (i0 < 0) throw new Error("A sequência não tem vídeo de fala.");
+  const primeiro = await abrirQuadrosDoArquivo(fonte[i0].arquivo!, porTrecho[i0].length ? porTrecho[i0] : [fonte[i0].inicioS]);
+  let atual: { indice: number; q: QuadrosDaFala } = { indice: i0, q: primeiro };
   const tela = document.createElement("canvas");
   tela.width = primeiro.largura;
   tela.height = primeiro.altura;
@@ -88,9 +95,13 @@ export async function abrirQuadros(fonte: FonteFala, tempos: number[]): Promise<
     duracaoS: fonte.reduce((s, x) => s + (x.fimS - x.inicioS), 0),
     async proximo() {
       const l = locais[Math.min(k++, locais.length - 1)];
+      if (!comVideo(l.indice)) {
+        ctx.clearRect(0, 0, tela.width, tela.height);
+        return tela;
+      }
       if (atual.indice !== l.indice) {
         atual.q.dispose();
-        atual = { indice: l.indice, q: await abrirQuadrosDoArquivo(fonte[l.indice].arquivo, porTrecho[l.indice]) };
+        atual = { indice: l.indice, q: await abrirQuadrosDoArquivo(fonte[l.indice].arquivo!, porTrecho[l.indice]) };
       }
       const img = await atual.q.proximo(l.tArquivo);
       const { largura: w, altura: h } = atual.q;
@@ -413,7 +424,8 @@ export async function audioDaFala(fonte: FonteFala): Promise<AudioBuffer | null>
 /** Voz das falas em sequência: cada uma no seu corte, emendadas; sem som numa delas, silêncio no lugar. */
 async function audioDaSequencia(trechos: TrechoDeFala[]): Promise<AudioBuffer | null> {
   const taxa = 48000;
-  const bufs = await Promise.all(trechos.map((t) => audioDaFala(t.arquivo)));
+  // lacunas (fotos, obra sem voz) ficam em silêncio
+  const bufs = await Promise.all(trechos.map((t) => (t.arquivo ? audioDaFala(t.arquivo) : Promise.resolve(null))));
   if (bufs.every((b) => !b)) return null;
   const canais = Math.max(...bufs.map((b) => b?.numberOfChannels ?? 1));
   const tamanhos = trechos.map((t) => Math.round((t.fimS - t.inicioS) * taxa));

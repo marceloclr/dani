@@ -74,7 +74,11 @@ export function PassoGerar({ falas, cenas, segundos }: { falas: FalasDoVideo; ce
         camera: "montagem",
         cenas,
         roteiro: [],
-        fala: falas.cfg && falas.trechos.length ? { fonte: falas.trechos, cfg: falas.cfg } : null,
+        // a apresentadora segue a linha do tempo inteira (narrações e fotos sem ela); a voz e as trilhas vão para a mixagem (ADR-34)
+        fala: falas.cfg ? { fonte: falas.linhaDoTempo, cfg: falas.cfg } : null,
+        voz: falas.linhaDoTempo.some((t) => t.arquivo) ? falas.linhaDoTempo : undefined,
+        trilhas: falas.trilhas.map((t) => ({ blob: t.blob, iniS: t.iniS, volume: t.volume / 100 })),
+        fotos: falas.fotos.map((f) => ({ blob: f.blob, legenda: { data: f.data, etapa: f.etapa, descricao: f.descricao } })),
         nomeBase: nomeDaEntrega(obra),
         sinal: ac.signal,
         aoProgredir: setProgresso,
@@ -106,7 +110,7 @@ export function PassoGerar({ falas, cenas, segundos }: { falas: FalasDoVideo; ce
       <section className="bloco" style={{ ["--acento" as string]: "var(--latao)" }}>
         <header>
           <h3>Vídeo</h3>
-          <span className="legenda num calc" tabIndex={0} data-tip={`Fórmula: quadros = duração × fps\nDuração: ${segundos.toLocaleString("pt-BR", { maximumFractionDigits: 1 })} s${falas.trechos.length ? " (falas + marca)" : ""}\nfps: ${d.fps}\nQuadros: ${totalDeQuadros(segundos, d.fps)}`}>
+          <span className="legenda num calc" tabIndex={0} data-tip={`Fórmula: quadros = duração × fps\nDuração: ${segundos.toLocaleString("pt-BR", { maximumFractionDigits: 1 })} s${falas.itens.length ? " (voz e fotos + respiro + marca)" : ""}\nfps: ${d.fps}\nQuadros: ${totalDeQuadros(segundos, d.fps)}`}>
             {d.largura} × {d.altura} · {tempo(segundos)}
           </span>
         </header>

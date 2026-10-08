@@ -12,7 +12,8 @@ import { cenaNoTempo, obraNaCena, poseDaCena, quadroDoVooNaCena, trechoDoVoo, tr
 import { gerarVideo, type ArquivoGerado, type Saida } from "../rendering/VideoRenderer";
 import type { Cena } from "../rendering/Cena";
 import type { ConfigApresentadora } from "../rendering/composicao";
-import type { FonteFala } from "../rendering/apresentadora";
+import type { FonteFala, TrechoDeFala } from "../rendering/apresentadora";
+import type { LegendaFoto } from "../rendering/fotoNoVideo";
 import { RESOLUCOES, useProjeto } from "../state/projectStore";
 
 export interface PedidoDaObra {
@@ -24,6 +25,10 @@ export interface PedidoDaObra {
   /** Roteiro de vistas (camera = "roteiro"). */
   roteiro: PontoRoteiro[];
   fala: { fonte: FonteFala; cfg: ConfigApresentadora } | null;
+  /** Sequência do assistente (ADR-34): a voz inteira, as trilhas e as fotos das cenas de foto. */
+  voz?: TrechoDeFala[];
+  trilhas?: { blob: Blob; iniS: number; volume: number }[];
+  fotos?: { blob: Blob; legenda: LegendaFoto }[];
   nomeBase: string;
   sinal: AbortSignal;
   aoProgredir(p: { quadro: number; total: number; restanteS: number | null }): void;
@@ -77,6 +82,9 @@ export async function gerarVideoDaObra(cena: Cena, p: PedidoDaObra): Promise<Arq
       },
       maxima: video.qualidade === "maxima" && st().aparencia3d === "realista",
       ...(p.fala ? { apresentadora: { arquivo: p.fala.fonte, cfg: p.fala.cfg } } : {}),
+      ...(p.voz?.length ? { voz: p.voz } : {}),
+      ...(p.trilhas?.length ? { trilhas: p.trilhas } : {}),
+      ...(p.fotos?.length ? { fotos: p.fotos } : {}),
       // só nome e slogan: a linha do produto ficava ilegível no celular (ADR-31); a vinheta fecha com o @
       ...(video.assinatura !== false ? { assinatura: { nome: CLIENTE.nome, slogan: CLIENTE.slogan } } : {}),
       ...(video.vinheta !== false && seg >= 6 ? { vinheta: { nome: CLIENTE.nome, slogan: CLIENTE.slogan, secundario: CLIENTE.instagram } } : {}),
