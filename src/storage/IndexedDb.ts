@@ -41,6 +41,8 @@ export const chaveFoto = (projetoId: string, fotoId: string) => `${projetoId}/fo
 export const chavePlanta = (projetoId: string) => `${projetoId}/planta`;
 /** Vídeo da apresentadora (ADR-24): fica no navegador, fora do .4dstudio. */
 export const chaveApresentadora = (projetoId: string) => `${projetoId}/apresentadora`;
+/** Vídeos das falas da planilha (ADR-30), pelo nome do arquivo em minúsculas. Também ficam fora do .4dstudio. */
+export const chaveFala = (projetoId: string, nome: string) => `${projetoId}/fala/${nome.toLowerCase()}`;
 
 export async function listarProjetos(): Promise<RegistroProjeto[]> {
   const todos = await (await abrir()).getAll("projetos");

@@ -15,6 +15,7 @@
     "e2e": "playwright test",
     "feriados": "npx --yes tsx tools/gerar-tabela-feriados.ts",
     "tudo": "npm test && npm run build && npm run e2e",
+    "planilha": "~/.local/venv-ifc/bin/python tools/gerar_planilha_modelo.py",
     "modelos": "node tools/gerar-modelos.mjs && npm run build && GERAR_EXEMPLO=1 playwright test e2e/gerar-exemplo.spec.ts"
   },
   "dependencies": {

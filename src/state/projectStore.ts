@@ -11,6 +11,7 @@ import type { ConfigSol } from "../rendering/cicloDia";
 import type { GeoIfc } from "../bim/parseIfc";
 import type { FotoObra, PlantaSobreposta, Tarefa, Visao } from "../types";
 import type { Problema } from "../importers/cronograma";
+import type { DadosObra, DocumentoPlanilha, LinhaFala, LinhaFoto } from "../planilha/tipos";
 import { aplicarMapeamento, regrasPadrao } from "../fourd/regras";
 import { duracaoObra } from "../fourd/simulacao";
 
@@ -77,6 +78,17 @@ const absolutas = (c: Cronograma) =>
     realFim: x.realFim === undefined ? undefined : x.realFim + c.inicio,
   }));
 
+/** O que a planilha única traz além do cronograma, do modelo e do vídeo (ADR-29). */
+export interface DadosPlanilha {
+  arquivo: string;
+  obra: DadosObra;
+  falas: LinhaFala[];
+  fotos: LinhaFoto[];
+  documento: DocumentoPlanilha;
+  /** Aba Vínculos: exceções do IFC citado, reaplicadas quando ele é carregado. */
+  vinculos: Excecao[];
+}
+
 export interface Estado {
   // projeto (ADR-11)
   projetoId: string | null;
@@ -124,11 +136,13 @@ export interface Estado {
   fotos: FotoObra[];
   mostrarFotos: boolean;
   planta: PlantaSobreposta | null;
+  /** Dados da planilha única (ADR-29) que não têm lugar próprio no estado: obra, falas, fotos citadas e documento. */
+  planilha: DadosPlanilha | null;
 
   definirModelo(elementos: ElementoMeta[], arquivo: string, demo: boolean, tipo?: "IFC" | "PARAMETRICO", parametros?: ParametrosCasa | null): void;
   definirProjeto(p: Partial<Pick<Estado, "projetoId" | "nomeProjeto" | "salvoEm" | "persistencia">>): void;
   /** Restaura cronograma, exceções e preferências de um projeto salvo. */
-  restaurar(r: Pick<Estado, "cronograma" | "arquivoCronograma" | "excecoes" | "politica" | "modoAnimacao" | "video" | "demoCronograma" | "fotos" | "planta"> & { aparencia3d?: Aparencia3D }): void;
+  restaurar(r: Pick<Estado, "cronograma" | "arquivoCronograma" | "excecoes" | "politica" | "modoAnimacao" | "video" | "demoCronograma" | "fotos" | "planta"> & { aparencia3d?: Aparencia3D; planilha?: DadosPlanilha | null }): void;
   /** Inclui ou altera uma tarefa; devolve a mensagem de erro, se houver. */
   salvarTarefa(t: TarefaEditada, idOriginal: string | null): string | null;
   excluirTarefa(id: string): void;
@@ -172,7 +186,7 @@ function INICIAL_COMPLETO(): Partial<Estado> {
     regras: [], excecoes: [], politica: "fantasma", dia: 0, tocando: false,
     selecionado: null, ocultosUsuario: new Set(), tarefaIsolada: null, painel: "tarefas", erro: null,
     modoAnimacao: "progressivo", video: { formato: "horizontal", fps: 30, segundos: 30, roteiro: null }, gerandoVideo: false,
-    visao: "planejado", aparencia3d: "realista", geoIfc: {}, fotos: [], mostrarFotos: true, planta: null,
+    visao: "planejado", aparencia3d: "realista", geoIfc: {}, fotos: [], mostrarFotos: true, planta: null, planilha: null,
   };
 }
 
@@ -254,6 +268,7 @@ export const useProjeto = create<Estado>((set, get) => {
     fotos: [],
     mostrarFotos: true,
     planta: null,
+    planilha: null,
 
     definirModelo: (elementos, arquivo, demo, tipo = "IFC", parametros = null) =>
       set(remapear({ elementos, arquivoModelo: arquivo, demoModelo: demo, tipoModelo: tipo, parametros, excecoes: [], selecionado: null, ocultosUsuario: new Set(), tarefaIsolada: null, erro: null })),
@@ -264,6 +279,7 @@ export const useProjeto = create<Estado>((set, get) => {
       set(
         remapear({
           ...r,
+          planilha: r.planilha ?? null,
           regras: r.cronograma ? regrasPadrao(r.cronograma.tarefas) : [],
           problemasImportacao: [],
           dia: 0,

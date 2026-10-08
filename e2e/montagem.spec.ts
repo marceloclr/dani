@@ -24,7 +24,7 @@ function quadro(video: string, t: number, saida: string): { verde: number; escur
 test("Reels: fala em tela cheia, revelação, passeio e marca, com a voz", async ({ page }) => {
   const erros: string[] = [];
   page.on("pageerror", (e) => erros.push(String(e)));
-  await page.goto("/");
+  await page.goto("/#/gestao");
   await page.getByTestId("abrir-demo").click();
   await expect(page.getByTestId("selo-demo")).toBeVisible({ timeout: 60_000 });
   await page.getByTestId("aparencia-tecnica").click();
@@ -78,7 +78,7 @@ test("Reels: fala em tela cheia, revelação, passeio e marca, com a voz", async
 });
 
 test("GIF da montagem: cada quadro sai na cena certa (desenho assíncrono aguardado)", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/#/gestao");
   await page.getByTestId("abrir-demo").click();
   await expect(page.getByTestId("selo-demo")).toBeVisible({ timeout: 60_000 });
   await page.getByTestId("aparencia-tecnica").click();

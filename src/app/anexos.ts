@@ -1,7 +1,7 @@
 // Anexos da obra (ADR-14): fotos, planta e o vídeo da apresentadora (ADR-24). Os arquivos (Blobs) ficam aqui; o estado guarda só os dados.
 import { dataExif, lerFotosCsv } from "../importers/fotos";
 import { lerData } from "../fourd/tempo";
-import { chaveApresentadora, chaveFoto, chavePlanta, excluirAnexo, gravarAnexo } from "../storage/IndexedDb";
+import { chaveApresentadora, chaveFala, chaveFoto, chavePlanta, excluirAnexo, gravarAnexo } from "../storage/IndexedDb";
 import { APRESENTADORA_PADRAO } from "../rendering/composicao";
 import { useProjeto } from "../state/projectStore";
 import type { FotoObra, PlantaSobreposta } from "../types";
@@ -12,6 +12,16 @@ let planta: Blob | null = null;
 let apresentadora: Blob | null = null;
 const ouvintesApresentadora = new Set<() => void>();
 let urlPlanta: string | null = null;
+/** Vídeos das falas da planilha (ADR-30): arquivo e o que foi lido dele, pelo nome em minúsculas. */
+export interface ArquivoDeFala {
+  nome: string;
+  blob: Blob;
+  duracaoS: number;
+  largura: number;
+  altura: number;
+}
+let falas = new Map<string, ArquivoDeFala>();
+const ouvintesFalas = new Set<() => void>();
 const ouvintesPlanta = new Set<() => void>();
 
 const novoId = () => (crypto.randomUUID ? crypto.randomUUID() : `f-${Date.now()}-${Math.random().toString(36).slice(2)}`).slice(0, 13);
@@ -20,6 +30,16 @@ const TIPOS_FOTO = ["image/jpeg", "image/png", "image/webp"];
 export const blobDaFoto = (id: string) => fotos.get(id) ?? null;
 export const blobDaPlanta = () => planta;
 export const blobDaApresentadora = () => apresentadora;
+/** Falas recebidas (o mapa é trocado a cada mudança: serve ao useSyncExternalStore). */
+export const arquivosDeFala = () => falas;
+export function aoMudarFalas(f: () => void): () => void {
+  ouvintesFalas.add(f);
+  return () => ouvintesFalas.delete(f);
+}
+function trocarFalas(m: Map<string, ArquivoDeFala>): void {
+  falas = m;
+  ouvintesFalas.forEach((f) => f());
+}
 
 /** O painel do vídeo se inscreve para saber quando o arquivo da apresentadora chega ou sai. */
 export function aoMudarApresentadora(f: () => void): () => void {
@@ -62,6 +82,7 @@ export function limparAnexos(): void {
   fotos.clear();
   definirImagemPlanta(null);
   definirApresentadora(null);
+  trocarFalas(new Map());
 }
 
 function definirImagemPlanta(b: Blob | null): void {
@@ -72,11 +93,13 @@ function definirImagemPlanta(b: Blob | null): void {
 }
 
 /** Restaura anexos lidos do IndexedDB ou de um .4dstudio. */
-export function restaurarAnexos(fotosDoProjeto: Map<string, Blob>, imagemPlanta: Blob | null, videoApresentadora: Blob | null = null): void {
+export function restaurarAnexos(fotosDoProjeto: Map<string, Blob>, imagemPlanta: Blob | null, videoApresentadora: Blob | null = null, videosDeFala: Map<string, Blob> = new Map()): void {
   limparAnexos();
   fotosDoProjeto.forEach((b, id) => fotos.set(id, b));
   definirImagemPlanta(imagemPlanta);
   definirApresentadora(videoApresentadora);
+  // duração e tamanho são lidos de novo (rápido: só o cabeçalho do arquivo)
+  if (videosDeFala.size) void lerFalas([...videosDeFala].map(([nome, b]) => new File([b], nome, { type: b.type }))).then((r) => trocarFalas(new Map([...falas, ...r.lidas])));
 }
 
 /** Grava todos os anexos atuais no projeto (ao criar ou duplicar). */
@@ -84,6 +107,7 @@ export async function gravarTodosAnexos(projetoId: string): Promise<void> {
   for (const [id, b] of fotos) await gravarAnexo(projetoId, chaveFoto(projetoId, id), b);
   if (planta) await gravarAnexo(projetoId, chavePlanta(projetoId), planta);
   if (apresentadora) await gravarAnexo(projetoId, chaveApresentadora(projetoId), apresentadora);
+  for (const f of falas.values()) await gravarAnexo(projetoId, chaveFala(projetoId, f.nome), f.blob);
 }
 
 const projetoAberto = () => useProjeto.getState().projetoId;
@@ -96,7 +120,9 @@ export async function adicionarFotos(arquivos: File[]): Promise<{ adicionadas: n
   const st = useProjeto.getState();
   const avisos: string[] = [];
   const csv = arquivos.find((f) => /\.csv$/i.test(f.name));
-  const manifesto = csv ? lerFotosCsv(new Uint8Array(await csv.arrayBuffer())) : null;
+  // sem fotos.csv, os dados vêm da aba Fotos da planilha da obra (ADR-29)
+  const daPlanilha = st.planilha?.fotos.length ? { linhas: new Map(st.planilha.fotos.map((f) => [f.arquivo.toLowerCase(), f])), problemas: [] as string[] } : null;
+  const manifesto = csv ? lerFotosCsv(new Uint8Array(await csv.arrayBuffer())) : daPlanilha;
   if (manifesto) avisos.push(...manifesto.problemas);
   const etapas = new Set(st.cronograma?.tarefas.map((t) => t.id) ?? []);
   const novas: FotoObra[] = [];
@@ -116,7 +142,7 @@ export async function adicionarFotos(arquivos: File[]): Promise<{ adicionadas: n
     fotos.set(id, new Blob([bytes], { type: f.type }));
     novas.push({ id, arquivo: f.name, tipo: f.type, dia, local: m?.local ?? "", descricao: m?.descricao ?? "", etapa });
   }
-  if (manifesto) {
+  if (csv && manifesto) {
     const enviados = new Set(arquivos.map((f) => f.name.toLowerCase()));
     for (const [nome, l] of manifesto.linhas) if (!enviados.has(nome)) avisos.push(`fotos.csv cita "${l.arquivo}", que não foi enviado.`);
   }
@@ -236,4 +262,43 @@ export async function removerApresentadora(): Promise<void> {
   definirApresentadora(null);
   const pid = projetoAberto();
   if (pid) await excluirAnexo(chaveApresentadora(pid));
+}
+
+const ehVideo = (f: File) => !f.type || TIPOS_VIDEO.test(f.type) || /\.(mp4|mov|m4v|webm)$/i.test(f.name);
+
+async function lerFalas(arquivos: File[]): Promise<{ lidas: Map<string, ArquivoDeFala>; avisos: string[] }> {
+  const { lerInfoDaFala } = await import("../rendering/apresentadora");
+  const lidas = new Map<string, ArquivoDeFala>();
+  const avisos: string[] = [];
+  for (const f of arquivos) {
+    if (!ehVideo(f)) {
+      avisos.push(`"${f.name}" não é um vídeo (use MP4, MOV ou WebM).`);
+      continue;
+    }
+    try {
+      const info = await lerInfoDaFala(f);
+      if (!(info.duracaoS > 0) || !info.largura) throw new Error("sem duração ou sem imagem");
+      lidas.set(f.name.toLowerCase(), { nome: f.name, blob: f, ...info });
+    } catch {
+      avisos.push(`"${f.name}" não abriu neste navegador. Vídeos HEVC (H.265) do iPhone: exporte em H.264 ("Mais compatível").`);
+    }
+  }
+  return { lidas, avisos };
+}
+
+/** Recebe os vídeos das falas (ADR-30): guarda no navegador, pelo nome, para casar com a aba Falas. */
+export async function adicionarFalas(arquivos: File[]): Promise<{ adicionadas: number; avisos: string[] }> {
+  const { lidas, avisos } = await lerFalas(arquivos);
+  trocarFalas(new Map([...falas, ...lidas]));
+  const pid = projetoAberto();
+  if (pid) for (const f of lidas.values()) await gravarAnexo(pid, chaveFala(pid, f.nome), f.blob);
+  return { adicionadas: lidas.size, avisos };
+}
+
+export async function removerFala(nome: string): Promise<void> {
+  const m = new Map(falas);
+  m.delete(nome.toLowerCase());
+  trocarFalas(m);
+  const pid = projetoAberto();
+  if (pid) await excluirAnexo(chaveFala(pid, nome));
 }

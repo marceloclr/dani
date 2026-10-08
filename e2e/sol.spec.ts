@@ -9,7 +9,7 @@ const FORTALEZA = { lat: -3.71664, lon: -38.5423 };
 const solNaCena = (page: Page) => page.evaluate(() => (window as unknown as { __cena: { estadoSol: { dir: number[]; elevacao: number } } }).__cena.estadoSol);
 
 async function abrirSobrado(page: Page) {
-  await page.goto("/");
+  await page.goto("/#/gestao");
   await page.getByTestId("abrir-sobrado").click();
   await expect(page.getByTestId("situacao")).toContainText("157 elementos", { timeout: 60_000 });
   await page.getByTestId("data-simulacao").fill("2026-11-26");

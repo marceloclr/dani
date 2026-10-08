@@ -624,3 +624,98 @@ O sobrado de exemplo passou a ter Fortaleza e a frente para 70° (lés-nordeste)
 **Decisão.** `olharSuave` (`src/rendering/drone.ts`): rumo (azimute desenrolado), inclinação e lente passam por um filtro gaussiano ao longo do caminho (σ = 4 m, `SUAVIZACAO_OLHAR_M`). Rumo e inclinação em separado: numa meia-volta o olhar gira de lado, como um piloto, em vez de mergulhar para o chão (a média de vetores opostos aponta para baixo). A posição não muda, então colisões e tempo das portas permanecem como estavam. Resultado: giro máximo de 3,9° por quadro.
 
 **Carimbo.** O build grava `__VERSAO_PUBLICADA__` (DDMMAAAA-HHMM, horário de Fortaleza) e o cabeçalho o exibe à direita, com dica; no `vite dev` aparece "local".
+
+## ADR-29 — Planilha única da obra
+
+**Status:** aceito em 2026-10-08 (INC-14).
+
+**Pedido.** "Precisamos repensar a estrutura do sistema de acordo com a sua finalidade, que é GERAR IMAGENS DE QUALIDADE PROFISSIONAL mesclando vídeo da engenheira com a geração da imagem da obra de acordo com os dados carregados via planilha. Deve ser uma planilha apenas, contendo todas as informações necessárias, organizadas e separadas por abas de acordo com a natureza."
+
+**Contexto.** Os dados entravam por caminhos separados: IFC, cronograma (CSV, XLSX ou JSON), `fotos.csv`, parâmetros da casa num modal, município na estimativa, norte na bússola e opções do vídeo no painel. Este é o primeiro de quatro incrementos que transformam o app num gerador de vídeo e documento. Os próximos são o assistente com várias falas (INC-15), o documento PDF e DOCX (INC-16) e o manual (INC-17).
+
+**Decisão.**
+- **Modelo:** `public/modelos/obra-dani.xlsx`, gerado por `tools/gerar_planilha_modelo.py` (openpyxl, `npm run planilha`).
+  - **Abas:** LEIA-ME, Obra, Modelo, Cronograma, Vínculos, Falas, Fotos, Vídeo, Documento e Listas (oculta).
+  - **Preenchimento:** listas suspensas, cabeçalho congelado e o sobrado de exemplo preenchido, com dados reais até 15/08/2026.
+- **Formato das abas:**
+  - Obra, Modelo, Vídeo e Documento são de **campo e valor**.
+  - As outras têm uma linha por item, com as mesmas colunas dos arquivos avulsos de antes.
+  - Abas e cabeçalhos são reconhecidos sem acento nem caixa.
+- **Leitura:** `src/planilha/ler.ts`. `interpretarAbas` é puro e reaproveita `importarLinhas` (cronograma), `serialParaDia` (datas do Excel) e `MUNICIPIOS`.
+  - Cada problema diz a aba e a linha e vai para a aba Avisos.
+  - Um erro numa aba não impede as outras.
+  - Sem IFC citado e sem medidas completas na aba Modelo, um erro avisa que não há como montar a casa.
+- **No app:** `src/app/planilha.ts`.
+  - **Sem IFC citado:** a casa é gerada pela aba Modelo e vira projeto salvo.
+  - **Com IFC citado:** o cronograma já entra, e um aviso pede o IFC. Quando ele chega, o projeto leva o nome da obra, e os vínculos da planilha são reaplicados.
+  - **Aba Vídeo:** formato, fps, qualidade, aparência, luz, animação e marca. O rumo da fachada vira o norte do sol. Por ora, a duração usa a opção mais próxima do painel Vídeo.
+- **Exportar planilha:** botão no topo do estúdio. `planilhaDoEstado` + `escreverPlanilha` levam de volta para o .xlsx o que foi ajustado no app.
+  - O SheetJS livre não grava listas suspensas: elas existem só na planilha modelo.
+- **Projetos:** a obra, as falas, as fotos citadas, o documento e os vínculos ficam no estado (`planilha`) e no `.4dstudio` (`planilha.json`, só quando existe).
+- **Compatibilidade:** um .xlsx sem as abas Obra e Cronograma continua sendo lido como cronograma avulso.
+
+**Verificação.**
+- **Vitest:**
+  - planilha modelo inteira sem erros;
+  - problemas com aba e linha;
+  - ida e volta escrever → ler igual;
+  - cronograma avulso recusado;
+  - `.4dstudio` com a planilha.
+- **Playwright:**
+  - planilha + IFC citado, com cronograma, município, rumo, formato, nome do projeto, vínculo e exportação relida;
+  - planilha sem IFC (casa paramétrica salva);
+  - cronograma avulso em .xlsx.
+
+## ADR-30 — Assistente em três passos, várias falas e área de Gestão
+
+**Status:** aceito em 2026-10-08 (INC-15).
+
+**Pedido.** "Assistente simplificado com o carregamento dedicado por tipo de arquivo (planilha, vídeos da engenheira sobre o conteúdo, ...) e, para não perdermos nada, as telas atuais são movidas para uma área de gestão e ajustes de dados."
+
+**Decisão.**
+- **Rotas:** sem roteador novo, só um `hashchange` no `App.tsx`.
+  - `#/` abre o **assistente**, que passa a ser a tela principal.
+  - `#/gestao` abre o estúdio completo de antes, com tela inicial, viewport, painéis e modais.
+  - O topo alterna entre "Gestão e ajustes" e "← Assistente".
+- **Passo 1, Carregar** (`src/assistente/PassoCarregar.tsx`): um cartão por tipo de arquivo, cada um com zona de soltar, botão e selo de situação (ok, falta, aviso, opcional).
+  - **Planilha:** obrigatória, com link para a planilha modelo.
+  - **Projeto IFC:** confere o nome citado na aba Obra. Sem IFC, a casa vem da aba Modelo.
+  - **Vídeos da engenheira:** vários de uma vez, cada um casado com a linha da aba Falas pelo nome.
+  - **Fotos:** data, local, descrição e etapa vêm da aba Fotos quando não há `fotos.csv`.
+  - **Ordem livre:** com a planilha aberta, abrir o IFC não descarta as falas e as fotos já enviadas (são da mesma obra).
+- **Várias falas** (`src/app/falas.ts`, `montagem.roteiroDasFalas`):
+  - **Voz:** as falas em sequência, cada uma no seu corte (`inicio_s`–`fim_s`). `abrirQuadros` e `audioDaFala` aceitam uma `FonteFala` (um arquivo ou a lista de trechos). Cada arquivo é aberto só quando chega a sua vez. Os quadros de outro formato entram cobrindo a tela do primeiro, e o áudio é emendado a 48 kHz.
+  - **Roteiro pelas falas:**
+    - **terreno:** o quadro original (45 %) e a revelação (55 %);
+    - **sobre a obra / só a voz:** tomadas de cerca de 3,5 s em rodízio de câmeras, com ela recortada ou fora do quadro. A obra se forma do terreno à pronta ao longo dessas falas;
+    - **última fala sobre a obra (≥ 6 s):** termina com o passeio do drone (40 %, até 10 s);
+    - **marca:** fecha com 2,5 s (`MARCA_S`).
+    - Duração = soma das falas + 2,5 s.
+  - **Avisos:** arquivo que falta, corte além do fim e recortes diferentes. Nesse último caso, vale o recorte da primeira fala.
+  - Os vídeos ficam no IndexedDB (`<projeto>/fala/<nome>`), fora do `.4dstudio`, como o da apresentadora.
+- **Passo 2, Conferir** (`PassoConferir.tsx`):
+  - ficha da obra (prazo e avanço planejado e real na data de referência, com a fórmula na dica);
+  - avisos da planilha e das falas;
+  - **prévia grande** no formato do vídeo (9:16, 16:9 ou 1:1), com aparência e luz;
+  - faixa de cenas: cada clique leva a câmera ao meio da cena (`mostrarNaMontagem`) e sobrepõe o quadro da fala. É o original na abertura e o recorte real (`previaApresentadora` com fundo transparente) nas outras cenas.
+  - A `Viewport` ganhou o modo `simples`, só a imagem, sem barra nem legenda.
+- **Passo 3, Gerar** (`PassoGerar.tsx`):
+  - só as saídas MP4 que o navegador consegue gerar (1080p, quando há H.264 nativo);
+  - progresso, cancelar, prévia do resultado e download;
+  - nome `<obra>-<AAAAMMDD>` (o renderizador acrescenta `-whatsapp` nessa saída).
+- **Geração compartilhada:** `src/app/videoDaObra.ts` (`gerarVideoDaObra`) saiu de dentro do painel Vídeo. O painel e o assistente usam a mesma rotina: sol real por quadro, insolação, marca, vinheta, apresentadora e câmera.
+
+**Limites.**
+- A prévia é uma aproximação: mostra o meio de cada cena. A cortina da revelação e o movimento de câmera só aparecem no vídeo.
+- O PDF e o DOCX vêm no INC-16, e o manual e a limpeza dos textos, no INC-17.
+
+**Verificação.**
+- **Vitest:**
+  - roteiro das falas (ordem, durações, obra sempre avançando, rodízio de câmeras, passeio e marca);
+  - mapeamento tempo → arquivo e corte;
+  - casamento das falas com os arquivos.
+- **Playwright** (`e2e/assistente.spec.ts`):
+  - planilha com duas falas, falas antes do IFC, conferir (ficha, faixa e proporção da prévia) e gerar o MP4;
+  - o MP4 tem vídeo e áudio, 6,5 s, voz nos 4 s das falas e silêncio na marca;
+  - Gestão e volta.
+  - A bateria antiga passou a abrir em `#/gestao`.

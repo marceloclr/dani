@@ -3,7 +3,7 @@ import { chromium } from "@playwright/test";
 const [url, pasta, luz] = process.argv.slice(2); // luz opcional: nascer, dia, entardecer, noite ou ciclo
 const nav = await chromium.launch({ args: ["--use-angle=swiftshader", "--enable-unsafe-swiftshader"] });
 const page = await nav.newPage({ viewport: { width: 1600, height: 1000 } });
-await page.goto(url);
+await page.goto(url.includes("#") ? url : `${url}#/gestao`);
 await page.getByTestId("abrir-sobrado").click();
 await page.getByTestId("situacao").filter({ hasText: "157 elementos" }).waitFor({ timeout: 90_000 });
 await page.getByTestId("data-simulacao").fill("2026-11-26");

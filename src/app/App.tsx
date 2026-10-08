@@ -18,6 +18,8 @@ import { ACEITA_CRONO, DICA_CRONO, DICA_IFC, abrirCronograma, abrirIfc } from ".
 import { useProjeto } from "../state/projectStore";
 import { useUi } from "../state/uiStore";
 import { iniciarGravacaoAutomatica } from "./projetos";
+import { exportarPlanilha } from "./planilha";
+import { Assistente } from "../assistente/Assistente";
 
 type Tema = "claro" | "escuro";
 
@@ -42,7 +44,12 @@ function escolherTema(t: Tema): void {
   }
 }
 
+type Rota = "assistente" | "gestao";
+/** Assistente em #/ (tela principal, ADR-30); o estúdio completo em #/gestao. */
+const rotaAtual = (): Rota => (location.hash.startsWith("#/gestao") ? "gestao" : "assistente");
+
 export function App() {
+  const [rota, setRota] = useState<Rota>(rotaAtual);
   const temModelo = useProjeto((s) => s.elementos.length > 0);
   const carga = useProjeto((s) => s.carga);
   const nomeProjeto = useProjeto((s) => s.nomeProjeto);
@@ -58,6 +65,12 @@ export function App() {
   useEffect(() => iniciarGravacaoAutomatica(), []);
 
   useEffect(() => {
+    const mudou = () => setRota(rotaAtual());
+    window.addEventListener("hashchange", mudou);
+    return () => window.removeEventListener("hashchange", mudou);
+  }, []);
+
+  useEffect(() => {
     document.documentElement.dataset.tema = tema;
   }, [tema]);
 
@@ -67,7 +80,7 @@ export function App() {
   }, []);
 
   const salvo = projetoId ? (salvoEm ? `salvo às ${new Date(salvoEm).toLocaleTimeString("pt-BR", { timeStyle: "short" })}` : "salvando…") : "não salvo";
-  const situacao = !temModelo ? "Modelo IFC + cronograma = obra no tempo" : `${nomeProjeto ?? "Projeto"} · ${nElementos} elementos · ${salvo}`;
+  const situacao = !temModelo ? (rota === "assistente" ? "" : "Modelo IFC + cronograma = obra no tempo") : `${nomeProjeto ?? "Projeto"} · ${nElementos} elementos · ${salvo}`;
 
   return (
     <div className="app">
@@ -117,13 +130,25 @@ export function App() {
             >
               v. {__VERSAO_PUBLICADA__}
             </span>
+            {rota === "gestao" ? (
+              <a className="btn" href="#/" data-testid="ir-assistente" data-tip="Volta ao assistente: carregar, conferir e gerar.">
+                ← Assistente
+              </a>
+            ) : (
+              <a className="btn" href="#/gestao" data-testid="ir-gestao" data-tip="Estúdio completo: modelo, tarefas, elementos, avisos, obra, vídeo, drone e insolação.">
+                Gestão e ajustes
+              </a>
+            )}
             <button type="button" className="btn" data-testid="abrir-projetos" data-tip="Projetos salvos neste navegador: abrir, duplicar, exportar, importar e excluir." onClick={() => ui.abrir({ projetos: true })}>
               Projetos
             </button>
-            {temModelo && (
+            {temModelo && rota === "gestao" && (
               <>
                 <SeletorArquivo aceitar=".ifc" rotulo="Abrir IFC" dica={DICA_IFC} aoEscolher={abrirIfc} />
                 <SeletorArquivo aceitar={ACEITA_CRONO} rotulo="Cronograma" dica={DICA_CRONO} aoEscolher={abrirCronograma} />
+                <button type="button" className="btn" data-testid="exportar-planilha" data-tip="Baixa a planilha da obra (.xlsx) com o que está aberto aqui, inclusive os ajustes feitos nesta tela." onClick={() => void exportarPlanilha()}>
+                  Exportar planilha
+                </button>
               </>
             )}
             <button type="button" className="btn" aria-label={`Mudar para tema ${tema === "claro" ? "escuro" : "claro"}`} data-tip="Alterna entre os temas claro e escuro." onClick={() => {
@@ -140,7 +165,9 @@ export function App() {
 
       <ErroAmigavel />
 
-      {temModelo ? (
+      {rota === "assistente" ? (
+        <Assistente />
+      ) : temModelo ? (
         <main className="estudio">
           <Viewport />
           <PainelLateral />

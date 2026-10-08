@@ -1,7 +1,7 @@
 // Registro de projeto e arquivo .4dstudio (ADR-11, §38). Sem DOM nem IndexedDB: roda no Node.
 import { strFromU8, strToU8, unzipSync, zipSync } from "fflate";
 import type { ParametrosCasa } from "../bim/parametrico";
-import type { ConfigVideo } from "../state/projectStore";
+import type { ConfigVideo, DadosPlanilha } from "../state/projectStore";
 import type { Aparencia3D } from "../rendering/aparencia";
 import type { Cronograma, Excecao, FotoObra, ModoAnimacao, PlantaSobreposta, PoliticaSemTarefa } from "../types";
 
@@ -25,6 +25,8 @@ export interface RegistroProjeto {
   planta?: PlantaSobreposta | null;
   /** Aparência da cena (ADR-21); ausente em projetos antigos = realista. */
   aparencia3d?: Aparencia3D;
+  /** Dados da planilha única (ADR-29); ausente em projetos antigos. */
+  planilha?: DadosPlanilha | null;
 }
 
 /** Arquivos dos anexos: fotos por id e a imagem da planta. */
@@ -56,6 +58,7 @@ export function exportar4dstudio(r: RegistroProjeto, ifc: Uint8Array | null, ane
     "schedule.json": json({ arquivo: r.arquivoCronograma, cronograma: r.cronograma }),
     "mappings.json": json({ excecoes: r.excecoes, politica: r.politica }),
     "settings.json": json({ modoAnimacao: r.modoAnimacao, video: r.video, aparencia3d: r.aparencia3d ?? "realista" }),
+    ...(r.planilha ? { "planilha.json": json(r.planilha) } : {}),
     "attachments.json": json({ fotos: (r.fotos ?? []).map((f) => ({ ...f, caminho: caminhoFoto(f) })), planta: r.planta ?? null }),
   };
   for (const f of r.fotos ?? []) {
@@ -121,6 +124,7 @@ export function importar4dstudio(bytes: Uint8Array): { registro: Omit<RegistroPr
   fotos = fotos.sort((a, b) => a.dia - b.dia);
   const c = sch.cronograma ?? null;
   if (c && (!Array.isArray(c.tarefas) || typeof c.inicio !== "number")) throw new ErroProjeto("O cronograma do .4dstudio é inválido.");
+  const planilha = arquivos["planilha.json"] ? lerJson<DadosPlanilha | null>(arquivos, "planilha.json") : null;
   return {
     registro: {
       nome: proj.projeto.nome || "Projeto importado",
@@ -137,6 +141,7 @@ export function importar4dstudio(bytes: Uint8Array): { registro: Omit<RegistroPr
       fotos,
       planta,
       aparencia3d: set.aparencia3d === "tecnica" ? "tecnica" : "realista",
+      ...(planilha ? { planilha } : {}),
     },
     ifc,
     anexos,

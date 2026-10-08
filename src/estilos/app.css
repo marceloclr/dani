@@ -48,6 +48,8 @@ html, body, #raiz { height: 100%; }
 .kicker { color: var(--tinta-3); font-size: 13px; margin: 0 0 6px; }
 .slogan-inicial { font-family: var(--fonte-titulo); font-style: italic; color: var(--latao); font-size: 16px; margin: 4px 0 0; }
 .lede { font-family: var(--fonte-titulo); font-size: 17px; line-height: 1.55; color: var(--tinta-2); max-width: 60ch; margin: 10px 0 22px; }
+.planilha-inicial { margin-bottom: 14px; }
+.planilha-inicial header { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
 .passos { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
 .passos .bloco { margin: 0; display: flex; flex-direction: column; gap: 10px; align-items: flex-start; }
 .passos .bloco p { margin: 0; color: var(--tinta-2); flex: 1; }
@@ -328,3 +330,64 @@ button.link { appearance: none; border: 0; background: none; padding: 0; font: i
 .sol-linha { display: flex; gap: 10px; align-items: center; }
 .sol-campos { flex: 1; min-width: 0; display: grid; gap: 4px; }
 .bussola { flex: none; }
+
+/* assistente (ADR-30): carregar, conferir e gerar */
+.assistente { flex: 1; min-height: 0; overflow: auto; display: flex; flex-direction: column; padding: 16px 20px 0; max-width: 1480px; width: 100%; margin: 0 auto; }
+.passos-assistente { display: flex; gap: 4px; border-bottom: 1px solid var(--linha); margin-bottom: 16px; }
+.aba-passo { appearance: none; background: transparent; border: 0; border-bottom: 2px solid transparent; padding: 8px 14px 9px; font: 500 13.5px var(--fonte-corpo); color: var(--tinta-3); cursor: pointer; display: inline-flex; gap: 8px; align-items: center; margin-bottom: -1px; }
+.aba-passo:disabled { cursor: not-allowed; opacity: .5; }
+.aba-passo[aria-current="step"] { color: var(--tinta); border-bottom-color: var(--latao); }
+.num-passo { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; border: 1px solid currentColor; font: 500 12px var(--fonte-mono); }
+.aba-passo[aria-current="step"] .num-passo { background: var(--latao); border-color: var(--latao); color: var(--carta); }
+.assistente-corpo { flex: 1; min-height: 0; }
+.assistente-nav { position: sticky; bottom: 0; display: flex; justify-content: space-between; gap: 8px; padding: 12px 0 16px; background: linear-gradient(transparent, var(--papel) 30%); }
+
+.passo-carregar { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; align-items: start; }
+.cartao-arquivo { margin: 0; display: flex; flex-direction: column; gap: 10px; transition: background .15s ease-out; }
+.cartao-arquivo > header { margin-bottom: 0; }
+.cartao-arquivo.sobre { background: var(--acento-tenue, var(--papel-2)); border-style: dashed; }
+.cartao-arquivo .selo { margin-left: auto; max-width: 100%; }
+.cartao-arquivo .selo span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.resumo-cartao { margin: 0; color: var(--tinta-2); }
+.lista-arquivos { margin: 0; padding: 0; list-style: none; font-size: 12.5px; display: flex; flex-direction: column; gap: 3px; }
+.lista-arquivos li { display: flex; justify-content: space-between; gap: 8px; }
+.lista-arquivos li[data-ok="false"] .tenue { color: var(--risco); }
+.avisos-carga { grid-column: 1 / -1; margin: 0; padding: 10px 14px 10px 30px; border: 1px solid var(--linha); border-left: 3px solid var(--alerta); border-radius: var(--raio); background: var(--carta); color: var(--tinta-2); font-size: 13px; }
+
+.passo-conferir { display: grid; grid-template-columns: minmax(260px, 340px) minmax(0, 1fr); gap: 18px; align-items: start; }
+.conferir-dados .bloco { margin-bottom: 12px; }
+.ficha { display: grid; grid-template-columns: auto 1fr; gap: 5px 12px; margin: 0; font-size: 13px; }
+.ficha dt { color: var(--tinta-3); }
+.ficha dd { margin: 0; }
+.lista-avisos { margin: 0; padding-left: 18px; font-size: 12.5px; color: var(--tinta-2); display: flex; flex-direction: column; gap: 4px; max-height: 40vh; overflow: auto; }
+.lista-avisos li[data-nivel="erro"] { color: var(--risco); }
+.conferir-previa { display: flex; flex-direction: column; gap: 10px; align-items: center; min-width: 0; }
+.ajustes-previa { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: center; }
+.campo-linha { flex-direction: row; align-items: center; gap: 6px; }
+.moldura-previa { position: relative; height: min(calc(100vh - 290px), 78vh); max-width: 100%; min-height: 280px; border-radius: var(--raio); overflow: hidden; border: 1px solid var(--linha); box-shadow: var(--sombra); background: var(--papel-2); }
+.moldura-previa.formato-horizontal, .moldura-previa.formato-quadrado { height: auto; width: min(100%, calc((100vh - 290px) * 1.78)); }
+.moldura-previa.formato-quadrado { width: min(100%, calc(100vh - 290px)); }
+.moldura-previa .viewport { position: absolute; inset: 0; }
+.previa-pessoa { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; pointer-events: none; }
+.previa-marca { position: absolute; inset: 0; display: grid; place-items: center; background: #2c2c2c; color: #b88848; font: 600 18px var(--fonte-corpo); letter-spacing: .24em; }
+.conferir-previa .faixa-cenas { list-style: none; margin: 0; padding: 0; width: 100%; }
+.conferir-previa .faixa-cenas li { display: flex; min-width: 0; }
+.conferir-previa .bloco-cena { appearance: none; border: 0; width: 100%; cursor: pointer; font-family: var(--fonte-corpo); }
+
+.passo-gerar { max-width: 860px; margin: 0 auto; }
+.linha-gerar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.progresso-gerar { display: flex; gap: 10px; align-items: center; margin-top: 12px; }
+.progresso-gerar .barra-progresso { flex: 1; }
+.quadro-gerando:not(:empty) { margin-top: 12px; display: flex; justify-content: center; }
+.quadro-gerando canvas { max-width: 100%; max-height: 50vh; border-radius: var(--raio-p); }
+.resultado-gerar { margin-top: 14px; display: flex; flex-direction: column; gap: 10px; align-items: center; }
+.video-final { max-width: 100%; max-height: 60vh; border-radius: var(--raio-p); background: #000; }
+.cena-oculta { position: fixed; left: -10000px; top: 0; width: 640px; height: 640px; }
+.cena-oculta .viewport { width: 100%; height: 100%; }
+
+@media (max-width: 900px) {
+  .assistente { padding: 12px 12px 0; }
+  .passo-conferir { grid-template-columns: minmax(0, 1fr); }
+  .conferir-previa { order: -1; }
+  .moldura-previa { height: min(70vh, 640px); }
+}

@@ -9,7 +9,7 @@ type Janela = {
 };
 
 async function abrirSobrado(page: Page) {
-  await page.goto("/");
+  await page.goto("/#/gestao");
   await expect(page.getByTestId("slogan-inicial")).toHaveText("Produtor de Vídeos das obras da Super Influencer Dani, a engenheira.");
   await page.getByTestId("abrir-sobrado").click();
   await expect(page.getByTestId("situacao")).toContainText("157 elementos", { timeout: 90_000 });

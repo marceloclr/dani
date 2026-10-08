@@ -44,3 +44,6 @@ export function formatarISO(dia: number): string {
 
 /** Duração inclusiva em dias. */
 export const duracao = (ini: number, fim: number) => fim - ini + 1;
+
+/** Hoje, como dia civil, pela data local do computador. */
+export const hojeCivil = (): number => lerData(new Date().toLocaleDateString("sv-SE"))!;

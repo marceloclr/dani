@@ -25,7 +25,7 @@ const estadoCena = (page: Page) =>
 test("aparência realista por padrão; técnica volta às cores lisas", async ({ page }) => {
   const erros: string[] = [];
   page.on("pageerror", (e) => erros.push(String(e)));
-  await page.goto("/");
+  await page.goto("/#/gestao");
   await page.getByTestId("abrir-demo").click();
   await expect(page.getByTestId("selo-demo")).toBeVisible({ timeout: 60_000 });
   await expect(page.getByTestId("aparencia-realista")).toHaveAttribute("aria-selected", "true");
@@ -57,7 +57,7 @@ test("aparência realista por padrão; técnica volta às cores lisas", async ({
 });
 
 test("GIF com aparência realista em qualidade máxima", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/#/gestao");
   await page.getByTestId("abrir-demo").click();
   await expect(page.getByTestId("selo-demo")).toBeVisible({ timeout: 60_000 });
   await page.getByTestId("aba-video").click();
@@ -72,7 +72,7 @@ test("GIF com aparência realista em qualidade máxima", async ({ page }) => {
 });
 
 test("sobrado de exemplo pela tela inicial", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/#/gestao");
   await page.getByTestId("abrir-sobrado").click();
   await expect(page.getByTestId("situacao")).toContainText("Sobrado de exemplo · 157 elementos", { timeout: 60_000 });
   await expect(page.locator(".gantt .linha")).toHaveCount(18);
@@ -92,7 +92,7 @@ test("sobrado de exemplo pela tela inicial", async ({ page }) => {
 test("luz da noite acende as luminárias da obra pronta (ADR-24)", async ({ page }) => {
   const erros: string[] = [];
   page.on("pageerror", (e) => erros.push(String(e)));
-  await page.goto("/");
+  await page.goto("/#/gestao");
   await page.getByTestId("abrir-sobrado").click();
   await expect(page.getByTestId("situacao")).toContainText("157 elementos", { timeout: 60_000 });
   const lampadas = () =>
@@ -121,7 +121,7 @@ test("luz da noite acende as luminárias da obra pronta (ADR-24)", async ({ page
 test.describe("sistema no tema escuro", () => {
   test.use({ colorScheme: "dark" });
   test("o app abre no tema claro e lembra a escolha do usuário", async ({ page }) => {
-    await page.goto("/");
+    await page.goto("/#/gestao");
     await expect(page.locator("html")).toHaveAttribute("data-tema", "claro");
     await page.getByRole("button", { name: /tema escuro/ }).click();
     await expect(page.locator("html")).toHaveAttribute("data-tema", "escuro");

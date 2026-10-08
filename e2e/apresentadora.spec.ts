@@ -7,7 +7,7 @@ test.describe.configure({ timeout: 300_000 });
 const FIXTURE = "e2e/fixtures/apresentadora-verde.mp4"; // 8 s, 540 × 960, figura sobre verde, tom de 440 Hz
 
 async function abrirComFala(page: Page) {
-  await page.goto("/");
+  await page.goto("/#/gestao");
   await page.getByTestId("abrir-demo").click();
   await expect(page.getByTestId("selo-demo")).toBeVisible({ timeout: 60_000 });
   await page.getByTestId("aparencia-tecnica").click(); // sem GPU, o realista é lento; a camada da apresentadora é a mesma

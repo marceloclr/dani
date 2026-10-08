@@ -18,7 +18,7 @@ const paredesVisiveis = (page: Page) =>
   });
 
 test("sobrado paramétrico: estimativa por pavimento", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/#/gestao");
   await page.getByTestId("abrir-parametrico").click();
   await page.getByTestId("param-area").fill("200");
   await page.getByTestId("param-pavimentos").selectOption("2");
@@ -83,7 +83,7 @@ test("sobrado paramétrico: estimativa por pavimento", async ({ page }) => {
 });
 
 test("substituir um cronograma existente pede confirmação", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/#/gestao");
   await page.getByTestId("abrir-demo").click();
   await expect(page.getByTestId("selo-demo")).toBeVisible({ timeout: 60_000 });
   await page.getByTestId("estimar-tarefas").click();
@@ -98,7 +98,7 @@ test("substituir um cronograma existente pede confirmação", async ({ page }) =
 
 test("WhatsApp no computador: baixa o vídeo e abre o WhatsApp Web", async ({ page, context }) => {
   await context.route("https://web.whatsapp.com/**", (r) => r.fulfill({ contentType: "text/html", body: "<title>WhatsApp (simulado)</title>" }));
-  await page.goto("/");
+  await page.goto("/#/gestao");
   await page.getByTestId("abrir-demo").click();
   await expect(page.getByTestId("selo-demo")).toBeVisible({ timeout: 60_000 });
   await page.getByTestId("aba-video").click();

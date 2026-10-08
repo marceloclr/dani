@@ -14,7 +14,7 @@ const estado = (page: Page) => page.evaluate(() => {
 });
 
 async function abrirDemo(page: Page) {
-  await page.goto("/");
+  await page.goto("/#/gestao");
   await page.getByTestId("abrir-demo").click();
   await expect(page.getByTestId("selo-demo")).toBeVisible({ timeout: 60_000 });
 }
@@ -83,7 +83,7 @@ test("exportar e importar .4dstudio", async ({ page }) => {
 });
 
 test("modelo paramétrico de 2 pavimentos com duas águas: simulação e vídeo", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/#/gestao");
   await page.getByTestId("abrir-parametrico").click();
   await page.getByTestId("param-area").fill("1000");
   await expect(page.getByTestId("param-previa")).toContainText("não cabe");

@@ -14,7 +14,7 @@ const cena = (page: Page) => page.evaluate(() => {
 });
 
 async function importarExemplo(page: Page) {
-  await page.goto("/");
+  await page.goto("/#/gestao");
   await page.getByTestId("abrir-projetos").click();
   await page.getByTestId("entrada-4dstudio").setInputFiles("public/modelos/exemplo.4dstudio");
   await expect(page.getByTestId("situacao")).toContainText("167 elementos", { timeout: 60_000 });
@@ -71,7 +71,7 @@ test("exemplo: planejado × real, fotos na timeline e relatório PDF", async ({ 
 });
 
 test("enviar fotos com fotos.csv; planta PNG e PDF", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/#/gestao");
   await page.getByTestId("abrir-demo").click();
   await expect(page.getByTestId("selo-demo")).toBeVisible({ timeout: 60_000 });
 
@@ -111,7 +111,7 @@ test("enviar fotos com fotos.csv; planta PNG e PDF", async ({ page }) => {
 });
 
 test("modelos de arquivo: diálogo e downloads idênticos", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/#/gestao");
   await page.getByTestId("abrir-modelos").click();
   await expect(page.getByTestId("modal-modelos")).toContainText("inicio_real");
   for (const nome of ["cronograma-modelo.xlsx", "cronograma-modelo.csv", "cronograma-modelo.json", "fotos-modelo.csv", "sobrado-exemplo.ifc", "cronograma-sobrado.csv", "casa-exemplo.ifc", "exemplo.4dstudio"]) {

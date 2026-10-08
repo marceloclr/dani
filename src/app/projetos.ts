@@ -3,7 +3,7 @@ import { carregarIfc, carregarParametrico, ifcDoModeloAtual, limparModelo } from
 import { descreverParametros } from "../bim/parametrico";
 import { aplicarMapeamento, contarPorTarefa, descreverRegras, semTarefa } from "../fourd/regras";
 import { formatarISO } from "../fourd/tempo";
-import { chaveApresentadora, chaveFoto, chavePlanta, excluirProjeto, gravarAnexo, gravarProjeto, lerProjeto, listarProjetos, pedirPersistencia } from "../storage/IndexedDb";
+import { chaveApresentadora, chaveFala, chaveFoto, chavePlanta, excluirProjeto, gravarAnexo, gravarProjeto, lerProjeto, listarProjetos, pedirPersistencia } from "../storage/IndexedDb";
 import { blobDaFoto, blobDaPlanta, gravarTodosAnexos, limparAnexos, restaurarAnexos } from "./anexos";
 import { ErroProjeto, exportar4dstudio, importar4dstudio, type ArquivosAnexos, type RegistroProjeto } from "../storage/projeto";
 import { useProjeto, type Estado } from "../state/projectStore";
@@ -38,6 +38,7 @@ export function registroAtual(s: Estado = useProjeto.getState()): RegistroProjet
     fotos: s.fotos,
     planta: s.planta,
     aparencia3d: s.aparencia3d,
+    planilha: s.planilha,
   };
 }
 
@@ -102,10 +103,13 @@ export async function abrirIfcComoProjeto(nome: string, bytes: ArrayBuffer): Pro
   const anterior = { projetoId: st.projetoId, nomeProjeto: st.nomeProjeto, salvoEm: st.salvoEm };
   st.definirProjeto({ projetoId: null }); // não gravar o modelo novo sobre o projeto anterior
   if (await carregarIfc(nome, bytes)) {
-    // modelo novo, projeto novo: fotos e planta do anterior não vêm junto
-    limparAnexos();
-    useProjeto.setState({ fotos: [], planta: null });
-    await criarProjeto(semExtensao(nome));
+    // modelo novo, projeto novo: fotos e planta do anterior não vêm junto; no fluxo da planilha (ADR-30),
+    // os arquivos enviados antes do IFC (falas e fotos) são da mesma obra e ficam
+    if (!useProjeto.getState().planilha) {
+      limparAnexos();
+      useProjeto.setState({ fotos: [], planta: null });
+    }
+    await criarProjeto(useProjeto.getState().planilha?.obra.nome || semExtensao(nome));
   }
   else st.definirProjeto(anterior);
 }
@@ -147,7 +151,9 @@ export async function abrirProjeto(id: string): Promise<boolean> {
     const b = lido.anexos.get(chaveFoto(r.id, f.id));
     if (b) fotosDoProjeto.set(f.id, b);
   }
-  restaurarAnexos(fotosDoProjeto, r.planta ? lido.anexos.get(chavePlanta(r.id)) ?? null : null, lido.anexos.get(chaveApresentadora(r.id)) ?? null);
+  const prefixoFala = chaveFala(r.id, "");
+  const videosDeFala = new Map([...lido.anexos].filter(([k]) => k.startsWith(prefixoFala)).map(([k, b]) => [k.slice(prefixoFala.length), b]));
+  restaurarAnexos(fotosDoProjeto, r.planta ? lido.anexos.get(chavePlanta(r.id)) ?? null : null, lido.anexos.get(chaveApresentadora(r.id)) ?? null, videosDeFala);
   let ok: boolean;
   if (r.modelo.tipo === "PARAMETRICO") ok = carregarParametrico(r.modelo.parametros);
   else if (lido.ifc) ok = await carregarIfc(r.modelo.arquivo, await lido.ifc.arrayBuffer(), r.demo);
@@ -167,6 +173,7 @@ export async function abrirProjeto(id: string): Promise<boolean> {
     fotos: (r.fotos ?? []).filter((f) => fotosDoProjeto.has(f.id)),
     planta: r.planta && lido.anexos.has(chavePlanta(r.id)) ? r.planta : null,
     aparencia3d: r.aparencia3d ?? "realista",
+    planilha: r.planilha ?? null,
   });
   criadoEm.set(r.id, r.criadoEm);
   st.definirProjeto({ projetoId: r.id, nomeProjeto: r.nome, salvoEm: r.atualizadoEm });

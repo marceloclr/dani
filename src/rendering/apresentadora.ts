@@ -48,7 +48,61 @@ export interface QuadrosDaFala {
   dispose(): void;
 }
 
-export async function abrirQuadros(arquivo: Blob, tempos: number[]): Promise<QuadrosDaFala> {
+/** Um trecho de uma fala: o arquivo e o corte (s). Várias falas em sequência formam a voz do vídeo (ADR-30). */
+export interface TrechoDeFala {
+  arquivo: Blob;
+  inicioS: number;
+  fimS: number;
+}
+
+/** A fala do vídeo: um arquivo só (ADR-24) ou as falas da planilha, em ordem (ADR-30). */
+export type FonteFala = Blob | TrechoDeFala[];
+
+/** Em que trecho cai o segundo `t` da sequência e o tempo dentro do arquivo dele (depois do fim, o último quadro). */
+export function localizarNaSequencia(trechos: { inicioS: number; fimS: number }[], t: number): { indice: number; tArquivo: number } {
+  let ini = 0;
+  for (let i = 0; i < trechos.length; i++) {
+    const d = trechos[i].fimS - trechos[i].inicioS;
+    if (t < ini + d || i === trechos.length - 1) return { indice: i, tArquivo: trechos[i].inicioS + Math.min(Math.max(t - ini, 0), d) };
+    ini += d;
+  }
+  throw new Error("sequência de falas vazia");
+}
+
+export async function abrirQuadros(fonte: FonteFala, tempos: number[]): Promise<QuadrosDaFala> {
+  if (fonte instanceof Blob) return abrirQuadrosDoArquivo(fonte, tempos);
+  // sequência: cada arquivo é aberto só com os seus tempos, um de cada vez; os quadros vão para uma tela do
+  // tamanho do primeiro (os de outro formato entram cobrindo-a, sem distorcer)
+  const locais = tempos.map((t) => localizarNaSequencia(fonte, t));
+  const porTrecho = fonte.map((_, i) => locais.filter((l) => l.indice === i).map((l) => Math.max(0, l.tArquivo - 0.001)));
+  const primeiro = await abrirQuadrosDoArquivo(fonte[0].arquivo, porTrecho[0].length ? porTrecho[0] : [fonte[0].inicioS]);
+  let atual: { indice: number; q: QuadrosDaFala } = { indice: 0, q: primeiro };
+  const tela = document.createElement("canvas");
+  tela.width = primeiro.largura;
+  tela.height = primeiro.altura;
+  const ctx = tela.getContext("2d")!;
+  let k = 0;
+  return {
+    largura: tela.width,
+    altura: tela.height,
+    duracaoS: fonte.reduce((s, x) => s + (x.fimS - x.inicioS), 0),
+    async proximo() {
+      const l = locais[Math.min(k++, locais.length - 1)];
+      if (atual.indice !== l.indice) {
+        atual.q.dispose();
+        atual = { indice: l.indice, q: await abrirQuadrosDoArquivo(fonte[l.indice].arquivo, porTrecho[l.indice]) };
+      }
+      const img = await atual.q.proximo(l.tArquivo);
+      const { largura: w, altura: h } = atual.q;
+      const e = Math.max(tela.width / w, tela.height / h);
+      ctx.drawImage(img, (tela.width - w * e) / 2, (tela.height - h * e) / 2, w * e, h * e);
+      return tela;
+    },
+    dispose: () => atual.q.dispose(),
+  };
+}
+
+async function abrirQuadrosDoArquivo(arquivo: Blob, tempos: number[]): Promise<QuadrosDaFala> {
   if (temWebCodecs()) {
     const input = new Input({ source: new BlobSource(arquivo), formats: ALL_FORMATS });
     const vt = await input.getPrimaryVideoTrack();
@@ -327,13 +381,38 @@ export async function criarCamadaApresentadora(largura: number, altura: number, 
 // ------------------------------------------------------------------ áudio da fala
 
 /** Decodifica o áudio da fala (AAC, Opus, MP3…) pelo próprio navegador; null se o arquivo não tiver som. */
-export async function audioDaFala(arquivo: Blob): Promise<AudioBuffer | null> {
+export async function audioDaFala(fonte: FonteFala): Promise<AudioBuffer | null> {
+  if (!(fonte instanceof Blob)) return audioDaSequencia(fonte);
+  const arquivo = fonte;
   try {
     const ctx = new OfflineAudioContext(2, 1, 48000);
     return await ctx.decodeAudioData(await arquivo.arrayBuffer());
   } catch {
     return null;
   }
+}
+
+/** Voz das falas em sequência: cada uma no seu corte, emendadas; sem som numa delas, silêncio no lugar. */
+async function audioDaSequencia(trechos: TrechoDeFala[]): Promise<AudioBuffer | null> {
+  const taxa = 48000;
+  const bufs = await Promise.all(trechos.map((t) => audioDaFala(t.arquivo)));
+  if (bufs.every((b) => !b)) return null;
+  const canais = Math.max(...bufs.map((b) => b?.numberOfChannels ?? 1));
+  const tamanhos = trechos.map((t) => Math.round((t.fimS - t.inicioS) * taxa));
+  const saida = new AudioBuffer({ length: Math.max(1, tamanhos.reduce((a, b) => a + b, 0)), numberOfChannels: canais, sampleRate: taxa });
+  let pos = 0;
+  trechos.forEach((t, i) => {
+    const b = bufs[i];
+    if (b) {
+      const ini = Math.round(t.inicioS * b.sampleRate);
+      for (let c = 0; c < canais; c++) {
+        const dados = b.getChannelData(Math.min(c, b.numberOfChannels - 1)).subarray(ini, ini + tamanhos[i]);
+        saida.copyToChannel(dados, c, pos);
+      }
+    }
+    pos += tamanhos[i];
+  });
+  return saida;
 }
 
 /**
@@ -355,19 +434,20 @@ export function* pedacosDeAudio(buf: AudioBuffer, ate: number, passo = 0.5): Gen
  * Prévia da composição (ADR-24): o quadro da fala em `t`, recortado com o mesmo shader do vídeo, sobre
  * um fundo neutro de `largura` × `altura` (proporção do formato do vídeo).
  */
-export async function previaApresentadora(arquivo: Blob, cfg: ConfigApresentadora, largura: number, altura: number, t = 0.5): Promise<HTMLCanvasElement> {
+export async function previaApresentadora(arquivo: Blob, cfg: ConfigApresentadora, largura: number, altura: number, t = 0.5, transparente = false): Promise<HTMLCanvasElement> {
   const quadro = await quadroDaFala(arquivo, Math.min(t, Math.max(0, cfg.duracaoS - 0.1)));
   const canvas = document.createElement("canvas");
   canvas.width = largura;
   canvas.height = altura;
-  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, preserveDrawingBuffer: true, alpha: false });
+  // transparente: só a pessoa recortada, para sobrepor à cena 3D (prévia do assistente, ADR-30)
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, preserveDrawingBuffer: true, alpha: transparente, premultipliedAlpha: false });
   renderer.setPixelRatio(1);
   renderer.setSize(largura, altura, false);
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   const camada = await criarCamadaApresentadora(largura, altura, cfg, quadro.width, quadro.height);
   try {
     await camada.atualizar(quadro);
-    renderer.setClearColor(0x6f7d8c);
+    renderer.setClearColor(0x6f7d8c, transparente ? 0 : 1);
     renderer.clear();
     renderer.autoClear = false;
     renderer.render(camada.cena, camada.camera);

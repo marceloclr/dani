@@ -9,7 +9,7 @@ import type { Pose } from "./cameras";
 import type { QuadroCamera } from "./drone";
 import { diaDoQuadro, totalDeQuadros } from "./cameras";
 import { desenharAssinatura, desenharVinheta, opacidadeVinheta, sobrepor, type Sobreposicao, type TextoMarca } from "./marcaVideo";
-import { abrirQuadros, audioDaFala, criarCamadaApresentadora, pedacosDeAudio, type CamadaApresentadora, type QuadrosDaFala } from "./apresentadora";
+import { abrirQuadros, audioDaFala, criarCamadaApresentadora, pedacosDeAudio, type CamadaApresentadora, type FonteFala, type QuadrosDaFala } from "./apresentadora";
 import { cantoDaAssinatura, type ConfigApresentadora } from "./composicao";
 import { cenaNoTempo, obraNaCena, poseDaCena, trechoDoVoo, type Cena as CenaMontagem } from "./montagem";
 import type { Enquadramento } from "./cameras";
@@ -114,7 +114,7 @@ export interface PedidoVideo {
   /** Vinheta de abertura e encerramento com a marca (ADR-24); ausente = sem vinheta. */
   vinheta?: TextoMarca;
   /** Apresentadora em primeiro plano, com o áudio da fala (ADR-24). */
-  apresentadora?: { arquivo: Blob; cfg: ConfigApresentadora };
+  apresentadora?: { arquivo: FonteFala; cfg: ConfigApresentadora };
   /**
    * Montagem em cenas (ADR-25): substitui a câmera única. Cada quadro pergunta em que cena está;
    * a fala segue contínua por baixo dos cortes.

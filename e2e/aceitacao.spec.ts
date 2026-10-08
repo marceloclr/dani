@@ -26,7 +26,7 @@ test("incremento 1 de ponta a ponta com a demonstração", async ({ page }) => {
   page.on("console", (m) => m.type() === "error" && errosConsole.push(m.text()));
   page.on("pageerror", (e) => errosConsole.push(String(e)));
 
-  await page.goto("/");
+  await page.goto("/#/gestao");
   await expect(page.getByRole("heading", { name: "Construction 4D Studio", level: 1 }).first()).toBeVisible();
   await page.screenshot({ path: "e2e/resultados/0-inicial.png" });
 
@@ -122,7 +122,7 @@ test("incremento 1 de ponta a ponta com a demonstração", async ({ page }) => {
 
 test("tema escuro e tela de celular", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto("/");
+  await page.goto("/#/gestao");
   await page.getByRole("button", { name: /tema escuro/ }).click();
   await page.getByTestId("abrir-demo").click();
   await expect(page.getByTestId("selo-demo")).toBeVisible({ timeout: 60_000 });

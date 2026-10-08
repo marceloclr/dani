@@ -26,6 +26,18 @@ export function TelaInicial() {
         <p className="slogan-inicial" data-testid="slogan-inicial">{SLOGAN}</p>
         <p className="lede">Carregue o modelo IFC e o cronograma da obra para ver a casa sendo construída dia a dia. Tudo é processado e salvo neste navegador.</p>
 
+        <section className="bloco planilha-inicial" style={{ ["--acento" as string]: "var(--latao)" }}>
+          <header>
+            <h2>Planilha da obra</h2>
+            <a className="link" href="modelos/obra-dani.xlsx" download data-testid="baixar-planilha-modelo">
+              Baixar planilha modelo
+            </a>
+          </header>
+          <div className="botoes">
+            <SeletorArquivo aceitar=".xlsx" rotulo="Abrir planilha" dica="Planilha única da obra (.xlsx), com as abas Obra, Modelo, Cronograma, Falas, Fotos, Vídeo e Documento." classe="btn primario" testId="entrada-planilha" aoEscolher={abrirCronograma} />
+          </div>
+        </section>
+
         <ol className="passos">
           <li className="bloco" style={{ ["--acento" as string]: "var(--ardosia)" }}>
             <header>

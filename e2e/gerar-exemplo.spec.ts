@@ -15,7 +15,7 @@ const FOTOS: [string, string, string, string, string, string][] = [
 const ETAPA: Record<string, string> = { "28": "FUN-01", "56": "EST-01", "86": "ALV-01", "105": "LAJ-01" };
 
 test("gera o exemplo.4dstudio", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/#/gestao");
   await page.getByTestId("abrir-demo").click();
   await expect(page.getByTestId("selo-demo")).toBeVisible({ timeout: 60_000 });
   await page.locator('input[type=file][accept=".csv,.xlsx,.json,.txt"]').first().setInputFiles("public/modelos/cronograma-modelo.csv");

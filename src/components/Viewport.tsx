@@ -15,7 +15,8 @@ import { aplicarSol, cicloDoVoo, definirInsolacaoAtiva, forcarHorario } from "..
 import { PainelInsolacao } from "./PainelInsolacao";
 import { NOME_LUZ, type Luz } from "../rendering/iluminacao";
 
-export function Viewport() {
+/** `simples`: só a imagem (assistente, ADR-30); sem a barra de ferramentas nem a legenda. */
+export function Viewport({ simples = false }: { simples?: boolean } = {}) {
   const host = useRef<HTMLDivElement>(null);
   const cena = useRef<Cena | null>(null);
   const toque = useRef<{ x: number; y: number } | null>(null);
@@ -175,7 +176,8 @@ export function Viewport() {
   };
 
   return (
-    <div className="viewport">
+    <div className={`viewport${simples ? " simples" : ""}`}>
+      {!simples && (
       <div className="ferramentas" role="toolbar" aria-label="Câmera e seleção">
         <button type="button" className="btn" data-tip="Enquadra a casa inteira, mantendo o ângulo atual." onClick={() => cena.current?.casaInteira()}>
           Casa inteira
@@ -253,6 +255,7 @@ export function Viewport() {
         <SeletorLuz />
         {temCronograma && <SeletorVisao />}
       </div>
+      )}
       <div
         ref={host}
         className="tela3d"
@@ -275,7 +278,7 @@ export function Viewport() {
           </button>
         </div>
       )}
-      {temCronograma && <Legenda />}
+      {temCronograma && !simples && <Legenda />}
       <FotoFlutuante />
       {insolacao !== null && <PainelInsolacao minutos={insolacao} aoMudar={definirHoraInsolacao} aoFechar={() => definirHoraInsolacao(null)} />}
       {gerandoVideo && <div className="aviso-video">Gerando vídeo: a pré-visualização está no painel Vídeo.</div>}

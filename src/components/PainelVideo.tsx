@@ -4,15 +4,14 @@ import { duracaoDoVideo } from "../rendering/composicao";
 import { SecaoApresentadora } from "./SecaoApresentadora";
 import { SolOrientacao } from "./SolOrientacao";
 import { EditorMontagem } from "./EditorMontagem";
-import { aplicarSol, cicloDoVoo, definirInsolacaoAtiva, diaCivilDaSimulacao, insolacaoLigada, solDoProjeto } from "../app/solDaCena";
-import { horarioDoVoo } from "../rendering/cicloDia";
+import { gerarVideoDaObra } from "../app/videoDaObra";
 import { NOME_CENA, cenaNoTempo, normalizar, obraNaCena, poseDaCena, roteiroReels, trechoDoVoo } from "../rendering/montagem";
-import { camadasPara, obterCena } from "../app/estadoCena";
+import { obterCena } from "../app/estadoCena";
 import { duracaoObra } from "../fourd/simulacao";
 import { PRESETS, diaDoQuadro, poseNoTempo, roteiroPadrao, totalDeQuadros, type PontoRoteiro, type Preset } from "../rendering/cameras";
 import { FRACAO_CONSTRUCAO, diaDoVoo } from "../rendering/drone";
-import { CLIENTE, NOME_MARCA, SLOGAN } from "../app/marca";
-import { Cancelado, DESCRICAO_SAIDA, NOME_SAIDA, capacidades, dimensoesDaSaida, dispositivoLimitado, estimarZipMB, gerarVideo, type ArquivoGerado, type Capacidades, type Saida } from "../rendering/VideoRenderer";
+import { CLIENTE, SLOGAN } from "../app/marca";
+import { Cancelado, DESCRICAO_SAIDA, NOME_SAIDA, capacidades, dimensoesDaSaida, dispositivoLimitado, estimarZipMB, type ArquivoGerado, type Capacidades, type Saida } from "../rendering/VideoRenderer";
 import { RESOLUCOES, useProjeto, type ConfigVideo, type FormatoVideo } from "../state/projectStore";
 import { baixar } from "../utils/baixar";
 import { NOME_LUZ, type Luz } from "../rendering/iluminacao";
@@ -129,58 +128,15 @@ export function PainelVideo() {
     st().definirGerandoVideo(true);
     st().mostrarErro(null);
     setProgresso({ quadro: 0, total: quadros, restanteS: null });
-    const r = roteiro;
-    const e = cena.enquadramento();
-    const voo = comDrone ? cena.voo() : null;
-    const seg = segundos;
-    // sol real por quadro (ADR-26): a data é a do dia da obra no quadro; no Ciclo, o horário corre
-    let diaAtual = 0;
-    const ciclo = video.luz === "ciclo";
-    const vooCiclo = ciclo ? cena.voo() : null;
-    const horaDoVoo = vooCiclo ? cicloDoVoo(vooCiclo) : null;
-    const efem = solDoProjeto(st(), 600, diaCivilDaSimulacao(st(), Number.MAX_SAFE_INTEGER)).efemerides;
-    const marcasGlobais = { fimConstrucao: 0.3, inicioInterno: 0.5, inicioVoltaFinal: 0.7, fimMovimento: 0.97 };
-    const minutosNoQuadro = (i: number, n: number): number | undefined => {
-      if (!ciclo) return undefined;
-      const t = i / video.fps, uVideo = n > 1 ? i / (n - 1) : 1;
-      if (comDrone && horaDoVoo) return horaDoVoo(t / seg);
-      if (comMontagem && horaDoVoo && vooCiclo) {
-        const m = cenaNoTempo(cenas, t, seg);
-        if (m.cena.camera === "drone" && m.cena.tipo === "obra") return horaDoVoo(trechoDoVoo(m.cena, m.u, vooCiclo.fimConstrucao));
-      }
-      return horarioDoVoo(uVideo, marcasGlobais, 0.85, efem);
-    };
-    const insolacaoAntes = insolacaoLigada();
-    definirInsolacaoAtiva(!!video.insolacaoNoVideo && st().aparencia3d === "realista");
-    const montagem = comMontagem ? { cenas, enquadramento: e, voo: cena.voo(), cartela: { nome: CLIENTE.nome, slogan: CLIENTE.slogan, secundario: CLIENTE.instagram } } : undefined;
     try {
-      const arq = await gerarVideo(cena, {
+      const arq = await gerarVideoDaObra(cena, {
         saida,
-        largura,
-        altura,
-        fps: video.fps,
-        segundos: segundos,
-        diasDeObra: dias,
+        segundos,
+        camera: comMontagem ? "montagem" : comDrone ? "drone" : "roteiro",
+        cenas,
+        roteiro,
+        fala: fala && blobFala ? { fonte: blobFala, cfg: fala } : null,
         nomeBase: `obra-4d-${video.formato}-${segundos}s`,
-        aplicarDia: (d) => {
-          diaAtual = d;
-          cena.aplicar(camadasPara(st(), cena, d, true));
-        },
-        aoQuadro: (i, n) => {
-          if (st().aparencia3d === "realista") aplicarSol(cena, minutosNoQuadro(i, n), diaCivilDaSimulacao(st(), diaAtual));
-        },
-        maxima: video.qualidade === "maxima" && st().aparencia3d === "realista",
-        ...(fala && blobFala ? { apresentadora: { arquivo: blobFala, cfg: fala } } : {}),
-        ...(video.assinatura !== false ? { assinatura: { nome: CLIENTE.nome, slogan: CLIENTE.slogan, secundario: SLOGAN } } : {}),
-        ...(video.vinheta !== false && segundos >= 6 ? { vinheta: { nome: CLIENTE.nome, slogan: CLIENTE.slogan, secundario: `${NOME_MARCA} · ${SLOGAN}` } } : {}),
-        poseNoTempo: (t) => poseNoTempo(r, e, t, segundos),
-        ...(montagem ? { montagem } : {}),
-        ...(voo
-          ? {
-              quadroLivre: (t: number) => voo.quadro(t / seg),
-              diaNoQuadro: (i: number, n: number) => diaDoVoo(n > 1 ? i / (n - 1) : 1, dias, voo.fimConstrucao),
-            }
-          : {}),
         sinal: ac.signal,
         aoProgredir: setProgresso,
         aoCriarCanvas: (c) => {
@@ -198,9 +154,6 @@ export function PainelVideo() {
       quadroPrevia.current?.replaceChildren();
       setProgresso(null);
       st().definirGerandoVideo(false);
-      // volta o sol e a insolação da viewport
-      definirInsolacaoAtiva(insolacaoAntes);
-      aplicarSol(cena);
     }
   };
 

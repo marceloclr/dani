@@ -136,3 +136,55 @@ export function poseDaCena(camera: Preset, e: Enquadramento, u: number): Pose {
 export function trechoDoVoo(c: Cena, u: number, fimConstrucao: number): number {
   return c.obra[0] >= 1 ? fimConstrucao + u * (1 - fimConstrucao) : u * fimConstrucao;
 }
+
+/** Onde cada fala da planilha entra (ADR-30): no terreno (abertura e revelação), sobre a obra (recortada) ou só a voz. */
+export type CenaDaFala = "terreno" | "sobre-obra" | "voz";
+
+/** Duração da cena da marca, que fecha o vídeo depois da última fala. */
+export const MARCA_S = 2.5;
+/** Duração aproximada de cada tomada sobre a obra: cortes a cada 3 a 4 s, como nos Reels. */
+export const TOMADA_S = 3.5;
+/** Câmeras das tomadas sobre a obra, em rodízio. */
+export const CAMERAS_TOMADA: Preset[] = ["isometrica", "orbita", "externa", "lateral", "frontal", "superior"];
+
+/**
+ * Roteiro a partir das falas da planilha (ADR-30). As cenas seguem as falas, na ordem e com a duração de cada
+ * uma, e a marca fecha o vídeo (`MARCA_S`). Total = soma das falas + `MARCA_S`.
+ * - **terreno**: o quadro original dela (45 %) e a revelação, com a obra pronta subindo atrás dela (55 %);
+ * - **sobre a obra** / **só a voz**: tomadas de ~3,5 s em rodízio de câmeras, com a obra se formando ao longo de
+ *   todas essas falas (do terreno à pronta), com ela recortada no canto ou fora do quadro;
+ * - a última fala sobre a obra, se tiver 6 s ou mais, termina com o passeio do drone pela obra pronta (40 %, até 10 s).
+ */
+export function roteiroDasFalas(falas: { cena: CenaDaFala; duracaoS: number }[]): { cenas: Cena[]; totalS: number } {
+  const soma = falas.reduce((s, f) => s + Math.max(0, f.duracaoS), 0);
+  if (!falas.length || !(soma > 0)) return { cenas: roteiroReels(false), totalS: 30 };
+  const totalS = soma + MARCA_S;
+  const brutas: { tipo: TipoCena; s: number; camera: CameraCena; obra: [number, number]; pessoa: PessoaNaCena }[] = [];
+  // a última fala sobre a obra guarda o fim para o passeio pela obra pronta
+  let ultimaObra = -1;
+  falas.forEach((f, i) => (f.cena !== "terreno" ? (ultimaObra = i) : undefined));
+  const passeioS = ultimaObra >= 0 && falas[ultimaObra].duracaoS >= 6 ? Math.min(10, falas[ultimaObra].duracaoS * 0.4) : 0;
+  const tempoObra = falas.reduce((s, f) => (f.cena === "terreno" ? s : s + f.duracaoS), 0) - passeioS;
+  let progresso = 0, rodizio = 0;
+  falas.forEach((f, i) => {
+    const d = Math.max(0, f.duracaoS);
+    if (!(d > 0)) return;
+    if (f.cena === "terreno") {
+      brutas.push({ tipo: "fala", s: d * 0.45, camera: "frontal", obra: [0, 0], pessoa: "cheia" });
+      brutas.push({ tipo: "revelacao", s: d * 0.55, camera: "frontal", obra: [0, 1], pessoa: "cheia" });
+      return;
+    }
+    const pessoa: PessoaNaCena = f.cena === "voz" ? "oculta" : "recortada";
+    const montagemS = i === ultimaObra ? d - passeioS : d;
+    const n = Math.max(1, Math.round(montagemS / TOMADA_S));
+    for (let k = 0; k < n && montagemS > 0; k++) {
+      const s = montagemS / n;
+      const ini = progresso, fim = tempoObra > 0 ? Math.min(1, progresso + s / tempoObra) : 1;
+      brutas.push({ tipo: "obra", s, camera: CAMERAS_TOMADA[rodizio++ % CAMERAS_TOMADA.length], obra: [ini, fim], pessoa });
+      progresso = fim;
+    }
+    if (i === ultimaObra && passeioS > 0) brutas.push({ tipo: "obra", s: passeioS, camera: "drone", obra: [1, 1], pessoa });
+  });
+  brutas.push({ tipo: "marca", s: MARCA_S, camera: "frontal", obra: [1, 1], pessoa: "oculta" });
+  return { cenas: brutas.map((b, i) => cena(`f${i}`, b.tipo, b.s / totalS, b.camera, b.obra, b.pessoa)), totalS };
+}

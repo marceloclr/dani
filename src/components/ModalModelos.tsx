@@ -21,6 +21,11 @@ const COLUNAS_CRONOGRAMA: [string, string, string][] = [
 
 const MODELOS: Modelo[] = [
   {
+    arquivo: "obra-dani.xlsx",
+    titulo: "Planilha da obra (recomendada)",
+    descricao: "Uma planilha só, com uma aba por assunto: Obra, Modelo, Cronograma, Vínculos, Falas, Fotos, Vídeo e Documento. Preenchida com o sobrado de exemplo.",
+  },
+  {
     arquivo: "cronograma-modelo.xlsx",
     titulo: "Cronograma em Excel",
     descricao: "Planilha \"Cronograma\" (a que o app lê) com as 15 etapas da casa de exemplo, datas planejadas e execução real até 20/04/2026; a planilha \"Instruções\" explica cada coluna.",

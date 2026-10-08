@@ -55,6 +55,20 @@ e publique a pasta `dist/` (GitHub Pages, Cloudflare Pages, Netlify ou Vercel). 
 
 ## Como usar
 
+**Assistente (tela principal).** Três passos (ADR-29 e ADR-30):
+
+1. **Carregar.** Um cartão para cada tipo de arquivo:
+   - a **planilha da obra** ([modelo](public/modelos/obra-dani.xlsx), com as abas Obra, Modelo, Cronograma, Vínculos, Falas, Fotos, Vídeo e Documento);
+   - o **IFC** (opcional: sem ele, a casa vem da aba Modelo);
+   - os **vídeos da engenheira**, um por linha da aba Falas, casados pelo nome do arquivo;
+   - as **fotos**.
+   A ordem não importa.
+2. **Conferir.** Ficha da obra, avisos com aba e linha e prévia grande de cada cena no formato do vídeo, com a engenheira recortada sobre a obra.
+3. **Gerar.** MP4 com a voz das falas em sequência: abertura no terreno, revelação, a obra se formando, o passeio do drone e a marca.
+
+**Gestão e ajustes** (`#/gestao`, botão no topo) guarda o estúdio completo, descrito abaixo. **Exportar planilha** leva de volta para o .xlsx o que foi ajustado ali.
+
+
 1. **Carregar IFC**, **Criar modelo paramétrico** (sem IFC: terreno, área, 1 ou 2 pavimentos, pé-direito e cobertura), **Abrir demonstração** (casa térrea com sala de pé-direito duplo e cronograma de 180 dias) ou **Abrir sobrado de exemplo** (dois pavimentos, escada, telhado de duas águas e cronograma de 270 dias por pavimento).
 2. **Carregar cronograma** (CSV, XLSX ou JSON), **Criar cronograma** na tela ou **Gerar estimativa**. A estimativa sugere etapas e datas pela área, pelos pavimentos, pela estrutura e pelo prazo, e repete estrutura, alvenaria e laje por pavimento. Ela fica marcada com o selo ESTIMATIVA: não é cronograma executivo. Os elementos são ligados às tarefas automaticamente, pela coluna `categoria`. Tarefas podem ser incluídas, editadas e excluídas na aba Tarefas.
 3. Use a timeline: ▶ reproduz, o cursor pode ser arrastado e a data pode ser digitada.
@@ -77,6 +91,7 @@ Na tela inicial ("Baixar modelos preenchidos") ou em Projetos → Modelos de arq
 
 | Arquivo | Para quê |
 |---------|----------|
+| [obra-dani.xlsx](public/modelos/obra-dani.xlsx) | **Planilha da obra**: uma aba por assunto, com listas suspensas (gerada por `npm run planilha`) |
 | [cronograma-modelo.xlsx](public/modelos/cronograma-modelo.xlsx) | Cronograma no Excel: planilha "Cronograma" (lida pelo app) e "Instruções" |
 | [cronograma-modelo.csv](public/modelos/cronograma-modelo.csv) | O mesmo em CSV (`;`, `dd/mm/aaaa`, UTF-8 com BOM) |
 | [cronograma-modelo.json](public/modelos/cronograma-modelo.json) | O mesmo em JSON |

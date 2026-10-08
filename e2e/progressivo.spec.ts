@@ -6,7 +6,7 @@ import { expect, test, type Page } from "@playwright/test";
 test.describe.configure({ timeout: 300_000 });
 
 async function abrirDemo(page: Page) {
-  await page.goto("/");
+  await page.goto("/#/gestao");
   await page.getByTestId("abrir-demo").click();
   await expect(page.getByTestId("selo-demo")).toBeVisible({ timeout: 60_000 });
   await page.getByTestId("aparencia-tecnica").click(); // vídeo realista sem GPU leva ~0,7 s por quadro; ele é coberto pelo GIF de realista.spec.ts

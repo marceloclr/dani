@@ -42,6 +42,9 @@ export async function carregarIfc(nome: string, bytes: ArrayBuffer, demo = false
     ifcAtual = copia;
     useProjeto.getState().definirModelo(modelo.elementos, nome, demo, "IFC");
     useProjeto.setState({ geoIfc: modelo.geo ?? {} }); // local e norte do IFC (ADR-26)
+    // vínculos da planilha da obra valem para o IFC citado nela (ADR-29)
+    const pl = useProjeto.getState().planilha;
+    if (pl?.vinculos.length && pl.obra.arquivoIfc?.toLowerCase() === nome.toLowerCase()) useProjeto.setState({ excecoes: pl.vinculos });
     ouvintes.forEach((f) => f(modelo.malhas));
     return true;
   } catch (e) {
@@ -79,6 +82,11 @@ export async function carregarCronograma(nome: string, bytes: Uint8Array, demo =
   if (!/\.(csv|json|txt|xlsx)$/i.test(nome)) {
     st.mostrarErro({ mensagem: "Formato de cronograma não aceito.", orientacao: "Use um arquivo .csv, .xlsx ou .json." });
     return false;
+  }
+  // a planilha única da obra (abas Obra e Cronograma) tem leitura própria (ADR-29)
+  if (/\.xlsx$/i.test(nome) && (await (await import("./planilha")).abrirPlanilha(nome, bytes))) {
+    st.mostrarErro(null);
+    return true;
   }
   const r = /\.xlsx$/i.test(nome) ? await importarXlsx(bytes) : importarCronograma(nome, bytes);
   if (!r.cronograma) {
