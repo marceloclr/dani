@@ -342,6 +342,8 @@ button.link { appearance: none; border: 0; background: none; padding: 0; font: i
 .assistente-corpo { flex: 1; min-height: 0; }
 .assistente-nav { position: sticky; bottom: 0; display: flex; justify-content: space-between; gap: 8px; padding: 12px 0 16px; background: linear-gradient(transparent, var(--papel) 30%); }
 
+.alternativas-ifc { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.pendencia { margin-left: auto; align-self: center; font-size: 13px; color: var(--tinta-2); }
 .passo-carregar { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; align-items: start; }
 .cartao-arquivo { margin: 0; display: flex; flex-direction: column; gap: 10px; transition: background .15s ease-out; }
 .cartao-arquivo > header { margin-bottom: 0; }

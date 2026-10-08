@@ -101,3 +101,20 @@ test("cada arquivo é conferido no envio: vídeo com a aba Falas vazia entra na 
   await expect(page.getByTestId("avisos-falas")).toContainText('"quebrado.mp4" não abriu');
   await expect(page.getByTestId("estado-falas")).toHaveText("1 vídeo · 8 s");
 });
+
+test("sem o IFC citado: a tela diz o que falta e segue com a casa da aba Modelo", async ({ page }) => {
+  await page.goto("/");
+  await page.getByTestId("entrada-planilha").setInputFiles("public/modelos/obra-dani.xlsx");
+  await page.getByTestId("entrada-falas").setInputFiles({ name: "minha-fala.mp4", mimeType: "video/mp4", buffer: FALA });
+  await expect(page.getByTestId("estado-falas")).toHaveText("1 vídeo · 8 s", { timeout: 30_000 });
+  await expect(page.getByTestId("avancar")).toBeDisabled();
+  await expect(page.getByTestId("pendencia")).toHaveText("Falta o IFC sobrado-exemplo.ifc (ou use a casa da aba Modelo).");
+  await expect(page.getByTestId("baixar-ifc-exemplo")).toHaveAttribute("href", "modelos/sobrado-exemplo.ifc");
+  await page.getByTestId("usar-casa-modelo").click();
+  await expect(page.getByTestId("estado-ifc")).toHaveText(/^casa da aba Modelo · \d+ elementos$/, { timeout: 30_000 });
+  await expect(page.getByTestId("pendencia")).toHaveCount(0);
+  await expect(page.getByTestId("estado-falas")).toHaveText("1 vídeo · 8 s"); // a fala enviada antes continua
+  await page.getByTestId("avancar").click();
+  await expect(page.getByTestId("passo-conferir")).toBeVisible();
+  await expect(page.getByTestId("ficha-conferir")).toContainText("1 · 10,5 s de vídeo");
+});

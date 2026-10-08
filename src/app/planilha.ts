@@ -65,7 +65,7 @@ export function aplicarPlanilha(p: ProjetoPlanilha, nome: string, problemas: Pro
   if (p.cronograma) s.definirCronograma(p.cronograma, nome, "Planilha da obra", avisos.map(comoProblema), false);
   else s.definirProblemasImportacao(avisos.map(comoProblema));
   useProjeto.setState({
-    planilha: { arquivo: nome, obra: p.obra, falas: p.falas, fotos: p.fotos, documento: p.documento, vinculos: p.vinculos },
+    planilha: { arquivo: nome, obra: p.obra, falas: p.falas, fotos: p.fotos, documento: p.documento, vinculos: p.vinculos, modelo: p.modelo },
     ...(p.video.aparencia ? { aparencia3d: p.video.aparencia } : {}),
     ...(p.video.animacao ? { modoAnimacao: p.video.animacao } : {}),
     ...(s.nomeProjeto === null && p.obra.nome ? { nomeProjeto: p.obra.nome } : {}),
@@ -75,6 +75,14 @@ export function aplicarPlanilha(p: ProjetoPlanilha, nome: string, problemas: Pro
   if (avisos.length) useProjeto.getState().definirPainel("validacao");
   // casa gerada pela planilha: vira um projeto salvo, como ao abrir um IFC
   if (novoParametrico && !useProjeto.getState().projetoId) void criarProjeto(p.obra.nome || "Obra da planilha");
+}
+
+/** Sem o IFC citado à mão: a casa sai das medidas da aba Modelo e o projeto é salvo (as falas e fotos já enviadas ficam). */
+export async function usarCasaDaPlanilha(): Promise<boolean> {
+  const pl = useProjeto.getState().planilha;
+  if (!pl?.modelo || !carregarParametrico(pl.modelo)) return false;
+  if (!useProjeto.getState().projetoId) await criarProjeto(pl.obra.nome || "Obra da planilha");
+  return true;
 }
 
 /** Estado atual → planilha (o caminho de volta). */
@@ -88,7 +96,7 @@ export function planilhaDoEstado(s: Estado = useProjeto.getState()): ProjetoPlan
       arquivoIfc: s.tipoModelo === "IFC" ? s.arquivoModelo : s.tipoModelo === "PARAMETRICO" ? null : obra.arquivoIfc,
       rumoFrente: s.video.sol?.norteGraus ?? obra.rumoFrente,
     },
-    modelo: s.tipoModelo === "PARAMETRICO" ? s.parametros : null,
+    modelo: s.tipoModelo === "PARAMETRICO" ? s.parametros : pl?.modelo ?? null,
     cronograma: s.cronograma,
     vinculos: s.excecoes,
     // aba Falas vazia: os vídeos recebidos, na ordem de envio, viram as linhas da aba

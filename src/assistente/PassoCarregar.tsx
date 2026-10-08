@@ -1,7 +1,7 @@
 // Passo 1 do assistente (ADR-30): um cartão por tipo de arquivo, cada um com o que foi recebido e o que falta.
 import { useRef, useState, type ReactNode } from "react";
 import { adicionarFalas, adicionarFotos } from "../app/anexos";
-import { abrirPlanilha } from "../app/planilha";
+import { abrirPlanilha, usarCasaDaPlanilha } from "../app/planilha";
 import { abrirIfcComoProjeto } from "../app/projetos";
 import { formatarBR } from "../fourd/tempo";
 import { useProjeto } from "../state/projectStore";
@@ -111,6 +111,9 @@ export function PassoCarregar({ falas }: { falas: FalasDoVideo }) {
   const erros = problemas.filter((p) => p.nivel === "erro").length;
   const ifcCitado = planilha?.obra.arquivoIfc ?? null;
   const ifcOk = tipoModelo === "IFC" && (!ifcCitado || arquivoModelo?.toLowerCase() === ifcCitado.toLowerCase());
+  const casaDaPlanilha = tipoModelo === "PARAMETRICO";
+  /** Modelos de exemplo que o próprio app serve (para baixar quando a planilha modelo os cita). */
+  const exemploDoApp = ifcCitado && ["sobrado-exemplo.ifc", "casa-exemplo.ifc"].includes(ifcCitado.toLowerCase()) ? ifcCitado.toLowerCase() : null;
   const fotosCitadas = planilha?.fotos ?? [];
   const recebidasFotos = new Set(fotos.map((f) => f.arquivo.toLowerCase()));
   const fotosFaltando = fotosCitadas.filter((f) => !recebidasFotos.has(f.arquivo.toLowerCase()));
@@ -152,11 +155,11 @@ export function PassoCarregar({ falas }: { falas: FalasDoVideo }) {
       <CartaoArquivo
         id="ifc"
         titulo="Projeto IFC"
-        situacao={ifcOk ? "ok" : ifcCitado ? "falta" : tipoModelo === "PARAMETRICO" ? "ok" : "opcional"}
+        situacao={ifcOk || casaDaPlanilha ? "ok" : ifcCitado ? "falta" : "opcional"}
         estado={
           ifcOk ? `${arquivoModelo} · ${nElementos} elementos`
-            : ifcCitado ? `falta ${ifcCitado}`
-              : tipoModelo === "PARAMETRICO" ? "casa gerada pela aba Modelo"
+            : casaDaPlanilha ? `casa da aba Modelo · ${nElementos} elementos`
+              : ifcCitado ? `falta ${ifcCitado}`
                 : "opcional"
         }
         aceitar=".ifc"
@@ -167,7 +170,22 @@ export function PassoCarregar({ falas }: { falas: FalasDoVideo }) {
           await abrirIfcComoProjeto(f.name, await f.arrayBuffer());
         }}
         avisos={avisos.ifc}
-      />
+      >
+        {ifcCitado && !ifcOk && !casaDaPlanilha && (
+          <div className="alternativas-ifc">
+            {exemploDoApp && (
+              <a className="link" href={`modelos/${exemploDoApp}`} download data-testid="baixar-ifc-exemplo">
+                Baixar {exemploDoApp}
+              </a>
+            )}
+            {planilha?.modelo && (
+              <button type="button" className="btn" data-testid="usar-casa-modelo" data-tip="Gera a casa pelas medidas da aba Modelo da planilha (terreno, área, pavimentos, pé-direito e cobertura), sem o IFC." onClick={() => void usarCasaDaPlanilha()}>
+                Usar a casa da aba Modelo
+              </button>
+            )}
+          </div>
+        )}
+      </CartaoArquivo>
 
       <CartaoArquivo
         id="falas"

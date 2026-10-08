@@ -87,6 +87,8 @@ export interface DadosPlanilha {
   documento: DocumentoPlanilha;
   /** Aba Vínculos: exceções do IFC citado, reaplicadas quando ele é carregado. */
   vinculos: Excecao[];
+  /** Aba Modelo: a casa usada sem IFC (ou quando o IFC citado não está à mão). */
+  modelo?: ParametrosCasa | null;
 }
 
 export interface Estado {

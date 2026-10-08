@@ -21,6 +21,11 @@ export function Assistente() {
   const segundos = falas.trechos.length ? falas.totalS : segundosEscolhidos;
   const cenas = falas.trechos.length ? falas.cenas : normalizar(roteiroReels(false), segundos, false);
   const liberado = (i: number) => i === 0 || (temPlanilha && pronto);
+  // o que falta para seguir, dito ao lado do botão
+  const ifcCitado = useProjeto((s) => s.planilha?.obra.arquivoIfc ?? null);
+  const temModelo = useProjeto((s) => !!s.tipoModelo);
+  const temCronograma = useProjeto((s) => !!s.cronograma);
+  const pendencia = !temPlanilha ? "Falta a planilha da obra." : !temModelo ? (ifcCitado ? `Falta o IFC ${ifcCitado} (ou use a casa da aba Modelo).` : "Falta a casa: preencha a aba Modelo ou envie um IFC.") : !temCronograma ? "Falta um cronograma válido: veja os erros no cartão da planilha." : null;
 
   return (
     <main className="assistente" data-testid="assistente">
@@ -49,6 +54,11 @@ export function Assistente() {
         <button type="button" className="btn" disabled={passo === 0} onClick={() => setPasso(passo - 1)}>
           ← {PASSOS[passo - 1] ?? ""}
         </button>
+        {passo === 0 && pendencia && (
+          <span className="pendencia" role="status" data-testid="pendencia">
+            {pendencia}
+          </span>
+        )}
         {passo < 2 && (
           <button type="button" className="btn primario" data-testid="avancar" disabled={!liberado(passo + 1)} onClick={() => setPasso(passo + 1)}>
             {PASSOS[passo + 1]} →
