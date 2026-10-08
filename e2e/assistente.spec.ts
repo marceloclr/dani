@@ -88,3 +88,16 @@ test("Gestão e ajustes guarda o estúdio completo e volta ao assistente", async
   await page.getByTestId("ir-assistente").click();
   await expect(page.getByTestId("assistente")).toBeVisible();
 });
+
+test("cada arquivo é conferido no envio: vídeo com a aba Falas vazia entra na hora; arquivo inválido é apontado no cartão", async ({ page }) => {
+  await page.goto("/");
+  await page.getByTestId("entrada-planilha").setInputFiles("public/modelos/obra-dani.xlsx"); // aba Falas vazia
+  await expect(page.getByTestId("estado-falas")).toHaveText("nenhum vídeo");
+  await page.getByTestId("entrada-falas").setInputFiles({ name: "minha-fala.mp4", mimeType: "video/mp4", buffer: FALA });
+  await expect(page.getByTestId("estado-falas")).toHaveText("1 vídeo · 8 s", { timeout: 30_000 });
+  await expect(page.getByTestId("lista-falas")).toContainText("minha-fala.mp4");
+  await expect(page.getByTestId("cartao-falas")).toContainText("ordem de envio");
+  await page.getByTestId("entrada-falas").setInputFiles({ name: "quebrado.mp4", mimeType: "video/mp4", buffer: Buffer.from("isto não é um vídeo") });
+  await expect(page.getByTestId("avisos-falas")).toContainText('"quebrado.mp4" não abriu');
+  await expect(page.getByTestId("estado-falas")).toHaveText("1 vídeo · 8 s");
+});

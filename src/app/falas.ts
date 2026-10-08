@@ -17,10 +17,23 @@ export interface FalasDoVideo {
   totalS: number;
   /** Configuração da camada da apresentadora para a sequência (tamanho e recorte da primeira fala). */
   cfg: ConfigApresentadora | null;
+  /** Aba Falas vazia: as falas são os vídeos recebidos, na ordem de envio. */
+  automaticas: boolean;
+  /** Vídeos recebidos que a aba Falas não cita (ficam de fora do vídeo). */
+  naoCitados: string[];
+}
+
+/** Aba Falas vazia: cada vídeo recebido vira uma fala, na ordem de envio, sobre a obra e com recorte por IA. */
+export function falasAutomaticas(recebidos: Map<string, { nome: string }>): LinhaFala[] {
+  return [...recebidos.values()].map((a, i) => ({ ordem: i + 1, arquivo: a.nome, assunto: "", cena: "sobre-obra", recorte: "ia" }));
 }
 
 /** Puro (o Blob só passa adiante): testado no Node com objetos no lugar dos arquivos. */
-export function montarFalas(linhas: LinhaFala[], recebidos: Map<string, Pick<ArquivoDeFala, "nome" | "blob" | "duracaoS" | "largura" | "altura">>, base: Partial<ConfigApresentadora> = {}): FalasDoVideo {
+export function montarFalas(linhasDaPlanilha: LinhaFala[], recebidos: Map<string, Pick<ArquivoDeFala, "nome" | "blob" | "duracaoS" | "largura" | "altura">>, base: Partial<ConfigApresentadora> = {}): FalasDoVideo {
+  const automaticas = !linhasDaPlanilha.length && recebidos.size > 0;
+  const linhas = automaticas ? falasAutomaticas(recebidos) : linhasDaPlanilha;
+  const citados = new Set(linhas.map((l) => l.arquivo.toLowerCase()));
+  const naoCitados = [...recebidos.values()].filter((a) => !citados.has(a.nome.toLowerCase())).map((a) => a.nome);
   const trechos: FalasDoVideo["trechos"] = [];
   const faltando: string[] = [];
   const avisos: string[] = [];
@@ -56,5 +69,5 @@ export function montarFalas(linhas: LinhaFala[], recebidos: Map<string, Pick<Arq
         acompanharFala: true,
       }
     : null;
-  return { trechos, faltando, avisos, cenas, totalS, cfg };
+  return { trechos, faltando, avisos, cenas, totalS, cfg, automaticas, naoCitados };
 }

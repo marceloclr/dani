@@ -78,3 +78,25 @@ describe("falas da planilha × arquivos recebidos", async () => {
     expect(r.cfg).toMatchObject({ arquivo: "2 falas", recorte: "ia", largura: 1080, altura: 1920, duracaoS: r.totalS, acompanharFala: true });
   });
 });
+
+describe("aba Falas vazia", async () => {
+  const { montarFalas } = await import("../src/app/falas");
+  it("os vídeos recebidos viram as falas, na ordem de envio", () => {
+    const recebidos = new Map([
+      ["b.mp4", { nome: "B.mp4", blob: new Blob(["b"]), duracaoS: 5, largura: 1080, altura: 1920 }],
+      ["a.mp4", { nome: "a.mp4", blob: new Blob(["a"]), duracaoS: 7, largura: 1080, altura: 1920 }],
+    ]);
+    const r = montarFalas([], recebidos);
+    expect(r.automaticas).toBe(true);
+    expect(r.trechos.map((t) => [t.linha.arquivo, t.linha.cena, t.linha.recorte])).toEqual([["B.mp4", "sobre-obra", "ia"], ["a.mp4", "sobre-obra", "ia"]]);
+    expect(r.totalS).toBeCloseTo(12 + 2.5);
+    expect(r.naoCitados).toEqual([]);
+  });
+  it("com a aba preenchida, o vídeo que ela não cita fica de fora e é apontado", () => {
+    const recebidos = new Map([["extra.mp4", { nome: "extra.mp4", blob: new Blob(["x"]), duracaoS: 5, largura: 1080, altura: 1920 }]]);
+    const r = montarFalas([{ ordem: 1, arquivo: "fala.mp4", assunto: "", cena: "terreno", recorte: "ia" }], recebidos);
+    expect(r.automaticas).toBe(false);
+    expect(r.faltando).toEqual(["fala.mp4"]);
+    expect(r.naoCitados).toEqual(["extra.mp4"]);
+  });
+});

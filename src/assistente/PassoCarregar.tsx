@@ -22,11 +22,13 @@ interface PropsCartao {
   rotulo: string;
   dica: string;
   aoEscolher(f: File[]): Promise<void> | void;
+  /** Resultado da verificação do último envio (formato, leitura, nome). */
+  avisos?: string[];
   children?: ReactNode;
 }
 
 /** Cartão de um tipo de arquivo: zona de soltar, botão e o estado do que chegou. */
-function CartaoArquivo({ id, titulo, situacao, estado, aceitar, multiplos, rotulo, dica, aoEscolher, children }: PropsCartao) {
+function CartaoArquivo({ id, titulo, situacao, estado, aceitar, multiplos, rotulo, dica, aoEscolher, avisos = [], children }: PropsCartao) {
   const ref = useRef<HTMLInputElement>(null);
   const [sobre, setSobre] = useState(false);
   const [lendo, setLendo] = useState(false);
@@ -65,6 +67,14 @@ function CartaoArquivo({ id, titulo, situacao, estado, aceitar, multiplos, rotul
         </span>
       </header>
       {children}
+      {avisos.length > 0 && (
+        <ul className="avisos-cartao" role="status" data-testid={`avisos-${id}`}>
+          {avisos.slice(0, 6).map((a) => (
+            <li key={a}>{a}</li>
+          ))}
+          {avisos.length > 6 && <li className="tenue">e mais {avisos.length - 6}: veja todos no passo Conferir</li>}
+        </ul>
+      )}
       <div className="botoes">
         <button type="button" className="btn" data-tip={dica} disabled={lendo} onClick={() => ref.current?.click()}>
           {rotulo}
@@ -94,7 +104,8 @@ export function PassoCarregar({ falas }: { falas: FalasDoVideo }) {
   const nElementos = useProjeto((s) => s.elementos.length);
   const problemas = useProjeto((s) => s.problemasImportacao);
   const fotos = useProjeto((s) => s.fotos);
-  const [avisos, setAvisos] = useState<string[]>([]);
+  const [avisos, setAvisosDe] = useState<Record<string, string[]>>({});
+  const setAvisos = (id: string, a: string[]) => setAvisosDe((x) => ({ ...x, [id]: a }));
   const st = useProjeto.getState;
 
   const erros = problemas.filter((p) => p.nivel === "erro").length;
@@ -105,7 +116,7 @@ export function PassoCarregar({ falas }: { falas: FalasDoVideo }) {
   const fotosFaltando = fotosCitadas.filter((f) => !recebidasFotos.has(f.arquivo.toLowerCase()));
 
   const abrir = async ([f]: File[]) => {
-    setAvisos([]);
+    setAvisos("planilha", []);
     const ok = await abrirPlanilha(f.name, new Uint8Array(await f.arrayBuffer()));
     if (!ok) st().mostrarErro({ mensagem: "Esta não é a planilha da obra.", orientacao: "Use a planilha modelo: ela tem as abas Obra e Cronograma." });
     else st().mostrarErro(null);
@@ -122,6 +133,7 @@ export function PassoCarregar({ falas }: { falas: FalasDoVideo }) {
         rotulo={planilha ? "Trocar planilha" : "Enviar planilha"}
         dica="Planilha única (.xlsx) com as abas Obra, Modelo, Cronograma, Vínculos, Falas, Fotos, Vídeo e Documento."
         aoEscolher={abrir}
+        avisos={[...(avisos.planilha ?? []), ...problemas.map((p) => p.mensagem)]}
       >
         {planilha ? (
           <p className="resumo-cartao">
@@ -151,26 +163,32 @@ export function PassoCarregar({ falas }: { falas: FalasDoVideo }) {
         rotulo="Enviar IFC"
         dica="Modelo do arquiteto (IFC2x3, IFC4 ou IFC4x3). Sem IFC, a casa é gerada pelas medidas da aba Modelo."
         aoEscolher={async ([f]) => {
-          if (ifcCitado && f.name.toLowerCase() !== ifcCitado.toLowerCase()) setAvisos([`A planilha cita "${ifcCitado}" e foi enviado "${f.name}".`]);
+          setAvisos("ifc", ifcCitado && f.name.toLowerCase() !== ifcCitado.toLowerCase() ? [`A planilha cita "${ifcCitado}" e foi enviado "${f.name}".`] : []);
           await abrirIfcComoProjeto(f.name, await f.arrayBuffer());
         }}
+        avisos={avisos.ifc}
       />
 
       <CartaoArquivo
         id="falas"
         titulo="Vídeos da engenheira"
-        situacao={!planilha?.falas.length ? "opcional" : falas.faltando.length ? "falta" : "ok"}
-        estado={!planilha?.falas.length ? "sem falas na planilha" : `${falas.trechos.length} de ${planilha.falas.length}${falas.trechos.length ? ` · ${seg(falas.totalS - MARCA_S)}` : ""}`}
+        situacao={!falas.trechos.length && !falas.faltando.length ? "opcional" : falas.faltando.length ? "falta" : falas.naoCitados.length ? "aviso" : "ok"}
+        estado={
+          !falas.trechos.length && !falas.faltando.length ? "nenhum vídeo"
+            : falas.automaticas ? `${falas.trechos.length} vídeo${falas.trechos.length > 1 ? "s" : ""} · ${seg(falas.totalS - MARCA_S)}`
+              : `${falas.trechos.length} de ${falas.trechos.length + falas.faltando.length}${falas.trechos.length ? ` · ${seg(falas.totalS - MARCA_S)}` : ""}`
+        }
         aceitar="video/mp4,video/quicktime,video/webm,.mp4,.mov,.m4v,.webm"
         multiplos
         rotulo="Enviar vídeos"
-        dica="Um ou mais vídeos (MP4, MOV ou WebM). O nome de cada arquivo deve ser o da coluna arquivo da aba Falas."
-        aoEscolher={async (f) => setAvisos((await adicionarFalas(f)).avisos)}
+        dica="Um ou mais vídeos (MP4, MOV ou WebM). Cada um é aberto aqui para conferir formato, imagem e duração. Com a aba Falas preenchida, o nome do arquivo deve ser o da coluna arquivo."
+        aoEscolher={async (f) => setAvisos("falas", (await adicionarFalas(f)).avisos)}
+        avisos={avisos.falas}
       >
-        {!!planilha?.falas.length && (
+        {(falas.trechos.length > 0 || falas.faltando.length > 0 || falas.naoCitados.length > 0) && (
           <ol className="lista-arquivos" data-testid="lista-falas">
-            {planilha.falas.map((l) => {
-              const t = falas.trechos.find((x) => x.linha === l);
+            {(falas.automaticas ? falas.trechos.map((t) => t.linha) : planilha?.falas ?? []).map((l) => {
+              const t = falas.trechos.find((x) => x.linha.arquivo.toLowerCase() === l.arquivo.toLowerCase());
               return (
                 <li key={l.arquivo} data-ok={!!t}>
                   <span className="mono">{l.arquivo}</span>
@@ -178,8 +196,15 @@ export function PassoCarregar({ falas }: { falas: FalasDoVideo }) {
                 </li>
               );
             })}
+            {falas.naoCitados.map((n) => (
+              <li key={n} data-ok="fora">
+                <span className="mono">{n}</span>
+                <span className="tenue">não citado na aba Falas</span>
+              </li>
+            ))}
           </ol>
         )}
+        {falas.automaticas && <p className="nota-cartao">Aba Falas vazia: os vídeos entram na ordem de envio.</p>}
       </CartaoArquivo>
 
       <CartaoArquivo
@@ -191,16 +216,10 @@ export function PassoCarregar({ falas }: { falas: FalasDoVideo }) {
         multiplos
         rotulo="Enviar fotos"
         dica="Fotos JPEG, PNG ou WebP. Data, local, descrição e etapa vêm da aba Fotos, pelo nome do arquivo."
-        aoEscolher={async (f) => setAvisos((await adicionarFotos(f)).avisos)}
+        aoEscolher={async (f) => setAvisos("fotos", (await adicionarFotos(f)).avisos)}
+        avisos={avisos.fotos}
       />
 
-      {avisos.length > 0 && (
-        <ul className="avisos-carga" role="status" data-testid="avisos-carga">
-          {avisos.map((a) => (
-            <li key={a}>{a}</li>
-          ))}
-        </ul>
-      )}
     </div>
   );
 }

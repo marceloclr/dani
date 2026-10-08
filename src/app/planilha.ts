@@ -1,6 +1,8 @@
 // Planilha única no app (ADR-29): abrir aplica cada aba ao estado; exportar faz o caminho inverso, para levar
 // à planilha o que foi ajustado na área de Gestão.
 import { carregarParametrico } from "./carregamento";
+import { arquivosDeFala } from "./anexos";
+import { falasAutomaticas } from "./falas";
 import { criarProjeto, nomeSeguro } from "./projetos";
 import { lerPlanilha } from "../planilha/ler";
 import { escreverPlanilha } from "../planilha/escrever";
@@ -89,7 +91,8 @@ export function planilhaDoEstado(s: Estado = useProjeto.getState()): ProjetoPlan
     modelo: s.tipoModelo === "PARAMETRICO" ? s.parametros : null,
     cronograma: s.cronograma,
     vinculos: s.excecoes,
-    falas: pl?.falas ?? [],
+    // aba Falas vazia: os vídeos recebidos, na ordem de envio, viram as linhas da aba
+    falas: pl?.falas.length ? pl.falas : falasAutomaticas(arquivosDeFala()),
     // fotos já enviadas valem mais que as só citadas na planilha
     fotos: s.fotos.length ? s.fotos.map((f) => ({ arquivo: f.arquivo, dia: f.dia, local: f.local, descricao: f.descricao, etapa: f.etapa })) : pl?.fotos ?? [],
     video: {
