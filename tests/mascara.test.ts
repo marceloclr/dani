@@ -110,3 +110,24 @@ describe("divisas do lote: mureta com gradil na frente (ADR-33)", async () => {
     expect(trechosDoMuro(lote, { zFachada: 7, xPorta: null }).filter((m) => m.tipo === "baixo" && m.z1 - m.z0 > 1)).toHaveLength(0);
   });
 });
+
+describe("casas do outro lado da rua não fazem sombra na rua (ADR-33)", async () => {
+  const THREE = await import("three");
+  const { montarEntorno } = await import("../src/rendering/ambiente");
+  it("só as casas atrás da câmera (em frente ao lote) ficam sem sombra; as dos lados e do fundo têm", () => {
+    const lote = { x0: -6, x1: 6, z0: -12, z1: 6 };
+    const g = montarEntorno(new Map(), lote, 0, [0, 2, -3], 8, { zFachada: 1, xPorta: 0 });
+    const casas: { z: number; sombra: boolean }[] = [];
+    g.traverse((o) => {
+      if (o.userData.ocultavel && o instanceof THREE.Group && o.children.every((m) => m instanceof THREE.Mesh)) {
+        const m = o.children[0] as InstanceType<typeof THREE.Mesh>;
+        casas.push({ z: m.position.z, sombra: m.castShadow });
+      }
+    });
+    const emFrente = casas.filter((c) => c.z > lote.z1 + 10), outras = casas.filter((c) => c.z <= lote.z1 + 10);
+    expect(emFrente.length).toBeGreaterThan(5);
+    expect(emFrente.every((c) => !c.sombra)).toBe(true);
+    expect(outras.length).toBeGreaterThan(5);
+    expect(outras.every((c) => c.sombra)).toBe(true);
+  });
+});

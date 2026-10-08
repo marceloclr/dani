@@ -842,7 +842,8 @@ O sobrado de exemplo passou a ter Fortaleza e a frente para 70° (lés-nordeste)
    - **causa:** a luz Dia usa o sol real do dia simulado (ADR-26, ADR-31); em datas em que o sol a 35° passa por trás da casa (em Fortaleza, no inverno, ele fica ao norte), a frente ficava na sombra e as sombras vinham para a câmera;
    - **regra:** se o sol real está a até 60° da frente, fica; senão, gira para 40° da frente, do lado em que está (manhã ou tarde), com a mesma elevação;
    - **onde vale:** só no vídeo com a luz Dia. A viewport, a prévia, a Insolação e as outras luzes continuam com o sol real.
-8. **Esmaecimento para a marca:** nos primeiros 0,4 s da cena Marca, a vinheta entra sobre o último quadro da cena de obra anterior (opacidade em curva suave).
+8. **Casas do outro lado da rua sem sombra** (avaliação do vídeo das 15h04): com a frente ao sol, essas casas ficam atrás da câmera nas vistas da frente, e a sombra dos telhados caía na rua em degraus, sem a casa no quadro. O usuário viu isso como "parte de uma escada" sobre o vídeo, entre 20 e 30 s. Só elas deixam de fazer sombra; as casas dos lados e do fundo continuam fazendo.
+9. **Esmaecimento para a marca:** nos primeiros 0,4 s da cena Marca, a vinheta entra sobre o último quadro da cena de obra anterior (opacidade em curva suave).
 
 **Fora do escopo.**
 - **Sombra no chão sob a pessoa:** os pés ficam fora do quadro; a sombra deslocada que já existe continua.
@@ -854,6 +855,7 @@ O sobrado de exemplo passou a ter Fortaleza e a frente para 70° (lés-nordeste)
 - **Vitest:**
   - trecho interno no voo sintético e no sobrado real (começa de 0,5 a 2 m da porta, olhando para ela, e está dentro aos 2 s);
   - divisas (muro alto só atrás da fachada, portão no eixo da porta, casa encostada no alinhamento);
-  - sol do vídeo (mantém o sol que já ilumina a frente; gira o de trás para 40°, do lado certo).
+  - sol do vídeo (mantém o sol que já ilumina a frente; gira o de trás para 40°, do lado certo);
+  - casas do outro lado da rua sem sombra; as dos lados e do fundo com sombra.
 - **Quadros do sobrado** (20/04 e pronto, vistas Externa e Isométrica): obra visível pela grade, gramado claro, rua cinza.
 - **Playwright:** a bateria inteira.

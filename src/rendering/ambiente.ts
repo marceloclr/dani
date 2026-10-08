@@ -485,13 +485,15 @@ export function montarEntorno(f: Map<Foto, MapasFoto>, lote: { x0: number; x1: n
   // casas vizinhas: dos dois lados e do outro lado da rua, sempre além do voo do drone
   const longe = 2.6 * raio;
   // cada casa vizinha e cada árvore é um grupo "ocultável": some no quadro em que fica entre a câmera e a obra
-  const casa = (x: number, z: number) => {
+  // as casas do outro lado da rua ficam atrás da câmera nas vistas da frente: com o sol vindo da frente, a sombra
+  // delas caía na rua em degraus, sem a casa no quadro (ADR-33); por isso não fazem sombra
+  const casa = (x: number, z: number, sombra = true) => {
     const w = 7 + rnd() * 3, d = 9 + rnd() * 3, h = rnd() < 0.35 ? 5.8 : 3.1;
     const cor = CORES_VIZINHOS[Math.floor(rnd() * CORES_VIZINHOS.length)];
     const grupo = new THREE.Group();
     grupo.userData.ocultavel = true;
-    grupo.add(add(caixaMetros(w, h, d), tingido("reboco", cor, "#e2dac8"), x, y + h / 2, z));
-    grupo.add(add(telhado(w, d, 1.4 + rnd() * 0.5, 0.5), tingido("telha-ceramica", [150 + rnd() * 20, 82, 48], "#96523a"), x, y + h, z)); // cumeeira paralela à rua
+    grupo.add(add(caixaMetros(w, h, d), tingido("reboco", cor, "#e2dac8"), x, y + h / 2, z, sombra));
+    grupo.add(add(telhado(w, d, 1.4 + rnd() * 0.5, 0.5), tingido("telha-ceramica", [150 + rnd() * 20, 82, 48], "#96523a"), x, y + h, z, sombra)); // cumeeira paralela à rua
     g.add(grupo);
   };
   for (const lado of [-1, 1]) {
@@ -501,7 +503,7 @@ export function montarEntorno(f: Map<Foto, MapasFoto>, lote: { x0: number; x1: n
       casa(x, lote.z1 - 9);
     }
   }
-  for (let k = -5; k <= 5; k++) casa(cx + k * 12 + (rnd() - 0.5) * 2, zRua + 8 + 2.5 + 9);
+  for (let k = -5; k <= 5; k++) casa(cx + k * 12 + (rnd() - 0.5) * 2, zRua + 8 + 2.5 + 9, false);
   // fundo: uma fileira de casas atrás do lote, também além do voo
   const zFundo = Math.min(lote.z0 - 7, centro[2] - longe - 5);
   for (let k = -4; k <= 4; k++) casa(cx + k * 12 + (rnd() - 0.5) * 3, zFundo);
