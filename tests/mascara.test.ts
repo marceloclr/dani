@@ -75,3 +75,18 @@ describe("volume da fala (ADR-31)", async () => {
     expect(ganhoDeNormalizacao([new Float32Array(16000)], 8000).ganho).toBe(1);
   });
 });
+
+describe("entorno não tampa a obra (ADR-31)", async () => {
+  const THREE = await import("three");
+  const { tampamAVista } = await import("../src/rendering/ambiente");
+  const casa = new THREE.Vector3(0, 3, 0);
+  const caixa = (x0: number, z0: number, x1: number, z1: number, h = 6) => new THREE.Box3(new THREE.Vector3(x0, 0, z0), new THREE.Vector3(x1, h, z1));
+  it("some o vizinho entre a câmera e a casa, e o que contém a câmera; os outros ficam", () => {
+    const cam = new THREE.Vector3(0, 4, 40);
+    const r = tampamAVista(cam, [casa], [caixa(-4, 18, 4, 26), caixa(20, -5, 28, 5), caixa(-3, 37, 3, 43)]);
+    expect(r).toEqual([true, false, true]);
+  });
+  it("vizinho atrás da casa não some", () => {
+    expect(tampamAVista(new THREE.Vector3(0, 4, 40), [casa], [caixa(-4, -26, 4, -18)])).toEqual([false]);
+  });
+});

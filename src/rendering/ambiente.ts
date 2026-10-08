@@ -431,11 +431,15 @@ export function montarEntorno(f: Map<Foto, MapasFoto>, lote: { x0: number; x1: n
 
   // casas vizinhas: dos dois lados e do outro lado da rua, sempre além do voo do drone
   const longe = 2.6 * raio;
+  // cada casa vizinha e cada árvore é um grupo "ocultável": some no quadro em que fica entre a câmera e a obra
   const casa = (x: number, z: number) => {
     const w = 7 + rnd() * 3, d = 9 + rnd() * 3, h = rnd() < 0.35 ? 5.8 : 3.1;
     const cor = CORES_VIZINHOS[Math.floor(rnd() * CORES_VIZINHOS.length)];
-    add(caixaMetros(w, h, d), tingido("reboco", cor, "#e2dac8"), x, y + h / 2, z);
-    add(telhado(w, d, 1.4 + rnd() * 0.5, 0.5), tingido("telha-ceramica", [150 + rnd() * 20, 82, 48], "#96523a"), x, y + h, z); // cumeeira paralela à rua
+    const grupo = new THREE.Group();
+    grupo.userData.ocultavel = true;
+    grupo.add(add(caixaMetros(w, h, d), tingido("reboco", cor, "#e2dac8"), x, y + h / 2, z));
+    grupo.add(add(telhado(w, d, 1.4 + rnd() * 0.5, 0.5), tingido("telha-ceramica", [150 + rnd() * 20, 82, 48], "#96523a"), x, y + h, z)); // cumeeira paralela à rua
+    g.add(grupo);
   };
   for (const lado of [-1, 1]) {
     for (let k = 0; k < 4; k++) {
@@ -453,7 +457,29 @@ export function montarEntorno(f: Map<Foto, MapasFoto>, lote: { x0: number; x1: n
   for (let x = -L / 2; x <= L / 2; x += 10) {
     if (Math.abs(cx + x - centro[0]) < 1.8 * raio) continue;
     const r = 1.8 + rnd() * 0.8, h = 5 + rnd() * 2;
-    g.add(arvore(new THREE.Box3(new THREE.Vector3(cx + x - r, y, zCal + 1.6 - r), new THREE.Vector3(cx + x + r, y + h, zCal + 1.6 + r)), 500 + Math.round(x)));
+    const a = arvore(new THREE.Box3(new THREE.Vector3(cx + x - r, y, zCal + 1.6 - r), new THREE.Vector3(cx + x + r, y + h, zCal + 1.6 + r)), 500 + Math.round(x));
+    a.userData.ocultavel = true;
+    g.add(a);
   }
   return g;
+}
+
+/**
+ * O que do entorno tampa a obra vista de `camera` (ADR-31): grupos ocultáveis com a câmera dentro (com folga)
+ * ou cortando algum dos raios da câmera ao centro, ao topo e às laterais da obra. Puro sobre caixas: testado no Node.
+ */
+export function tampamAVista(camera: THREE.Vector3, alvos: THREE.Vector3[], caixas: THREE.Box3[], folga = 0.6): boolean[] {
+  const raio = new THREE.Ray();
+  const dir = new THREE.Vector3(), ponto = new THREE.Vector3();
+  return caixas.map((c) => {
+    const b = c.clone().expandByScalar(folga);
+    if (b.containsPoint(camera)) return true;
+    return alvos.some((alvo) => {
+      dir.subVectors(alvo, camera);
+      const dist = dir.length();
+      raio.set(camera, dir.normalize());
+      const hit = raio.intersectBox(c, ponto);
+      return !!hit && hit.distanceTo(camera) < dist;
+    });
+  });
 }

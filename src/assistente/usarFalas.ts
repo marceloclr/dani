@@ -8,10 +8,12 @@ export function usarFalas(): FalasDoVideo {
   const linhas = useProjeto((s) => s.planilha?.falas);
   const ajuste = useProjeto((s) => s.video.apresentadora);
   const arquivos = useSyncExternalStore(aoMudarFalas, arquivosDeFala);
-  const interno = useProjeto((s) => s.tipoModelo === "IFC");
+  // vídeo curto (Reels): o passeio final é sempre uma volta por fora; o passeio interno do drone, comprimido em
+  // poucos segundos, corria colado às paredes (ADR-31). Ele continua na Gestão, para vídeos longos.
+  const interno = false;
   return useMemo(() => {
     // posição, altura e croma ajustados na Gestão continuam valendo para a sequência
     const base = ajuste ? { posicao: ajuste.posicao, alturaFracao: ajuste.alturaFracao, chave: ajuste.chave, tolerancia: ajuste.tolerancia, suavidade: ajuste.suavidade } : {};
     return montarFalas(linhas ?? [], arquivos, base, interno);
-  }, [linhas, arquivos, ajuste, interno]);
+  }, [linhas, arquivos, ajuste]);
 }

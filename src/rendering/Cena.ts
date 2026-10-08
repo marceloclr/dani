@@ -14,7 +14,7 @@ import type { MalhaElemento } from "../bim/parseIfc";
 import { parametros, type PosicaoElemento, type PosicaoFila } from "../fourd/animacao";
 import type { Desvio, EstadoElemento, ModoAnimacao, PlantaSobreposta } from "../types";
 import { distanciaDeEnquadramento, poseDaPosicao, poseDoPreset, posicaoDaPose, type Enquadramento, type Pose, type Preset } from "./cameras";
-import { arvore, carregarFotos, criarFundo, montarChao, montarEntorno, neblina, pessoa, semRepeticao, tingir, type Foto, type MapasFoto } from "./ambiente";
+import { arvore, carregarFotos, criarFundo, montarChao, montarEntorno, neblina, tampamAVista, pessoa, semRepeticao, tingir, type Foto, type MapasFoto } from "./ambiente";
 import { aberturaDaPorta, anguloDaPorta, montarVoo, type EstadoPorta, type QuadroCamera, type Voo } from "./drone";
 import type { Solido } from "./navegacao";
 import { CLASSES_HUMANIZACAO } from "../fourd/regras";
@@ -406,6 +406,7 @@ export class Cena {
     composer.setSize(largura, altura);
     return {
       desenhar: (cam, quadro) => {
+        this.liberarVista(cam);
         // o sol andou: refaz o céu e os reflexos deste renderizador; exposição e brilho seguem o sol
         if (versaoFundo !== this.versaoCeu) {
           fundo.dispose();
@@ -520,6 +521,21 @@ export class Cena {
       this.vooCache = montarVoo(this.solidos(), { min: this.caixa.min.toArray(), max: this.caixa.max.toArray() }, e.centro, e.raio);
     }
     return this.vooCache;
+  }
+
+  /** Esconde, neste quadro, as casas vizinhas e árvores do entorno que tampam a obra (ADR-31). */
+  private liberarVista(cam: THREE.Camera): void {
+    const grupos: THREE.Object3D[] = [];
+    this.ambiente.traverse((o) => {
+      if (o.userData.ocultavel) grupos.push(o);
+    });
+    if (!grupos.length || this.caixa.isEmpty()) return;
+    const c = this.caixa.getCenter(new THREE.Vector3());
+    const t = this.caixa;
+    const alvos = [c, new THREE.Vector3(c.x, t.max.y, c.z), new THREE.Vector3(t.min.x, c.y, c.z), new THREE.Vector3(t.max.x, c.y, c.z), new THREE.Vector3(c.x, t.min.y + 0.5, t.max.z)];
+    const caixas = grupos.map((o) => (o.userData.caixa ??= new THREE.Box3().setFromObject(o)) as THREE.Box3);
+    const pos = cam.getWorldPosition(new THREE.Vector3());
+    tampamAVista(pos, alvos, caixas).forEach((tampa, i) => (grupos[i].visible = !tampa));
   }
 
   /** Chão até o horizonte, cava, árvores e pessoas (aparência realista). */
