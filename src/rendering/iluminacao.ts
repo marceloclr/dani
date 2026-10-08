@@ -51,7 +51,7 @@ type Numericos = Omit<ParametrosLuz, "brilho" | "ceuNoturno">;
 /** Pontos de controle pela elevação do sol (graus), do mais alto ao mais baixo. Abaixo de 0°, o "sol" é o luar. */
 const FAIXAS: [number, Numericos][] = [
   // dia: sol mais forte que o céu (sombra com contraste), céu limpo e azul, exposição contida para o branco não estourar (ADR-31)
-  [25, { corSol: 0xfff1de, intensidadeSol: 3.2, corCeu: 0xd4e3f4, corChao: 0x6e5c46, intensidadeCeu: 0.72, intensidadeAmbiente: 0.34, luminarias: 0, exposicao: 0.74, turbidez: 2.6, rayleigh: 1.9, corNeblina: 0xbcd0e6 }],
+  [25, { corSol: 0xfff1de, intensidadeSol: 3.2, corCeu: 0xd4e3f4, corChao: 0x6e5c46, intensidadeCeu: 0.72, intensidadeAmbiente: 0.34, luminarias: 0, exposicao: 0.74, turbidez: 2.0, rayleigh: 2.4, corNeblina: 0xb4cae6 }],
   [10, { corSol: 0xffe0b0, intensidadeSol: 2.6, corCeu: 0xe6e0d4, corChao: 0x66553f, intensidadeCeu: 0.95, intensidadeAmbiente: 0.42, luminarias: 0, exposicao: 0.86, turbidez: 5.5, rayleigh: 1.6, corNeblina: 0xd4d3cc }],
   // entardecer (ADR-32): dourado no sol, mas céu limpo do azul ao laranja (turbidez baixa) e exposição contida;
   // a correção de cor não aquece de novo (temperatura 0 com o sol baixo)

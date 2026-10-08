@@ -4,6 +4,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 import { IfcAPI } from "web-ifc";
 import { lerIfc } from "../src/bim/parseIfc";
 import { FRACAO_CONSTRUCAO, PARADA_FINAL, VELOCIDADE_VOO, diaDoVoo, duracaoDoVooAutomatico, girarNaDobradica, montarVoo } from "../src/rendering/drone";
+import { trechoInterno } from "../src/rendering/montagem";
 import { caixaDe, gradeDoPavimento, livreEm, type Solido } from "../src/rendering/navegacao";
 
 const api = new IfcAPI();
@@ -43,6 +44,18 @@ describe("voo no sobrado de exemplo", () => {
     const ys = voo.passeio.map((p) => p[1]);
     expect(Math.max(...ys) - Math.min(...ys)).toBeGreaterThan(2.5); // sobe ao pavimento de cima
     expect(voo.passeio[voo.passeio.length - 1][1]).toBeLessThan(2); // e desce de novo
+  });
+  it("por dentro (ADR-33): começa de frente para a porta, a menos de 2 m, e está dentro aos 2 s", () => {
+    const e = voo.entrada!;
+    const fora = (p: [number, number, number]) => (p[0] - e.centro[0]) * e.normal[0] + (p[2] - e.centro[2]) * e.normal[1];
+    const q0 = voo.quadro(trechoInterno(0, voo, 8));
+    expect(fora(q0.pos)).toBeGreaterThan(0.5);
+    expect(fora(q0.pos)).toBeLessThan(2);
+    const olhar = [q0.alvo[0] - q0.pos[0], q0.alvo[2] - q0.pos[2]], k = Math.hypot(olhar[0], olhar[1]);
+    expect(-(olhar[0] * e.normal[0] + olhar[1] * e.normal[1]) / k).toBeGreaterThan(0.8); // olhando para a porta
+    expect(fora(voo.quadro(trechoInterno(2 / 8, voo, 8)).pos)).toBeLessThan(0); // já entrou
+    expect(voo.marcas.naPorta).toBeGreaterThan(voo.marcas.inicioInterno);
+    expect(voo.marcas.naPorta).toBeLessThan(voo.marcas.inicioVoltaFinal);
   });
   it("o passeio do térreo não atravessa paredes", () => {
     const g = gradeDoPavimento(s.solidos, 0, { x0: s.caixa.min[0] - 5, x1: s.caixa.max[0] + 5, z0: s.caixa.min[2] - 5, z1: s.caixa.max[2] + 5 }, 0.1, 0.1);

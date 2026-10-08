@@ -6,7 +6,7 @@ import { MUNICIPIOS } from "../fourd/feriados";
 import { horarioDoVoo, instanteDaHoraDourada, resolverContexto, type ContextoSol } from "../rendering/cicloDia";
 import type { Voo } from "../rendering/drone";
 import { minutosDaLuz } from "../rendering/iluminacao";
-import { FACHADAS, cosIncidencia, direcaoNaCena, minutosDaLuzDia, nascerEPor, posicaoDoSol, rumoDaFachada, type Efemerides, type Fachada, type PosicaoSol } from "../rendering/sol";
+import { FACHADAS, cosIncidencia, direcaoNaCena, minutosDaLuzDia, nascerEPor, posicaoDoSol, rumoDaFachada, solNaFachada, type Efemerides, type Fachada, type PosicaoSol } from "../rendering/sol";
 import type { P3 } from "../rendering/navegacao";
 
 type Estado = ReturnType<typeof useProjeto.getState>;
@@ -72,9 +72,11 @@ export function dadosDeInsolacao(r: SolCalculado): { arco: P3[]; sol: P3 | null;
 }
 
 /** Põe na cena o sol do projeto (ou o de `minutos`/`diaCivil`, quando informados) e a insolação, se ligada. */
-export function aplicarSol(cena: Cena, minutos?: number, diaCivil?: number): SolCalculado {
+export function aplicarSol(cena: Cena, minutos?: number, diaCivil?: number, fachadaAoSol = false): SolCalculado {
   const r = solDoProjeto(useProjeto.getState(), minutos, diaCivil);
-  cena.definirSol(direcaoNaCena(r.posicao, r.ctx.norte), r.posicao.elevacao);
+  // no vídeo com a luz Dia, a fachada frontal sempre ao sol (ADR-33); a insolação continua com o sol real
+  const pos = fachadaAoSol ? solNaFachada(r.posicao, r.ctx.norte) : r.posicao;
+  cena.definirSol(direcaoNaCena(pos, r.ctx.norte), pos.elevacao);
   cena.definirInsolacao(insolacaoAtiva && useProjeto.getState().aparencia3d === "realista" ? dadosDeInsolacao(r) : null);
   return r;
 }

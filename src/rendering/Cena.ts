@@ -7,14 +7,14 @@ import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { GTAOPass } from "three/addons/postprocessing/GTAOPass.js";
 import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
-import { passoAcabamento, temperaturaDoSol } from "./acabamento";
+import { AJUSTE_PADRAO, passoAcabamento, temperaturaDoSol } from "./acabamento";
 import { materialRealista, uvsPorProjecao, type Aparencia3D } from "./aparencia";
 import { ESCALA_M, desenharTextura, type TipoTextura } from "./texturas";
 import type { MalhaElemento } from "../bim/parseIfc";
 import { parametros, type PosicaoElemento, type PosicaoFila } from "../fourd/animacao";
 import type { Desvio, EstadoElemento, ModoAnimacao, PlantaSobreposta } from "../types";
 import { distanciaDeEnquadramento, poseDaPosicao, poseDoPreset, posicaoDaPose, type Enquadramento, type Pose, type Preset } from "./cameras";
-import { arvore, carregarFotos, criarFundo, montarChao, montarEntorno, neblina, tampamAVista, pessoa, semRepeticao, tingir, type Foto, type MapasFoto } from "./ambiente";
+import { arvore, carregarFotos, criarFundo, montarChao, montarEntorno, neblina, tampamAVista, pessoa, semRepeticao, tingir, TOM_GRAMADO, type Foto, type MapasFoto } from "./ambiente";
 import { aberturaDaPorta, anguloDaPorta, montarVoo, type EstadoPorta, type QuadroCamera, type Voo } from "./drone";
 import type { Solido } from "./navegacao";
 import { CLASSES_HUMANIZACAO } from "../fourd/regras";
@@ -423,6 +423,8 @@ export class Cena {
         gtao.camera = cam;
         acabamento.definirQuadro(quadro ?? 0);
         acabamento.uniforms.temperatura.value = temperaturaDoSol(this.solElev);
+        // tom azul do degradê só de dia: no entardecer o céu já tem cor (ADR-33)
+        acabamento.uniforms.tomCeu.value = temperaturaDoSol(this.solElev) / AJUSTE_PADRAO.temperatura;
         composer.render();
         this.scene.environment = anterior;
         this.scene.background = ceuAnterior;
@@ -572,8 +574,9 @@ export class Cena {
     this.ambiente.add(montarChao(this.fotos, buraco, y, Math.min(this.caixa.min.y, y - 0.5) - 0.1));
     // rua, calçada, muros, vizinhos e árvores: a casa num lote urbano, não num campo vazio (ADR-31)
     const e = this.enquadramento();
-    this.ambiente.add(montarEntorno(this.fotos, buraco, y, e.centro, e.raio));
     const voo = this.voo();
+    // mureta com gradil da frente até a fachada, portão no eixo da porta de entrada (ADR-33)
+    this.ambiente.add(montarEntorno(this.fotos, buraco, y, e.centro, e.raio, { zFachada: this.caixa.max.z, xPorta: voo?.entrada?.centro[0] ?? null }));
     voo?.pessoas.forEach((p, i) => this.pessoas.add(pessoa(p.pos, p.olhar, 31 + i * 17)));
     this.pessoas.visible = false;
     this.ambiente.visible = this.aparencia === "realista";
@@ -734,7 +737,7 @@ export class Cena {
       const m = new Classe({ ...comuns, map: foto.map, normalMap: foto.normalMap, roughnessMap: foto.roughnessMap, roughness: Math.min(1, rugosidade + 0.15), metalness: metalico });
       const alvo = TOM_FOTO[tipo as Foto];
       if (alvo) m.color.setRGB(...tingir(tipo as Foto, alvo));
-      if (tipo === "grama") m.color.set("#b9d79a");
+      if (tipo === "grama") m.color.setRGB(...tingir("grama", TOM_GRAMADO)); // verde seco de lote, não marrom (ADR-33)
       if (m instanceof THREE.MeshPhysicalMaterial) {
         m.clearcoat = 0.35;
         m.clearcoatRoughness = 0.12;

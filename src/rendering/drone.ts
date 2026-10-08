@@ -163,7 +163,7 @@ export interface Voo {
   /** Comprimento do voo, em metros (velocidade = comprimento ÷ duração do vídeo). */
   comprimento: number;
   /** Instantes (0..1) das fases do voo, para o ciclo do dia (ADR-26). */
-  marcas: { fimConstrucao: number; inicioInterno: number; inicioVoltaFinal: number; fimMovimento: number };
+  marcas: { fimConstrucao: number; inicioInterno: number; naPorta: number; inicioVoltaFinal: number; fimMovimento: number };
   /** Centro da casa (em volta do qual o drone gira). */
   centro: P3;
 }
@@ -647,9 +647,11 @@ export function montarVoo(solidos: Solido[], caixa: { min: P3; max: P3 }, centro
     { fracao: 1 - FRACAO_CONSTRUCAO, quadro: pronto },
   ]);
   // marcas das fases no tempo bruto: a obra pronta ocupa a segunda metade, e nela as fachadas 30 %,
-  // o interior 45 % e a volta final 25 %
+  // o interior 45 % e a volta final 25 %; "na porta" = fim da transição da volta até a porta, de frente para ela (ADR-33)
   const R2 = 1 - FRACAO_CONSTRUCAO;
-  const vc = velocidadeConstante(bruto, [FRACAO_CONSTRUCAO, FRACAO_CONSTRUCAO + R2 * 0.3, FRACAO_CONSTRUCAO + R2 * 0.75]);
+  const pesoInterno = interno.reduce((s, t) => s + t.peso, 0) || 1;
+  const fracaoPorta = passeio.length > 1 ? interno[0].peso / pesoInterno : 0;
+  const vc = velocidadeConstante(bruto, [FRACAO_CONSTRUCAO, FRACAO_CONSTRUCAO + R2 * 0.3, FRACAO_CONSTRUCAO + R2 * (0.3 + 0.45 * fracaoPorta), FRACAO_CONSTRUCAO + R2 * 0.75]);
   // parada final: o tempo de PARADA_FINAL fica na vista da fachada frontal (o voo anda no resto)
   const andando = 1 - PARADA_FINAL;
   const comParada = (u: number) => vc.quadro(Math.min(u / andando, 1));
@@ -680,6 +682,6 @@ export function montarVoo(solidos: Solido[], caixa: { min: P3; max: P3 }, centro
   const listaFolhas = folhas(todasPortas, [passagem, passeio]);
   const metrosPorU = vc.comprimento / andando; // metros por unidade de u (com a parada)
   const quadro = olharSuave(comPortas(comParada, metrosPorU, listaFolhas), metrosPorU);
-  const marcas = { fimConstrucao: vc.marcas[0] * andando, inicioInterno: vc.marcas[1] * andando, inicioVoltaFinal: vc.marcas[2] * andando, fimMovimento: andando };
+  const marcas = { fimConstrucao: vc.marcas[0] * andando, inicioInterno: vc.marcas[1] * andando, naPorta: vc.marcas[2] * andando, inicioVoltaFinal: vc.marcas[3] * andando, fimMovimento: andando };
   return { quadro, passeio, temEscada: !!escada, entrada, resumo, pessoas, folhas: listaFolhas, fimConstrucao: marcas.fimConstrucao, comprimento: vc.comprimento, marcas, centro };
 }

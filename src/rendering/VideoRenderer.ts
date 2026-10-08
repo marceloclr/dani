@@ -11,7 +11,7 @@ import { diaDoQuadro, totalDeQuadros } from "./cameras";
 import { desenharAssinatura, desenharVinheta, opacidadeVinheta, sobrepor, type Sobreposicao, type TextoMarca } from "./marcaVideo";
 import { abrirQuadros, audioDaFala, criarCamadaApresentadora, pedacosDeAudio, type CamadaApresentadora, type FonteFala, type QuadrosDaFala } from "./apresentadora";
 import { cantoDaAssinatura, ganhoDeNormalizacao, type ConfigApresentadora } from "./composicao";
-import { cenaNoTempo, obraNaCena, poseDaCena, quadroDoVooNaCena, type Cena as CenaMontagem } from "./montagem";
+import { ESMAECER_MARCA_S, cenaNoTempo, obraNaCena, suaveMarca, poseDaCena, quadroDoVooNaCena, type Cena as CenaMontagem } from "./montagem";
 import type { Enquadramento } from "./cameras";
 import type { Voo } from "./drone";
 
@@ -205,21 +205,28 @@ export async function gerarVideo(cena: Cena, pedido: PedidoVideo): Promise<Arqui
     if (c.tipo !== "fala" && c.tipo !== "marca") p.aplicarDia(obraNaCena(c, u) * p.diasDeObra);
     p.aoQuadro?.(i, total);
     const img = fala ? await fala.proximo(i / p.fps) : null; // a leitura da fala é sequencial: avança sempre
-    if (c.tipo === "fala" || c.tipo === "marca") {
+    const obra = (cc: typeof c, uu: number, duracaoS: number) => {
+      if (cc.camera === "drone" && m.voo) cena.posicionarLivre(camera, quadroDoVooNaCena(cc, uu, m.voo, duracaoS));
+      else {
+        cena.atualizarPortas(null);
+        cena.posicionar(camera, poseDaCena(cc.camera === "drone" ? "orbita" : cc.camera, m.enquadramento, uu, cc.percurso));
+      }
+      desenhista.desenhar(camera, i);
+    };
+    // a marca entra esmaecendo sobre o último quadro da cena de obra anterior (ADR-33)
+    const naMarca = i / p.fps - ponto.inicio;
+    const anterior = c.tipo === "marca" && naMarca < ESMAECER_MARCA_S && ponto.indice > 0 ? cenaNoTempo(m.cenas, ponto.inicio - 1e-6, total / p.fps) : null;
+    if (anterior && anterior.cena.tipo === "obra") {
+      p.aplicarDia(obraNaCena(anterior.cena, 1) * p.diasDeObra);
+      obra(anterior.cena, 1, anterior.fim - anterior.inicio);
+    } else if (c.tipo === "fala" || c.tipo === "marca") {
       renderer.setRenderTarget(null);
       renderer.setClearColor(0x000000, 1);
       renderer.clear();
-    } else {
-      if (c.camera === "drone" && m.voo) cena.posicionarLivre(camera, quadroDoVooNaCena(c, u, m.voo, ponto.fim - ponto.inicio));
-      else {
-        cena.atualizarPortas(null);
-        cena.posicionar(camera, poseDaCena(c.camera === "drone" ? "orbita" : c.camera, m.enquadramento, u, c.percurso));
-      }
-      desenhista.desenhar(camera, i);
-    }
+    } else obra(c, u, ponto.fim - ponto.inicio);
     if (c.tipo === "marca") {
       if (cartela) {
-        cartela.definirOpacidade(1);
+        cartela.definirOpacidade(anterior?.cena.tipo === "obra" ? suaveMarca(naMarca / ESMAECER_MARCA_S) : 1);
         sobre(cartela);
       }
       return;

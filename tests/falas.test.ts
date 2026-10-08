@@ -102,7 +102,7 @@ describe("aba Falas vazia", async () => {
 });
 
 describe("passeio externo, interno ou ambos (ADR-32)", async () => {
-  const { roteiroDasFalas, CAMERAS_TOMADA, duracoes, MARCA_S, trechoInterno, ANTES_DA_PORTA_M, VELOCIDADE_INTERNA } = await import("../src/rendering/montagem");
+  const { roteiroDasFalas, CAMERAS_TOMADA, duracoes, MARCA_S, trechoInterno, ANTES_DA_PORTA_M, PASSEIO_DESDE_PORTA_M, VELOCIDADE_INTERNA } = await import("../src/rendering/montagem");
   const fala = [{ cena: "sobre-obra" as const, duracaoS: 20 }];
   const fim = (passeio: "externo" | "interno" | "ambos") => {
     const { cenas, totalS } = roteiroDasFalas(fala, { passeio });
@@ -126,11 +126,11 @@ describe("passeio externo, interno ou ambos (ADR-32)", async () => {
     expect(CAMERAS_TOMADA).not.toContain("superior");
     expect(CAMERAS_TOMADA).not.toContain("lateral");
   });
-  it("por dentro: começa 3,5 m antes da porta, anda 1 m/s e nunca passa da volta final", () => {
-    // voo sintético: 200 m andando em u de 0 a 0,9; porta em u = 0,5; volta final em u = 0,6 (20 m de interior)
-    const voo = { comprimento: 200, marcas: { fimConstrucao: 0.3, inicioInterno: 0.5, inicioVoltaFinal: 0.6, fimMovimento: 0.9 } };
+  it("por dentro: começa de frente para a porta, a 1,5 m, anda 1 m/s e nunca passa da volta final", () => {
+    // voo sintético: 200 m andando em u de 0 a 0,9; passeio a 3,5 m da porta em u = 0,5; volta final em u = 0,6
+    const voo = { comprimento: 200, marcas: { fimConstrucao: 0.3, inicioInterno: 0.45, naPorta: 0.5, inicioVoltaFinal: 0.6, fimMovimento: 0.9 } };
     const mPorU = 200 / 0.9;
-    expect(trechoInterno(0, voo, 8)).toBeCloseTo(0.5 - ANTES_DA_PORTA_M / mPorU);
+    expect(trechoInterno(0, voo, 8)).toBeCloseTo(0.5 + (PASSEIO_DESDE_PORTA_M - ANTES_DA_PORTA_M) / mPorU);
     expect((trechoInterno(1, voo, 8) - trechoInterno(0, voo, 8)) * mPorU).toBeCloseTo(VELOCIDADE_INTERNA * 8);
     // cena longa demais para o caminho: para na volta final
     expect(trechoInterno(1, voo, 60)).toBeCloseTo(0.6);

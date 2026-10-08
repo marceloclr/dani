@@ -1,6 +1,6 @@
 // Sol real (ADR-26): posição do sol em Fortaleza, nascer e pôr, convenção do norte e fachada ao sol.
 import { describe, expect, it } from "vitest";
-import { FORTALEZA, direcaoNaCena, fachadaAoSol, hora, nascerEPor, posicaoDoSol, rumo } from "../src/rendering/sol";
+import { FORTALEZA, direcaoNaCena, fachadaAoSol, hora, nascerEPor, posicaoDoSol, rumo, solNaFachada } from "../src/rendering/sol";
 import { diaCivil } from "../src/fourd/tempo";
 
 const d = (a: number, m: number, x: number) => diaCivil(a, m, x)!;
@@ -121,5 +121,18 @@ describe("luz Dia de fachada (ADR-31)", async () => {
     const s = minutosDaLuzDia(FORTALEZA, dia, 70);
     expect(s).toBeGreaterThan(7 * 60);
     expect(s).toBeLessThan(9 * 60);
+  });
+});
+
+describe("sol do vídeo na luz Dia: fachada frontal ao sol (ADR-33)", () => {
+  it("mantém o sol real quando ele já ilumina a frente", () => {
+    const p = { azimute: 30, elevacao: 35 };
+    expect(solNaFachada(p, 0)).toEqual(p);
+  });
+  it("gira o sol de trás da casa para 40° da frente, do lado em que ele está, com a mesma elevação", () => {
+    expect(solNaFachada({ azimute: 150, elevacao: 35 }, 0)).toEqual({ azimute: 40, elevacao: 35 });
+    expect(solNaFachada({ azimute: 220, elevacao: 35 }, 0)).toEqual({ azimute: 320, elevacao: 35 });
+    // casa com a frente para o leste (norte = 90): sol a oeste-sudoeste vai para 40° da frente, pelo sul
+    expect(solNaFachada({ azimute: 260, elevacao: 35 }, 90).azimute).toBe(130);
   });
 });

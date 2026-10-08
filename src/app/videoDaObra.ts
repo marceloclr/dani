@@ -73,7 +73,7 @@ export async function gerarVideoDaObra(cena: Cena, p: PedidoDaObra): Promise<Arq
         cena.aplicar(camadasPara(st(), cena, d, true));
       },
       aoQuadro: (i, n) => {
-        if (st().aparencia3d === "realista") aplicarSol(cena, minutosNoQuadro(i, n), diaCivilDaSimulacao(st(), diaAtual));
+        if (st().aparencia3d === "realista") aplicarSol(cena, minutosNoQuadro(i, n), diaCivilDaSimulacao(st(), diaAtual), (video.luz ?? "dia") === "dia");
       },
       maxima: video.qualidade === "maxima" && st().aparencia3d === "realista",
       ...(p.fala ? { apresentadora: { arquivo: p.fala.fonte, cfg: p.fala.cfg } } : {}),

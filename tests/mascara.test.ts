@@ -90,3 +90,23 @@ describe("entorno não tampa a obra (ADR-31)", async () => {
     expect(tampamAVista(new THREE.Vector3(0, 4, 40), [casa], [caixa(-4, -26, 4, -18)])).toEqual([false]);
   });
 });
+
+describe("divisas do lote: mureta com gradil na frente (ADR-33)", async () => {
+  const { trechosDoMuro, VAO_PORTAO } = await import("../src/rendering/ambiente");
+  const lote = { x0: -6, x1: 6, z0: -12, z1: 6 };
+  const t = trechosDoMuro(lote, { zFachada: 1, xPorta: 1 });
+  it("muro alto só atrás da fachada; na frente e no recuo, mureta", () => {
+    for (const m of t.filter((m) => m.tipo === "alto")) expect(m.z1).toBeLessThanOrEqual(1);
+    const laterais = t.filter((m) => m.tipo === "baixo" && m.z1 - m.z0 > 1);
+    expect(laterais.map((m) => [m.z0, m.z1])).toEqual([[1, 6], [1, 6]]);
+  });
+  it("portão aberto no eixo da porta de entrada", () => {
+    const frente = t.filter((m) => m.tipo === "baixo" && m.z0 === 6).sort((a, b) => a.x0 - b.x0);
+    expect(frente).toHaveLength(2);
+    expect(frente[0].x1).toBeCloseTo(1 - VAO_PORTAO / 2);
+    expect(frente[1].x0).toBeCloseTo(1 + VAO_PORTAO / 2);
+  });
+  it("casa encostada no alinhamento: laterais inteiras em muro alto", () => {
+    expect(trechosDoMuro(lote, { zFachada: 7, xPorta: null }).filter((m) => m.tipo === "baixo" && m.z1 - m.z0 > 1)).toHaveLength(0);
+  });
+});

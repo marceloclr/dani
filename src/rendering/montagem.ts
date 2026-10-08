@@ -32,6 +32,13 @@ export const NOME_PASSEIO: Record<Passeio, string> = { externo: "Externo", inter
 
 export const NOME_CENA: Record<TipoCena, string> = { fala: "Fala no terreno", revelacao: "Revelação", obra: "Obra", marca: "Marca" };
 
+/** Esmaecimento da obra para a marca (ADR-33): segundos e curva (suave nas pontas). */
+export const ESMAECER_MARCA_S = 0.4;
+export const suaveMarca = (x: number) => {
+  const t = Math.min(Math.max(x, 0), 1);
+  return t * t * (3 - 2 * t);
+};
+
 /** Duração mínima de uma cena, em segundos. */
 export const MINIMO_CENA_S = 0.8;
 
@@ -175,23 +182,25 @@ export function trechoDoVoo(c: Cena, u: number, fimConstrucao: number): number {
   return c.obra[0] >= 1 ? fimConstrucao + u * (1 - fimConstrucao) : u * fimConstrucao;
 }
 
-/** Passo do passeio por dentro (m/s), o mínimo quando o caminho é curto, e o recuo antes da porta (m) (ADR-32). */
+/** Passo do passeio por dentro (m/s), o mínimo quando o caminho é curto, e o recuo antes da porta (m) (ADR-32, ADR-33). */
 export const VELOCIDADE_INTERNA = 1.0;
 export const VELOCIDADE_INTERNA_MINIMA = 0.6;
-export const ANTES_DA_PORTA_M = 3.5;
+export const ANTES_DA_PORTA_M = 1.5;
+/** Onde o passeio do voo começa (`marcas.naPorta`): de frente para a porta, a esta distância dela (drone.ts). */
+export const PASSEIO_DESDE_PORTA_M = 3.5;
 /** Campo de visão no passeio por dentro, como em vídeo de imóvel. */
 export const FOV_INTERNO = 75;
 
 /**
- * Instante do voo (0 a 1) no passeio por dentro (ADR-32): começa `ANTES_DA_PORTA_M` antes da porta de entrada
- * (`marcas.inicioInterno`) e anda `VELOCIDADE_INTERNA` × duração da cena, sem passar de `inicioVoltaFinal`; se o
+ * Instante do voo (0 a 1) no passeio por dentro (ADR-32): começa de frente para a porta de entrada, `ANTES_DA_PORTA_M`
+ * antes dela (o passeio do voo começa em `marcas.naPorta`, a `PASSEIO_DESDE_PORTA_M`; ADR-33), e anda `VELOCIDADE_INTERNA` × duração da cena, sem passar de `inicioVoltaFinal`; se o
  * caminho é curto, a velocidade cai até `VELOCIDADE_INTERNA_MINIMA` e, se ainda sobrar tempo, a câmera para no fim.
  * Fórmula: u_voo = início + u × metros da cena ÷ metros por unidade de u (= comprimento ÷ fimMovimento).
  */
 export function trechoInterno(u: number, voo: Pick<Voo, "comprimento" | "marcas">, duracaoS: number): number {
-  const { inicioInterno, inicioVoltaFinal, fimMovimento } = voo.marcas;
+  const { naPorta, inicioVoltaFinal, fimMovimento } = voo.marcas;
   const mPorU = voo.comprimento / Math.max(fimMovimento, 1e-6);
-  const ini = Math.max(0, inicioInterno - ANTES_DA_PORTA_M / mPorU);
+  const ini = Math.min(naPorta + (PASSEIO_DESDE_PORTA_M - ANTES_DA_PORTA_M) / mPorU, inicioVoltaFinal);
   const disponivel = (inicioVoltaFinal - ini) * mPorU;
   const metros = Math.min(VELOCIDADE_INTERNA * duracaoS, Math.max(disponivel, 0));
   const andado = Math.min(u * Math.max(metros, Math.min(VELOCIDADE_INTERNA_MINIMA * duracaoS, disponivel)), disponivel);

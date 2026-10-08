@@ -812,3 +812,48 @@ O sobrado de exemplo passou a ter Fortaleza e a frente para 70° (lés-nordeste)
 - **Vitest:** os três modos geram as cenas certas, na ordem e com as durações esperadas (soma = falas + marca); o trecho interno começa antes da porta, anda 1 m/s, não passa de `inicioVoltaFinal` e desacelera com caminho curto; a planilha lê e escreve "Passeio" na ida e volta e recusa valor fora da lista; carimbo dos arquivos.
 - **Playwright:** a bateria inteira; o assistente escolhe Ambos, com falas de 2 s e 8 s.
 - **Visual:** prévia com Ambos no sobrado IFC: "Volta por fora" baixa, com a rua, e "Por dentro" na porta de entrada, com pedra e madeira.
+
+## ADR-33 — Entrada pela porta, mureta com gradil, fachada ao sol, gramado claro, céu azul, recorte limpo e esmaecimento para a marca
+
+**Status:** aceito em 2026-10-08.
+
+**Pedido.** Avaliação do vídeo `sobrado-de-exemplo-20261008-1421.mp4` (Realista, luz Dia, passeio Ambos, 51,6 s, 9:16) e "aplique, muro baixo".
+
+**Diagnóstico.**
+- **"Por dentro"** passava 7 s deslizando colado à fachada e só 3 s no interior. A marca `inicioInterno` fica no começo da transição do fim da volta até a porta, que corre paralela à fachada; o trecho ainda recuava 3,5 m antes disso.
+- **Obra tampada aos 4–5 s:** não havia muro na frente (correção da primeira avaliação). Quem tapava era o **muro lateral de 1,8 m**, visto de lado pela câmera Externa baixa.
+- **Vistas de cima escuras:** a foto do gramado tem média marrom-escura ([79, 61, 21]) e era só multiplicada por um verde.
+- **Céu branco-acinzentado:** perto do horizonte o céu Preetham é pálido, e as nuvens (0,42) o deixavam branco.
+- **Rua bege:** o asfalto usava o mapa de rugosidade do concreto e brilhava contra o sol.
+- **Contorno claro na pessoa recortada:** a borda suave da máscara levava a cor do fundo.
+- **Corte seco** do interior para a marca.
+
+**Decisão.**
+1. **Entrada pela porta:** nova marca do voo `marcas.naPorta` (o fim da transição, de frente para a porta, a 3,5 m dela). O trecho "Por dentro" começa ali + 2 m, isto é, a `ANTES_DA_PORTA_M` = 1,5 m da porta, olhando para ela, e entra em ~1,5 s.
+2. **Divisas do lote** (`trechosDoMuro`, puro; escolha do usuário: muro baixo com grade):
+   - **frente:** mureta de 0,5 m com gradil de barras finas até 1,4 m e **portão aberto** de 3 m no eixo da porta de entrada (o caminho do drone);
+   - **laterais:** mureta com gradil do alinhamento até a fachada frontal, e muro de 1,8 m dali ao fundo;
+   - **fundo:** muro de 1,8 m.
+3. **Gramado:** `TOM_GRAMADO` = [104, 110, 74] (verde seco de lote) por `tingir`, no campo e na grama do IFC.
+4. **Céu da luz Dia:** turbidez 2,0, rayleigh 2,4, nuvens 0,3; o degradê também puxa o alto do quadro para o azul, só com o sol alto (`tomCeu` = 0 no entardecer, para não azular a hora dourada).
+5. **Asfalto fosco:** sem mapa de rugosidade, rugosidade 1 e reflexo do ambiente a 0,4.
+6. **Recorte:** máscara da IA com erosão leve (`smoothstep(0,42; 0,78)`) e descontaminação da borda (onde a pessoa é semitransparente, a cor vem dos vizinhos opacos, média ponderada por alfa⁴ num raio de 2 texels).
+7. **Fachada frontal sempre ao sol no vídeo com a luz Dia** (`solNaFachada`; escolha do usuário entre manter o sol real ou girar a luz):
+   - **causa:** a luz Dia usa o sol real do dia simulado (ADR-26, ADR-31); em datas em que o sol a 35° passa por trás da casa (em Fortaleza, no inverno, ele fica ao norte), a frente ficava na sombra e as sombras vinham para a câmera;
+   - **regra:** se o sol real está a até 60° da frente, fica; senão, gira para 40° da frente, do lado em que está (manhã ou tarde), com a mesma elevação;
+   - **onde vale:** só no vídeo com a luz Dia. A viewport, a prévia, a Insolação e as outras luzes continuam com o sol real.
+8. **Esmaecimento para a marca:** nos primeiros 0,4 s da cena Marca, a vinheta entra sobre o último quadro da cena de obra anterior (opacidade em curva suave).
+
+**Fora do escopo.**
+- **Sombra no chão sob a pessoa:** os pés ficam fora do quadro; a sombra deslocada que já existe continua.
+- **Letras sobre a camisa** (10–12 s): vêm do próprio vídeo da fala (legenda gravada na imagem). Envie o vídeo sem legenda.
+
+**Ferramenta.** `tools/quadros-ambiente.mjs` aceita a data da simulação (4.º argumento), para ver a obra no começo.
+
+**Verificação.**
+- **Vitest:**
+  - trecho interno no voo sintético e no sobrado real (começa de 0,5 a 2 m da porta, olhando para ela, e está dentro aos 2 s);
+  - divisas (muro alto só atrás da fachada, portão no eixo da porta, casa encostada no alinhamento);
+  - sol do vídeo (mantém o sol que já ilumina a frente; gira o de trás para 40°, do lado certo).
+- **Quadros do sobrado** (20/04 e pronto, vistas Externa e Isométrica): obra visível pela grade, gramado claro, rua cinza.
+- **Playwright:** a bateria inteira.

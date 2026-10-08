@@ -37,6 +37,9 @@ const linear = (c: number) => {
  * Cor do material que leva a média da foto até `alvo` (sRGB 0–255). O material multiplica a textura
  * no espaço linear, então a razão é calculada lá; pode passar de 1 (clareia a foto).
  */
+/** Tom do gramado (média sRGB): verde seco de lote, claro o bastante para a vista de cima (ADR-33). */
+export const TOM_GRAMADO: [number, number, number] = [104, 110, 74];
+
 export function tingir(foto: Foto, alvo: [number, number, number]): [number, number, number] {
   const m = MEDIA_FOTO[foto];
   return [0, 1, 2].map((i) => linear(alvo[i]) / Math.max(linear(m[i]), 1e-4)) as [number, number, number];
@@ -111,7 +114,7 @@ function cenaDoCeu(p: Ceu): THREE.Scene {
   u.mieDirectionalG.value = 0.8;
   u.sunPosition.value.set(...p.sol);
   if (u.cloudCoverage) {
-    u.cloudCoverage.value = 0.42;
+    u.cloudCoverage.value = 0.3; // menos nuvens: o céu do alto do quadro fica azul, não branco (ADR-33)
     u.cloudDensity.value = 0.55;
     u.cloudElevation.value = 0.55;
     u.cloudScale.value = 0.00025;
@@ -239,7 +242,7 @@ export function montarChao(f: Map<Foto, MapasFoto>, buraco: { x0: number; x1: nu
   }
   geo.setAttribute("uv", new THREE.BufferAttribute(uv, 2));
   const matCampo = semRepeticao(materialFoto(f.get("grama"), new THREE.Color("#6f8f4e")));
-  if (f.get("grama")) matCampo.color.set("#c4dba6"); // um pouco mais verde que a foto
+  if (f.get("grama")) matCampo.color.setRGB(...tingir("grama", TOM_GRAMADO)); // verde seco de lote: a foto pura sai marrom-escura (ADR-33)
   const campo = new THREE.Mesh(geo, matCampo);
   campo.position.y = y;
   campo.receiveShadow = true;
@@ -381,12 +384,43 @@ function telhado(w: number, d: number, altura: number, beiral: number): THREE.Bu
 // fachadas de bairro: tons de areia, terracota clara, verde-acinzentado, azul-acinzentado e ocre
 const CORES_VIZINHOS: [number, number, number][] = [[205, 188, 160], [196, 150, 120], [168, 178, 160], [160, 172, 184], [214, 186, 128], [190, 182, 170]];
 
+/** Alturas das divisas (ADR-33): muro alto atrás da fachada; na frente, mureta com gradil, que não tampa a obra. */
+export const MURO_ALTO = 1.8, MURETA = 0.5, GRADIL = 1.4, VAO_PORTAO = 3;
+
+export interface TrechoMuro {
+  tipo: "alto" | "baixo";
+  x0: number;
+  x1: number;
+  z0: number;
+  z1: number;
+}
+
+/**
+ * Divisas do lote (ADR-33), puras: na frente (z = `lote.z1`), mureta com gradil e o portão aberto de
+ * `VAO_PORTAO` no eixo da porta de entrada (o caminho do drone); nas laterais, mureta com gradil do alinhamento
+ * até a fachada frontal e muro alto dali ao fundo; no fundo, muro alto. Espessura `em`, por fora do lote.
+ */
+export function trechosDoMuro(lote: { x0: number; x1: number; z0: number; z1: number }, frente: { zFachada: number; xPorta: number | null }, em = 0.15): TrechoMuro[] {
+  const t: TrechoMuro[] = [];
+  const zCorte = Math.min(Math.max(frente.zFachada, lote.z0), lote.z1);
+  for (const [xa, xb] of [[lote.x0 - em, lote.x0], [lote.x1, lote.x1 + em]]) {
+    if (lote.z1 - zCorte > 0.05) t.push({ tipo: "baixo", x0: xa, x1: xb, z0: zCorte, z1: lote.z1 });
+    if (zCorte - lote.z0 > 0.05) t.push({ tipo: "alto", x0: xa, x1: xb, z0: lote.z0, z1: zCorte });
+  }
+  t.push({ tipo: "alto", x0: lote.x0 - em, x1: lote.x1 + em, z0: lote.z0 - em, z1: lote.z0 });
+  const xp = Math.min(Math.max(frente.xPorta ?? (lote.x0 + lote.x1) / 2, lote.x0 + VAO_PORTAO / 2), lote.x1 - VAO_PORTAO / 2);
+  const zf = [lote.z1, lote.z1 + em];
+  if (xp - VAO_PORTAO / 2 > lote.x0) t.push({ tipo: "baixo", x0: lote.x0 - em, x1: xp - VAO_PORTAO / 2, z0: zf[0], z1: zf[1] });
+  if (xp + VAO_PORTAO / 2 < lote.x1) t.push({ tipo: "baixo", x0: xp + VAO_PORTAO / 2, x1: lote.x1 + em, z0: zf[0], z1: zf[1] });
+  return t;
+}
+
 /**
  * Entorno de uma casa em lote urbano (ADR-31): calçada, meio-fio e rua asfaltada na frente (+z), muros nas
- * divisas, casas vizinhas simples e árvores na calçada. Os vizinhos e as árvores ficam fora do caminho do
+ * divisas (ADR-33: mureta com gradil na frente, muro alto atrás da fachada), casas vizinhas simples e árvores na calçada. Os vizinhos e as árvores ficam fora do caminho do
  * drone (além de 2,6 × o raio da casa, e as árvores fora do eixo da fachada). Determinístico.
  */
-export function montarEntorno(f: Map<Foto, MapasFoto>, lote: { x0: number; x1: number; z0: number; z1: number }, y: number, centro: P3, raio: number): THREE.Group {
+export function montarEntorno(f: Map<Foto, MapasFoto>, lote: { x0: number; x1: number; z0: number; z1: number }, y: number, centro: P3, raio: number, frente: { zFachada: number; xPorta: number | null } = { zFachada: lote.z1, xPorta: null }): THREE.Group {
   const g = new THREE.Group();
   g.name = "entorno";
   const rnd = aleatorio(7);
@@ -406,7 +440,10 @@ export function montarEntorno(f: Map<Foto, MapasFoto>, lote: { x0: number; x1: n
   // tons médios: branco puro ao sol estoura a imagem (ADR-31)
   const calcada = tingido("concreto", [158, 153, 144], "#9e9990");
   const asfalto = semRepeticao(tingido("concreto", [64, 65, 68], "#404144"));
-  asfalto.roughness = 0.95;
+  // asfalto fosco: sem o mapa de rugosidade do concreto, que contra o sol brilhava e deixava a rua bege (ADR-33)
+  asfalto.roughnessMap = null;
+  asfalto.roughness = 1;
+  asfalto.envMapIntensity = 0.4;
   const meioFio = tingido("concreto", [176, 173, 166], "#b0ada6");
   const muro = tingido("reboco", [186, 176, 160], "#bab0a0");
   const faixa = new THREE.MeshStandardMaterial({ color: 0xe8e2c8, roughness: 0.8 });
@@ -423,11 +460,27 @@ export function montarEntorno(f: Map<Foto, MapasFoto>, lote: { x0: number; x1: n
   add(caixaMetros(2 * L, 0.15, 0.15), meioFio, cx, y + 0.075, zRua + 8 + 0.075, false);
   add(caixaMetros(2 * L, 0.12, 2.5), calcada, cx, y + 0.06, zRua + 8 + 1.4, false);
 
-  // muros de 1,8 m nas divisas laterais e do fundo
-  const hm = 1.8, em = 0.15, prof = lote.z1 - lote.z0, larg = lote.x1 - lote.x0;
-  add(caixaMetros(em, hm, prof), muro, lote.x0 - em / 2, y + hm / 2, (lote.z0 + lote.z1) / 2);
-  add(caixaMetros(em, hm, prof), muro, lote.x1 + em / 2, y + hm / 2, (lote.z0 + lote.z1) / 2);
-  add(caixaMetros(larg + 2 * em, hm, em), muro, cx, y + hm / 2, lote.z0 - em / 2);
+  // divisas (ADR-33): muro alto atrás da fachada; na frente, mureta com gradil de barras finas e portão aberto
+  const larg = lote.x1 - lote.x0;
+  const metal = new THREE.MeshStandardMaterial({ color: 0x26282b, roughness: 0.55, metalness: 0.6 });
+  const barras: THREE.Matrix4[] = [];
+  for (const t of trechosDoMuro(lote, frente)) {
+    const w = t.x1 - t.x0, d = t.z1 - t.z0, mx = (t.x0 + t.x1) / 2, mz = (t.z0 + t.z1) / 2;
+    const h = t.tipo === "alto" ? MURO_ALTO : MURETA;
+    add(caixaMetros(w, h, d), muro, mx, y + h / 2, mz);
+    if (t.tipo === "alto") continue;
+    // corrimão no alto do gradil e barras verticais a cada 12 cm, ao longo do trecho
+    add(new THREE.BoxGeometry(Math.max(w, 0.04), 0.05, Math.max(d, 0.04)), metal, mx, y + GRADIL, mz);
+    const ao = w >= d ? "x" : "z", comp = Math.max(w, d);
+    for (let k = 0.06; k < comp; k += 0.12) barras.push(new THREE.Matrix4().makeTranslation(ao === "x" ? t.x0 + k : mx, y + (MURETA + GRADIL) / 2, ao === "z" ? t.z0 + k : mz));
+  }
+  if (barras.length) {
+    const im = new THREE.InstancedMesh(new THREE.BoxGeometry(0.02, GRADIL - MURETA, 0.02), metal, barras.length);
+    barras.forEach((m, i) => im.setMatrixAt(i, m));
+    im.castShadow = true;
+    im.receiveShadow = true;
+    g.add(im);
+  }
 
   // casas vizinhas: dos dois lados e do outro lado da rua, sempre além do voo do drone
   const longe = 2.6 * raio;

@@ -132,6 +132,21 @@ export function rumoDaFachada(f: Fachada, norte: number): number {
   return mod(norte + soma[f], 360);
 }
 
+/** Desvio máximo (graus) do sol real em relação à frente para ser mantido no vídeo, e o desvio usado quando não é (ADR-33). */
+export const DESVIO_MANTIDO = 60, DESVIO_NA_FACHADA = 40;
+
+/**
+ * Sol do vídeo na luz Dia (ADR-33, escolha do usuário): a fachada frontal sempre ao sol. Se o sol real já está
+ * a até `DESVIO_MANTIDO`° da frente, fica como está; senão, gira para `DESVIO_NA_FACHADA`° da frente, do lado em
+ * que o sol real está (manhã ou tarde), com a mesma elevação. A Insolação e a viewport continuam com o sol real.
+ */
+export function solNaFachada(p: PosicaoSol, norte: number): PosicaoSol {
+  const frente = rumoDaFachada("frontal", norte);
+  const d = mod(p.azimute - frente + 180, 360) - 180; // −180 a 180
+  if (Math.abs(d) <= DESVIO_MANTIDO) return p;
+  return { ...p, azimute: mod(frente + (d < 0 ? -1 : 1) * DESVIO_NA_FACHADA, 360) };
+}
+
 export const FACHADAS: Fachada[] = ["frontal", "lateral direita", "fundos", "lateral esquerda"];
 
 /** Radiação direta normal (W/m²) com o sol a `elevacao` graus: modelo de Meinel (como no modulus). */

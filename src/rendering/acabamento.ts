@@ -39,6 +39,7 @@ export function passoAcabamento(ajuste: AjusteCor = AJUSTE_PADRAO): ShaderPass &
       granulacao: { value: ajuste.granulacao },
       temperatura: { value: ajuste.temperatura },
       degrade: { value: ajuste.degrade },
+      tomCeu: { value: 1 },
       semente: { value: 0 },
     },
     vertexShader: /* glsl */ `
@@ -46,7 +47,7 @@ export function passoAcabamento(ajuste: AjusteCor = AJUSTE_PADRAO): ShaderPass &
       void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
     fragmentShader: /* glsl */ `
       uniform sampler2D tDiffuse;
-      uniform float contraste, saturacao, vinheta, granulacao, temperatura, degrade, semente;
+      uniform float contraste, saturacao, vinheta, granulacao, temperatura, degrade, tomCeu, semente;
       varying vec2 vUv;
       float ruido(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233)) + semente * 0.618) * 43758.5453); }
       void main() {
@@ -56,7 +57,9 @@ export function passoAcabamento(ajuste: AjusteCor = AJUSTE_PADRAO): ShaderPass &
         float l = dot(cor, vec3(0.2126, 0.7152, 0.0722));
         cor = mix(vec3(l), cor, saturacao);
         cor += vec3(temperatura, temperatura * 0.35, -temperatura);
-        cor *= 1.0 - degrade * smoothstep(0.55, 1.0, vUv.y); // degradê: o céu não estoura no alto do quadro
+        float alto = degrade * smoothstep(0.55, 1.0, vUv.y);
+        cor *= 1.0 - alto; // degradê: o céu não estoura no alto do quadro
+        cor *= mix(vec3(1.0), vec3(0.86, 0.94, 1.08), min(alto * 2.0 * tomCeu, 1.0)); // e puxa para o azul com o sol alto (ADR-33)
         vec2 d = vUv - 0.5;
         cor *= 1.0 - vinheta * smoothstep(0.35, 0.85, length(d * vec2(1.0, 0.85)) * 1.25);
         cor += (ruido(gl_FragCoord.xy) - 0.5) * granulacao;

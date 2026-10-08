@@ -250,7 +250,7 @@ const FRAG = /* glsl */ `
   }
   float alfa(vec2 uv) {
     if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) return 0.0;
-    if (modo == 0) return smoothstep(0.3, 0.7, texture2D(tMascara, uv).r);
+    if (modo == 0) return smoothstep(0.42, 0.78, texture2D(tMascara, uv).r); // erosão leve: a borda não leva o fundo (ADR-33)
     float d = distance(croma(paraSrgb(texture2D(tVideo, uv).rgb)), chave);
     float t = clamp((d - tolerancia) / max(suavidade, 1e-4), 0.0, 1.0);
     return t * t * (3.0 - 2.0 * t);
@@ -262,6 +262,19 @@ const FRAG = /* glsl */ `
     float a = alfa(uv) * 0.4 + (alfa(uv + vec2(p.x, 0.0)) + alfa(uv - vec2(p.x, 0.0)) + alfa(uv + vec2(0.0, p.y)) + alfa(uv - vec2(0.0, p.y))) * 0.15;
     vec3 original = texture2D(tVideo, uv).rgb;
     vec3 cor = original;
+    // descontaminação da borda (ADR-33): onde a pessoa é semitransparente, a cor vem dos vizinhos mais
+    // opacos (média ponderada pelo alfa, raio de 2 texels), sem o tom claro do fundo que vazava no contorno
+    if (a > 0.01 && a < 0.99) {
+      vec3 soma = vec3(0.0);
+      float peso = 0.0;
+      for (int i = -2; i <= 2; i++) for (int j = -2; j <= 2; j++) {
+        vec2 q = uv + vec2(float(i), float(j)) * texel;
+        float w = pow(alfa(q), 4.0);
+        soma += texture2D(tVideo, q).rgb * w;
+        peso += w;
+      }
+      if (peso > 0.05) cor = mix(soma / peso, cor, a * a);
+    }
     if (modo == 1) cor.g = min(cor.g, (cor.r + cor.b) * 0.5 + 0.002); // tira o verde que vaza (em luz linear)
     // tela cheia: o fundo real aparece onde a cortina ainda não passou
     float fundo = cheia > 0.5 ? cortina(revelacao, vUv.y) : 0.0;
