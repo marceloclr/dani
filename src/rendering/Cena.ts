@@ -14,7 +14,7 @@ import type { MalhaElemento } from "../bim/parseIfc";
 import { parametros, type PosicaoElemento, type PosicaoFila } from "../fourd/animacao";
 import type { Desvio, EstadoElemento, ModoAnimacao, PlantaSobreposta } from "../types";
 import { distanciaDeEnquadramento, poseDaPosicao, poseDoPreset, posicaoDaPose, type Enquadramento, type Pose, type Preset } from "./cameras";
-import { arvore, carregarFotos, criarFundo, montarChao, neblina, pessoa, semRepeticao, tingir, type Foto, type MapasFoto } from "./ambiente";
+import { arvore, carregarFotos, criarFundo, montarChao, montarEntorno, neblina, pessoa, semRepeticao, tingir, type Foto, type MapasFoto } from "./ambiente";
 import { aberturaDaPorta, anguloDaPorta, montarVoo, type EstadoPorta, type QuadroCamera, type Voo } from "./drone";
 import type { Solido } from "./navegacao";
 import { CLASSES_HUMANIZACAO } from "../fourd/regras";
@@ -553,6 +553,9 @@ export class Cena {
       : { x0: lote.min.x, x1: lote.max.x, z0: lote.min.z, z1: lote.max.z };
     const y = lote.isEmpty() ? piso - 0.02 : lote.max.y - 0.05;
     this.ambiente.add(montarChao(this.fotos, buraco, y, Math.min(this.caixa.min.y, y - 0.5) - 0.1));
+    // rua, calçada, muros, vizinhos e árvores: a casa num lote urbano, não num campo vazio (ADR-31)
+    const e = this.enquadramento();
+    this.ambiente.add(montarEntorno(this.fotos, buraco, y, e.centro, e.raio));
     const voo = this.voo();
     voo?.pessoas.forEach((p, i) => this.pessoas.add(pessoa(p.pos, p.olhar, 31 + i * 17)));
     this.pessoas.visible = false;

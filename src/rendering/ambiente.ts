@@ -267,7 +267,7 @@ export function montarChao(f: Map<Foto, MapasFoto>, buraco: { x0: number; x1: nu
 }
 
 /** Neblina leve que funde o chão com o horizonte do céu. */
-export const neblina = (raio: number, cor: number = 0xc6d3de) => new THREE.Fog(cor, Math.max(raio * 6, 60), Math.max(raio * 45, 450));
+export const neblina = (raio: number, cor: number = 0xbcd0e6) => new THREE.Fog(cor, Math.max(raio * 10, 90), Math.max(raio * 90, 900));
 
 // ------------------------------------------------------------------ árvores
 
@@ -336,5 +336,124 @@ export function pessoa(pos: P3, olhar: P2, semente: number): THREE.Group {
   g.scale.setScalar(esc);
   g.position.set(pos[0], pos[1], pos[2]);
   g.rotation.y = Math.atan2(olhar[0], olhar[1]);
+  return g;
+}
+
+// ------------------------------------------------------------------ entorno (ADR-31)
+
+/** Caixa com coordenadas de textura em metros (as fotos repetem na escala real). */
+function caixaMetros(w: number, h: number, d: number): THREE.BoxGeometry {
+  const g = new THREE.BoxGeometry(w, h, d);
+  const p = g.getAttribute("position"), n = g.getAttribute("normal");
+  const uv = new Float32Array(p.count * 2);
+  for (let i = 0; i < p.count; i++) {
+    const ay = Math.abs(n.getY(i)) > 0.5, ax = Math.abs(n.getX(i)) > 0.5;
+    uv[i * 2] = ay || !ax ? p.getX(i) : p.getZ(i);
+    uv[i * 2 + 1] = ay ? p.getZ(i) : p.getY(i);
+  }
+  g.setAttribute("uv", new THREE.BufferAttribute(uv, 2));
+  return g;
+}
+
+/** Telhado de duas águas (prisma) sobre uma caixa w × d, cumeeira paralela a x. */
+function telhado(w: number, d: number, altura: number, beiral: number): THREE.BufferGeometry {
+  const W = w / 2 + beiral, D = d / 2 + beiral;
+  const v = [
+    [-W, 0, -D], [W, 0, -D], [W, 0, D], [-W, 0, D], [-W, altura, 0], [W, altura, 0],
+  ];
+  const f = [[0, 4, 5], [0, 5, 1], [3, 2, 5], [3, 5, 4], [0, 3, 4], [1, 5, 2]];
+  const pos: number[] = [];
+  for (const [a, b, c] of f) for (const k of [a, b, c]) pos.push(...v[k]);
+  const g = new THREE.BufferGeometry();
+  g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
+  g.computeVertexNormals();
+  // textura em metros: águas pelo comprimento ao longo da inclinação; empenas (normal em x) pelo plano zy
+  const n = g.getAttribute("normal"), uv: number[] = [];
+  for (let i = 0; i < pos.length / 3; i++) {
+    const [x, yy, z] = [pos[i * 3], pos[i * 3 + 1], pos[i * 3 + 2]];
+    if (Math.abs(n.getX(i)) > 0.5) uv.push(z, yy);
+    else uv.push(x, Math.hypot(z, yy));
+  }
+  g.setAttribute("uv", new THREE.Float32BufferAttribute(uv, 2));
+  return g;
+}
+
+// fachadas de bairro: tons de areia, terracota clara, verde-acinzentado, azul-acinzentado e ocre
+const CORES_VIZINHOS: [number, number, number][] = [[205, 188, 160], [196, 150, 120], [168, 178, 160], [160, 172, 184], [214, 186, 128], [190, 182, 170]];
+
+/**
+ * Entorno de uma casa em lote urbano (ADR-31): calçada, meio-fio e rua asfaltada na frente (+z), muros nas
+ * divisas, casas vizinhas simples e árvores na calçada. Os vizinhos e as árvores ficam fora do caminho do
+ * drone (além de 2,6 × o raio da casa, e as árvores fora do eixo da fachada). Determinístico.
+ */
+export function montarEntorno(f: Map<Foto, MapasFoto>, lote: { x0: number; x1: number; z0: number; z1: number }, y: number, centro: P3, raio: number): THREE.Group {
+  const g = new THREE.Group();
+  g.name = "entorno";
+  const rnd = aleatorio(7);
+  const add = (geo: THREE.BufferGeometry, mat: THREE.Material, x: number, yy: number, z: number, sombra = true) => {
+    const m = new THREE.Mesh(geo, mat);
+    m.position.set(x, yy, z);
+    m.castShadow = sombra;
+    m.receiveShadow = true;
+    g.add(m);
+    return m;
+  };
+  const tingido = (foto: Foto, cor: [number, number, number], reserva: string) => {
+    const mat = materialFoto(f.get(foto), new THREE.Color(reserva));
+    if (f.get(foto)) mat.color.setRGB(...tingir(foto, cor));
+    return mat;
+  };
+  // tons médios: branco puro ao sol estoura a imagem (ADR-31)
+  const calcada = tingido("concreto", [158, 153, 144], "#9e9990");
+  const asfalto = semRepeticao(tingido("concreto", [64, 65, 68], "#404144"));
+  asfalto.roughness = 0.95;
+  const meioFio = tingido("concreto", [176, 173, 166], "#b0ada6");
+  const muro = tingido("reboco", [186, 176, 160], "#bab0a0");
+  const faixa = new THREE.MeshStandardMaterial({ color: 0xe8e2c8, roughness: 0.8 });
+
+  const L = 160; // extensão da rua para cada lado
+  const cx = (lote.x0 + lote.x1) / 2;
+  // frente: calçada (2,5 m), meio-fio, rua (8 m), meio-fio e calçada do outro lado
+  const zCal = lote.z1, zRua = zCal + 2.5 + 0.15;
+  add(caixaMetros(2 * L, 0.12, 2.5), calcada, cx, y + 0.06, zCal + 1.25, false);
+  add(caixaMetros(2 * L, 0.15, 0.15), meioFio, cx, y + 0.075, zCal + 2.5 + 0.075, false);
+  // o asfalto fica um pouco acima do gramado (que vai até o horizonte por baixo de tudo)
+  add(caixaMetros(2 * L, 0.04, 8), asfalto, cx, y + 0.02, zRua + 4, false);
+  for (let x = -L; x < L; x += 6) add(new THREE.BoxGeometry(3, 0.01, 0.12), faixa, cx + x, y + 0.045, zRua + 4, false);
+  add(caixaMetros(2 * L, 0.15, 0.15), meioFio, cx, y + 0.075, zRua + 8 + 0.075, false);
+  add(caixaMetros(2 * L, 0.12, 2.5), calcada, cx, y + 0.06, zRua + 8 + 1.4, false);
+
+  // muros de 1,8 m nas divisas laterais e do fundo
+  const hm = 1.8, em = 0.15, prof = lote.z1 - lote.z0, larg = lote.x1 - lote.x0;
+  add(caixaMetros(em, hm, prof), muro, lote.x0 - em / 2, y + hm / 2, (lote.z0 + lote.z1) / 2);
+  add(caixaMetros(em, hm, prof), muro, lote.x1 + em / 2, y + hm / 2, (lote.z0 + lote.z1) / 2);
+  add(caixaMetros(larg + 2 * em, hm, em), muro, cx, y + hm / 2, lote.z0 - em / 2);
+
+  // casas vizinhas: dos dois lados e do outro lado da rua, sempre além do voo do drone
+  const longe = 2.6 * raio;
+  const casa = (x: number, z: number) => {
+    const w = 7 + rnd() * 3, d = 9 + rnd() * 3, h = rnd() < 0.35 ? 5.8 : 3.1;
+    const cor = CORES_VIZINHOS[Math.floor(rnd() * CORES_VIZINHOS.length)];
+    add(caixaMetros(w, h, d), tingido("reboco", cor, "#e2dac8"), x, y + h / 2, z);
+    add(telhado(w, d, 1.4 + rnd() * 0.5, 0.5), tingido("telha-ceramica", [150 + rnd() * 20, 82, 48], "#96523a"), x, y + h, z); // cumeeira paralela à rua
+  };
+  for (const lado of [-1, 1]) {
+    for (let k = 0; k < 4; k++) {
+      const x = cx + lado * Math.max(longe, larg / 2 + 6) + lado * k * 12;
+      if (Math.abs(x - centro[0]) < longe) continue;
+      casa(x, lote.z1 - 9);
+    }
+  }
+  for (let k = -5; k <= 5; k++) casa(cx + k * 12 + (rnd() - 0.5) * 2, zRua + 8 + 2.5 + 9);
+  // fundo: uma fileira de casas atrás do lote, também além do voo
+  const zFundo = Math.min(lote.z0 - 7, centro[2] - longe - 5);
+  for (let k = -4; k <= 4; k++) casa(cx + k * 12 + (rnd() - 0.5) * 3, zFundo);
+
+  // árvores na calçada, fora do eixo da fachada (onde o drone se aproxima)
+  for (let x = -L / 2; x <= L / 2; x += 10) {
+    if (Math.abs(cx + x - centro[0]) < 1.8 * raio) continue;
+    const r = 1.8 + rnd() * 0.8, h = 5 + rnd() * 2;
+    g.add(arvore(new THREE.Box3(new THREE.Vector3(cx + x - r, y, zCal + 1.6 - r), new THREE.Vector3(cx + x + r, y + h, zCal + 1.6 + r)), 500 + Math.round(x)));
+  }
   return g;
 }

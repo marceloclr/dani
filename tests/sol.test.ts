@@ -105,3 +105,21 @@ describe("local e norte no IFC", () => {
     expect(anguloComposto([-3, -42, -59, -904000])).toBeCloseTo(-3.71664, 4);
   });
 });
+
+describe("luz Dia de fachada (ADR-31)", async () => {
+  const { minutosDaLuzDia, posicaoDoSol, nascerEPor, FORTALEZA, ELEVACAO_DIA } = await import("../src/rendering/sol");
+  const { diaCivil } = await import("../src/fourd/tempo");
+  const dia = diaCivil(2026, 11, 26)!;
+  it("o sol fica a 35° e do lado da fachada frontal: frente a leste → manhã; frente a oeste → tarde", () => {
+    const e = nascerEPor(FORTALEZA, dia);
+    const leste = minutosDaLuzDia(FORTALEZA, dia, 90);
+    const oeste = minutosDaLuzDia(FORTALEZA, dia, 270);
+    expect(leste).toBeLessThan(e.meioDia);
+    expect(oeste).toBeGreaterThan(e.meioDia);
+    for (const m of [leste, oeste]) expect(posicaoDoSol(FORTALEZA, dia, m).elevacao).toBeCloseTo(ELEVACAO_DIA, 0);
+    // o sobrado de exemplo: frente a 70° (lés-nordeste) → manhã, por volta das 8h
+    const s = minutosDaLuzDia(FORTALEZA, dia, 70);
+    expect(s).toBeGreaterThan(7 * 60);
+    expect(s).toBeLessThan(9 * 60);
+  });
+});

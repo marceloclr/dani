@@ -50,7 +50,8 @@ type Numericos = Omit<ParametrosLuz, "brilho" | "ceuNoturno">;
 
 /** Pontos de controle pela elevação do sol (graus), do mais alto ao mais baixo. Abaixo de 0°, o "sol" é o luar. */
 const FAIXAS: [number, Numericos][] = [
-  [25, { corSol: 0xfff0dc, intensidadeSol: 2.8, corCeu: 0xdde8f4, corChao: 0x6e5c46, intensidadeCeu: 1.1, intensidadeAmbiente: 0.45, luminarias: 0, exposicao: 0.82, turbidez: 4.5, rayleigh: 1.2, corNeblina: 0xc6d3de }],
+  // dia: sol mais forte que o céu (sombra com contraste), céu limpo e azul, exposição contida para o branco não estourar (ADR-31)
+  [25, { corSol: 0xfff1de, intensidadeSol: 3.2, corCeu: 0xd4e3f4, corChao: 0x6e5c46, intensidadeCeu: 0.72, intensidadeAmbiente: 0.34, luminarias: 0, exposicao: 0.74, turbidez: 2.6, rayleigh: 1.9, corNeblina: 0xbcd0e6 }],
   [10, { corSol: 0xffe0b0, intensidadeSol: 2.6, corCeu: 0xe6e0d4, corChao: 0x66553f, intensidadeCeu: 0.95, intensidadeAmbiente: 0.42, luminarias: 0, exposicao: 0.86, turbidez: 5.5, rayleigh: 1.6, corNeblina: 0xd4d3cc }],
   [3, { corSol: 0xffa25a, intensidadeSol: 2.2, corCeu: 0xf2c79a, corChao: 0x5a4636, intensidadeCeu: 0.55, intensidadeAmbiente: 0.35, luminarias: 0.55, exposicao: 1.0, turbidez: 8, rayleigh: 2.5, corNeblina: 0xd6b08c }],
   [-2, { corSol: 0xc98a7c, intensidadeSol: 0.55, corCeu: 0x8a8fb8, corChao: 0x3a3238, intensidadeCeu: 0.5, intensidadeAmbiente: 0.3, luminarias: 0.9, exposicao: 1.1, turbidez: 3, rayleigh: 3, corNeblina: 0x6f6a8a }],

@@ -6,7 +6,7 @@ import { MUNICIPIOS } from "../fourd/feriados";
 import { horarioDoVoo, instanteDaHoraDourada, resolverContexto, type ContextoSol } from "../rendering/cicloDia";
 import type { Voo } from "../rendering/drone";
 import { minutosDaLuz } from "../rendering/iluminacao";
-import { FACHADAS, cosIncidencia, direcaoNaCena, nascerEPor, posicaoDoSol, rumoDaFachada, type Efemerides, type Fachada, type PosicaoSol } from "../rendering/sol";
+import { FACHADAS, cosIncidencia, direcaoNaCena, minutosDaLuzDia, nascerEPor, posicaoDoSol, rumoDaFachada, type Efemerides, type Fachada, type PosicaoSol } from "../rendering/sol";
 import type { P3 } from "../rendering/navegacao";
 
 type Estado = ReturnType<typeof useProjeto.getState>;
@@ -47,7 +47,9 @@ export function solDoProjeto(s: Estado = useProjeto.getState(), minutos?: number
   const ctx = contextoDoProjeto(s);
   const d = diaCivil ?? diaCivilDaSimulacao(s);
   const efemerides = nascerEPor(ctx.local, d);
-  const m = minutos ?? horarioForcado ?? minutosDaLuz(s.video.luz ?? "dia", efemerides);
+  // Dia (e o Ciclo parado): sol a 35° de frente para a fachada, com sombras longas (ADR-31)
+  const luz = s.video.luz ?? "dia";
+  const m = minutos ?? horarioForcado ?? (luz === "dia" || luz === "ciclo" ? minutosDaLuzDia(ctx.local, d, ctx.norte) : minutosDaLuz(luz, efemerides));
   return { ctx, diaCivil: d, minutos: m, posicao: posicaoDoSol(ctx.local, d, m), efemerides };
 }
 

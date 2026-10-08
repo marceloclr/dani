@@ -159,3 +159,34 @@ export function radiacaoNaFachada(local: Local, diaCivil: number, rumoParede: nu
   }
   return wh / 1000;
 }
+
+/** Elevação do sol da luz Dia (ADR-31): baixa o bastante para sombras longas e volume, alta para luz de dia. */
+export const ELEVACAO_DIA = 35;
+
+/**
+ * Horário da luz Dia (ADR-31): o instante, de manhã ou à tarde, em que o sol passa por `ELEVACAO_DIA` e bate
+ * mais de frente na fachada frontal (a que as câmeras mostram). Fórmula: entre os dois instantes, o de maior
+ * cos(elevação) × cos(azimute do sol − rumo da frente). Se o sol nunca chega a essa altura, o meio-dia solar.
+ */
+export function minutosDaLuzDia(local: Local, diaCivil: number, norte: number, fuso = FUSO_PADRAO): number {
+  const e = nascerEPor(local, diaCivil, fuso);
+  const cruzamento = (de: number, ate: number): number | null => {
+    // a elevação sobe de manhã e desce à tarde: busca binária no meio período
+    let a = de, b = ate;
+    const sobe = posicaoDoSol(local, diaCivil, b, fuso).elevacao > posicaoDoSol(local, diaCivil, a, fuso).elevacao;
+    const fa = posicaoDoSol(local, diaCivil, a, fuso).elevacao - ELEVACAO_DIA, fb = posicaoDoSol(local, diaCivil, b, fuso).elevacao - ELEVACAO_DIA;
+    if (fa * fb > 0) return null;
+    for (let k = 0; k < 30; k++) {
+      const m = (a + b) / 2;
+      const acima = posicaoDoSol(local, diaCivil, m, fuso).elevacao > ELEVACAO_DIA;
+      if (acima === sobe) b = m;
+      else a = m;
+    }
+    return Math.round((a + b) / 2);
+  };
+  const manha = cruzamento(e.nascer, e.meioDia), tarde = cruzamento(e.meioDia, e.por);
+  const frente = rumoDaFachada("frontal", norte);
+  const luz = (m: number | null) => (m === null ? -1 : cosIncidencia(posicaoDoSol(local, diaCivil, m, fuso), frente));
+  if (manha === null && tarde === null) return Math.round(e.meioDia);
+  return luz(tarde) > luz(manha) ? tarde! : manha!;
+}
