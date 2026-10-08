@@ -108,6 +108,8 @@ export const COBERTURA_MINIMA = 0.02;
 export const COBERTURA_MAXIMA = 0.7;
 /** Uma mancha separada só fica se tiver ao menos esta fração da maior (mão ou braço destacados do corpo). */
 export const FRACAO_PARTE = 0.3;
+/** A pessoa que fala para a câmera encosta na base do quadro: a mancha precisa chegar a esta altura (de cima). */
+export const BASE_DO_QUADRO = 0.92;
 
 /**
  * Limpa a máscara de confiança da IA (ADR-31), quadro a quadro: fica só a pessoa (a maior mancha contínua e as
@@ -125,27 +127,43 @@ export class LimpezaDeMascara {
     // 1) manchas contínuas (vizinhança de 4) na máscara binária
     const rotulo = new Int32Array(n).fill(-1);
     const tamanhos: number[] = [];
+    const caixas: [number, number, number, number][] = []; // x0, y0, x1, y1 de cada mancha
     const pilha = new Int32Array(n);
     for (let i = 0; i < n; i++) {
       if (rotulo[i] !== -1 || conf[i] < 0.5) continue;
       const id = tamanhos.length;
       let topo = 0, tam = 0;
+      const cx: [number, number, number, number] = [w, h, -1, -1];
       pilha[topo++] = i;
       rotulo[i] = id;
       while (topo) {
         const p = pilha[--topo];
         tam++;
         const x = p % w, y = (p - x) / w;
+        if (x < cx[0]) cx[0] = x;
+        if (y < cx[1]) cx[1] = y;
+        if (x > cx[2]) cx[2] = x;
+        if (y > cx[3]) cx[3] = y;
         const viz = [x > 0 ? p - 1 : -1, x < w - 1 ? p + 1 : -1, y > 0 ? p - w : -1, y < h - 1 ? p + w : -1];
         for (const q of viz) if (q >= 0 && rotulo[q] === -1 && conf[q] >= 0.5) (rotulo[q] = id), (pilha[topo++] = q);
       }
       tamanhos.push(tam);
+      caixas.push(cx);
     }
-    const maior = tamanhos.length ? Math.max(...tamanhos) : 0;
+    // 2) a pessoa é a maior mancha que encosta na base do quadro (objeto solto no meio não é ela); as partes
+    //    grandes (≥ 30 %) ficam se estiverem junto dela; a borda suave (confiança < 0,5) só ao redor do que fica
+    let principal = -1;
+    for (let k = 0; k < tamanhos.length; k++) if (caixas[k][3] >= h * BASE_DO_QUADRO - 1 && (principal < 0 || tamanhos[k] > tamanhos[principal])) principal = k;
+    const maior = principal >= 0 ? tamanhos[principal] : 0;
     const cobertura = maior / n;
-    // 2) só a pessoa: a maior mancha e as partes grandes; a borda suave (confiança < 0,5) só junto delas
     const fica = new Uint8Array(n);
-    for (let i = 0; i < n; i++) if (rotulo[i] >= 0 && tamanhos[rotulo[i]] >= maior * FRACAO_PARTE) fica[i] = 1;
+    if (principal >= 0) {
+      const [px0, py0, px1, py1] = caixas[principal];
+      const mx = (px1 - px0) * 0.25, my = (py1 - py0) * 0.25;
+      const junto = (k: number) => caixas[k][2] >= px0 - mx && caixas[k][0] <= px1 + mx && caixas[k][3] >= py0 - my && caixas[k][1] <= py1 + my;
+      const ok = tamanhos.map((t, k) => k === principal || (t >= maior * FRACAO_PARTE && junto(k)));
+      for (let i = 0; i < n; i++) if (rotulo[i] >= 0 && ok[rotulo[i]]) fica[i] = 1;
+    }
     const perto = new Uint8Array(n);
     const R = 2;
     for (let y = 0; y < h; y++)

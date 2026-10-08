@@ -380,6 +380,8 @@ button.link { appearance: none; border: 0; background: none; padding: 0; font: i
 .conferir-previa .bloco-cena { appearance: none; border: 0; width: 100%; cursor: pointer; font-family: var(--fonte-corpo); }
 
 .passo-gerar { max-width: 860px; margin: 0 auto; }
+.config-gerar { margin: 0 0 10px; font-size: 13px; color: var(--tinta-2); }
+.aviso-tecnica { display: flex; gap: 12px; align-items: center; justify-content: space-between; flex-wrap: wrap; margin-bottom: 12px; padding: 10px 12px; border-radius: var(--raio-p); border-left: 3px solid var(--alerta); background: color-mix(in srgb, var(--alerta) 10%, transparent); font-size: 13px; color: var(--tinta); }
 .linha-gerar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
 .progresso-gerar { display: flex; gap: 10px; align-items: center; margin-top: 12px; }
 .progresso-gerar .barra-progresso { flex: 1; }

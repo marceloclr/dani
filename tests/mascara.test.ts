@@ -18,18 +18,28 @@ describe("limpeza da máscara da IA (ADR-31)", () => {
   it("fica só a pessoa: manchas pequenas soltas somem, partes grandes ficam", () => {
     const l = new LimpezaDeMascara(W, H, 0);
     // corpo 10×20, braço destacado 4×10 (40 % do... 40/200 = 20 % → some), mancha 3×3 longe (some)
-    const { mascara: m } = l.limpar(mascara([10, 10, 20, 30], [30, 2, 33, 5], [24, 12, 28, 22]));
-    expect(soma(m, 10, 10, 20, 30)).toBe(200);
+    const { mascara: m } = l.limpar(mascara([10, 20, 20, 40], [30, 2, 33, 5], [24, 12, 28, 22]));
+    expect(soma(m, 10, 20, 20, 40)).toBe(200);
     expect(soma(m, 30, 2, 33, 5)).toBe(0);
     // parte com ≥ 30 % da maior fica
     const l2 = new LimpezaDeMascara(W, H, 0);
-    const { mascara: m2 } = l2.limpar(mascara([10, 10, 20, 30], [24, 10, 32, 18]));
-    expect(soma(m2, 24, 10, 32, 18)).toBe(64);
+    const { mascara: m2 } = l2.limpar(mascara([10, 20, 20, 40], [21, 22, 29, 30]));
+    expect(soma(m2, 21, 22, 29, 30)).toBe(64);
+  });
+
+  it("objeto solto no meio do quadro não é a pessoa, mesmo maior que ela (ADR-31)", () => {
+    const l = new LimpezaDeMascara(W, H, 0);
+    // objeto 12×12 flutuando (144 px) e a pessoa 6×16 encostada na base (96 px)
+    const { mascara: m } = l.limpar(mascara([2, 4, 14, 16], [26, 24, 32, 40]));
+    expect(soma(m, 2, 4, 14, 16)).toBe(0);
+    expect(soma(m, 26, 24, 32, 40)).toBe(96);
+    // sem ninguém na base: a pessoa some
+    expect(new LimpezaDeMascara(W, H, 0).limpar(mascara([2, 4, 14, 16])).presenca).toBe(0);
   });
 
   it("recorte pequeno demais ou o quadro inteiro: a pessoa some aos poucos, sem piscar", () => {
     const l = new LimpezaDeMascara(W, H, 0, 0.25);
-    expect(l.limpar(mascara([10, 10, 20, 30])).presenca).toBe(1);
+    expect(l.limpar(mascara([10, 20, 20, 40])).presenca).toBe(1);
     const pequeno = mascara([0, 0, 3, 3]); // 9 px = 0,6 % < 2 %
     expect(9 / (W * H)).toBeLessThan(COBERTURA_MINIMA);
     const p = [1, 2, 3, 4].map(() => l.limpar(pequeno).presenca);
@@ -40,10 +50,10 @@ describe("limpeza da máscara da IA (ADR-31)", () => {
 
   it("suaviza no tempo: metade do quadro anterior entra no seguinte", () => {
     const l = new LimpezaDeMascara(W, H, 0.5);
-    l.limpar(mascara([10, 10, 20, 30]));
-    const { mascara: m } = l.limpar(mascara([12, 10, 22, 30]));
-    expect(m[15 * W + 11]).toBeCloseTo(0.5); // só no anterior
-    expect(m[15 * W + 15]).toBeCloseTo(1); // nos dois
+    l.limpar(mascara([10, 20, 20, 40]));
+    const { mascara: m } = l.limpar(mascara([12, 20, 22, 40]));
+    expect(m[30 * W + 11]).toBeCloseTo(0.5); // só no anterior
+    expect(m[30 * W + 15]).toBeCloseTo(1); // nos dois
   });
 });
 

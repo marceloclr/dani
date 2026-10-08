@@ -63,6 +63,8 @@ test("assistente: planilha, IFC e duas falas → conferir → MP4 com a voz das 
 
   // gerar: MP4 para WhatsApp com a voz (as duas falas = 4 s de tom) e o nome da obra
   await page.getByTestId("avancar").click();
+  await expect(page.getByTestId("config-gerar")).toContainText("Aparência Técnica");
+  await expect(page.getByTestId("aviso-tecnica")).toBeVisible(); // a planilha do teste pede Técnica (sem GPU)
   await page.getByTestId("assistente-saida").selectOption("mp4-whatsapp");
   // ao terminar, o vídeo é salvo sozinho; durante a geração, não dá para sair do passo
   const automatico = page.waitForEvent("download", { timeout: 240_000 });

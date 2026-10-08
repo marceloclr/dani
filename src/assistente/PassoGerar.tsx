@@ -7,6 +7,7 @@ import { formatarISO, hojeCivil } from "../fourd/tempo";
 import { Cancelado, NOME_SAIDA, capacidades, dimensoesDaSaida, type ArquivoGerado, type Saida } from "../rendering/VideoRenderer";
 import { totalDeQuadros } from "../rendering/cameras";
 import { RESOLUCOES, useProjeto } from "../state/projectStore";
+import { NOME_LUZ } from "../rendering/iluminacao";
 import { baixar } from "../utils/baixar";
 import type { FalasDoVideo } from "../app/falas";
 import type { Cena } from "../rendering/montagem";
@@ -25,6 +26,7 @@ export function PassoGerar({ falas, cenas, segundos }: { falas: FalasDoVideo; ce
   const video = useProjeto((s) => s.video);
   const obra = useProjeto((s) => s.planilha?.obra.nome);
   const gerando = useProjeto((s) => s.gerandoVideo);
+  const aparencia = useProjeto((s) => s.aparencia3d);
   const st = useProjeto.getState;
   const { largura, altura } = RESOLUCOES[video.formato];
   const [saidas, setSaidas] = useState<Saida[]>([]);
@@ -109,6 +111,17 @@ export function PassoGerar({ falas, cenas, segundos }: { falas: FalasDoVideo; ce
             {d.largura} × {d.altura} · {tempo(segundos)}
           </span>
         </header>
+        <p className="config-gerar" data-testid="config-gerar">
+          Aparência {aparencia === "realista" ? "Realista" : "Técnica"} · Luz {NOME_LUZ[video.luz ?? "dia"]} · Qualidade {video.qualidade === "maxima" ? "máxima" : "normal"}
+        </p>
+        {aparencia === "tecnica" && (
+          <div className="aviso-tecnica" role="alert" data-testid="aviso-tecnica">
+            <span>A aparência Técnica não tem céu, sol, texturas nem o entorno: serve para conferir o andamento, não para o vídeo final.</span>
+            <button type="button" className="btn" disabled={gerando} data-testid="usar-realista" onClick={() => st().definirAparencia3d("realista")}>
+              Usar Realista
+            </button>
+          </div>
+        )}
         <div className="linha-gerar">
           <label className="campo campo-linha">
             <span>Saída</span>
