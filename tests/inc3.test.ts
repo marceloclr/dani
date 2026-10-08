@@ -35,7 +35,7 @@ describe("modo paramétrico (ADR-12)", () => {
     for (const k of ["IfcGeographicElement:TERRAIN", "IfcFooting:STRIP_FOOTING", "IfcFooting:PAD_FOOTING", "IfcSlab:BASESLAB", "IfcColumn:COLUMN", "IfcBeam:BEAM", "IfcWall:SOLIDWALL", "IfcDoor:DOOR", "IfcWindow:WINDOW", "IfcSlab:FLOOR", "IfcSlab:ROOF", "IfcCovering:FLOORING"]) {
       expect(c[k], k).toBeGreaterThan(0);
     }
-    expect(c["IfcSlab:ROOF"]).toBe(2); // duas águas
+    expect(c["IfcSlab:ROOF"]).toBe(3); // duas águas + telhado da varanda (ADR-31)
     expect(c["IfcStair:STRAIGHT_RUN_STAIR"]).toBeUndefined();
   });
   it("2 pavimentos: escada, laje intermediária e o dobro de pilares", () => {
@@ -50,7 +50,7 @@ describe("modo paramétrico (ADR-12)", () => {
   });
   it("coberturas: plana tem platibanda; uma água tem uma laje inclinada", () => {
     expect(contar({ ...base, cobertura: "plana" })["IfcWall:PARAPET"]).toBe(4);
-    expect(contar({ ...base, cobertura: "uma-agua" })["IfcSlab:ROOF"]).toBe(1);
+    expect(contar({ ...base, cobertura: "uma-agua" })["IfcSlab:ROOF"]).toBe(2); // + varanda
   });
   it("recusa casa que não cabe no lote e diz quanto falta", () => {
     expect(() => gerarCasa({ ...base, terrenoLargura: 10, terrenoComprimento: 20, area: 200 })).toThrow(ErroParametro);
@@ -64,6 +64,18 @@ describe("modo paramétrico (ADR-12)", () => {
     expect(semTarefa(v)).toEqual([]);
     const fim = avaliar(179.99, { vinculos: v, tarefas: c.tarefas, politica: "fantasma" });
     expect([...fim.values()].every((s) => s.visivel && s.fase === "concluido")).toBe(true);
+  });
+  it("fachada frontal com entrada, varanda, peitoris, barrado de pedra e calçada (ADR-31)", () => {
+    const casa = gerarCasa(base);
+    const nomes = casa.elementos.map((e) => e.nome);
+    const porta = casa.elementos.findIndex((e) => e.nome === "Porta de entrada, térreo");
+    // a porta de entrada fica na fachada frontal (z ≈ 0), e não mais na lateral
+    const zs = casa.malhas[porta].posicoes.filter((_, i) => i % 3 === 2);
+    expect(Math.max(...zs.map(Math.abs))).toBeLessThan(0.2);
+    for (const n of ["Telhado da varanda", "Piso da varanda", "Revestimento de pedra da fachada", "Calçada em volta da casa"]) expect(nomes).toContain(n);
+    expect(casa.elementos.filter((e) => e.objectType === "PILAR DA VARANDA")).toHaveLength(2);
+    const peitoris = casa.elementos.filter((e) => e.predefinedType === "MOLDING" && e.nome.startsWith("Peitoril"));
+    expect(peitoris.length).toBe(casa.elementos.filter((e) => e.ifcType === "IfcWindow" && !/transversal/.test(e.nome)).length);
   });
   it("normais apontam para fora (casa térrea: o telhado olha para cima)", () => {
     const casa = gerarCasa(base);

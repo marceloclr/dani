@@ -719,3 +719,59 @@ O sobrado de exemplo passou a ter Fortaleza e a frente para 70° (lés-nordeste)
   - o MP4 tem vídeo e áudio, 6,5 s, voz nos 4 s das falas e silêncio na marca;
   - Gestão e volta.
   - A bateria antiga passou a abrir em `#/gestao`.
+
+## ADR-31 — Qualidade do vídeo: recorte limpo, câmeras, luz de fachada, entorno urbano e casa paramétrica completa
+
+**Status:** aceito em 2026-10-08.
+
+**Pedido.** "Verifique a qualidade do MP4 gerado pelo sistema e identifique onde melhorar. Ainda não está gerando a casa de modo profissional." E depois: "deixe o PDF e o DOCX para o final do projeto; vamos deixar a geração de vídeo o melhor possível antes."
+
+**Diagnóstico** (vídeo de 51,6 s, 1080 × 1920, H.264 Main a 5,7 Mb/s com AAC, guardado em `docs/referencias/`, fora do git):
+- a codificação estava boa;
+- os problemas eram de conteúdo e foram atacados em seis frentes, uma por item abaixo.
+
+**Decisão.**
+1. **Manchas soltas do recorte por IA → `LimpezaDeMascara` (`composicao.ts`, puro).**
+   - **Causa:** o recortador marcava fragmentos do fundo quando a pessoa não estava de frente.
+   - **Correção:**
+     - ficam só a maior mancha contínua e as partes com ≥ 30 % dela, com a borda suave original a até 2 px;
+     - suavização no tempo (35 % do quadro anterior);
+     - a pessoa some e volta aos poucos (±0,2 por quadro) quando a cobertura fica abaixo de 2 % ou acima de 70 %.
+2. **Câmeras que denunciavam o 3D.**
+   - **Vista de cima:** saiu das tomadas, porque por dentro virava um piso branco.
+   - **Passeio final na casa paramétrica:** vira uma volta por fora, porque a casa não tem interior para mostrar.
+3. **Assinatura.**
+   - **Conteúdo:** só nome e slogan. A linha do produto ficava ilegível no celular, e a vinheta fecha com o @.
+   - **Posição no vertical:** no topo, abaixo dos 12 % que o cabeçalho do Reels cobre, fora da área da pessoa e da legenda.
+4. **Áudio.**
+   - **Normalização:** voz em −18 dBFS de média (RMS dos trechos com fala) e pico até −1 dBFS.
+   - **Fórmula:** ganho = mín(10^((alvo − rms)/20), 10^((pico máx − pico)/20)).
+5. **Luz e ambiente.**
+   - **Luz Dia:** era às 10h, com o sol quase a pino em Fortaleza e as sombras escondidas sob a casa. Passa a ser o instante, de manhã ou à tarde, em que o sol está a 35° do lado da fachada frontal (`minutosDaLuzDia`), com sombras longas e volume.
+   - **Equilíbrio:** sol mais forte que o céu, para a sombra ter contraste; céu mais limpo (turbidez 2,6); exposição 0,74, para o branco não estourar; neblina mais leve.
+   - **Entorno urbano** (`montarEntorno`):
+     - calçada, meio-fio e rua asfaltada com faixa;
+     - muros de 1,8 m nas divisas;
+     - casas vizinhas em tons de bairro, dos lados, em frente e no fundo;
+     - árvores na calçada.
+     - Vizinhos e árvores ficam fora do caminho do drone: além de 2,6 × o raio da casa, e as árvores fora do eixo da fachada.
+6. **Casa paramétrica completa.**
+   - **Fachada frontal:** porta de entrada, janela larga, peitoris de granito e soleiras (`MOLDING`) e barrado de pedra (`CLADDING`).
+   - **Varanda:** piso, dois pilares de madeira (`USERDEFINED`, para não mudar a contagem dos pilares estruturais) e telhado com 15 % de caída.
+   - **Externo:** calçada de 0,8 m em volta, jardim na frente (`IfcGeographicElement` PAISAGISMO) e caminho de pedra até a varanda.
+   - **Regras:** tudo cai nas regras existentes (esquadrias, revestimento, cobertura, estrutura e paisagismo), e o teste "100 % dos elementos ligados" continua passando.
+
+**Ferramenta.** `tools/quadros-ambiente.mjs` tira quadros de comparação do sobrado e da casa da aba Modelo, nas vistas Externa, Isométrica e Frontal.
+
+**Limites.**
+- O resultado é o de uma boa maquete eletrônica em tempo real.
+- O nível fotográfico, com iluminação global e vegetação densa, fica para o motor de render no Blender, a ser planejado, rodando também no Fedora.
+
+**Verificação.**
+- **Vitest:**
+  - limpeza da máscara (partes, presença sem piscar, suavização);
+  - volume (alvo, pico, silêncio);
+  - luz Dia (manhã/tarde conforme a frente, 35°, o sobrado por volta das 8h);
+  - roteiro sem vista de cima e com volta por fora;
+  - fachada da casa paramétrica.
+- **Playwright:** a bateria inteira.

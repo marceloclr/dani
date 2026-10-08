@@ -44,6 +44,10 @@ const COR: Record<string, RGBA> = {
   madeira: [0.55, 0.36, 0.17, 1],
   vidro: [0.56, 0.72, 0.82, 0.45],
   piso: [0.85, 0.82, 0.76, 1],
+  granito: [0.36, 0.35, 0.34, 1],
+  pedra: [0.62, 0.57, 0.5, 1],
+  calcada: [0.66, 0.64, 0.6, 1],
+  grama: [0.36, 0.52, 0.24, 1],
 };
 const MATERIAL: Record<string, string> = {
   terreno: "Terreno natural",
@@ -54,6 +58,10 @@ const MATERIAL: Record<string, string> = {
   madeira: "Madeira",
   vidro: "Vidro",
   piso: "Porcelanato",
+  granito: "Granito cinza (peitoril e soleira)",
+  pedra: "Pedra natural (revestimento de fachada)",
+  calcada: "Concreto desempenado (calçada)",
+  grama: "Grama esmeralda (jardim)",
 };
 
 /** Prisma de base quadrilátera: tampa A, tampa B (vértices correspondentes). Faces orientadas para fora. */
@@ -155,6 +163,9 @@ export function dimensionar(p: ParametrosCasa): Dimensoes {
 
 const fmt = (n: number) => n.toLocaleString("pt-BR", { maximumFractionDigits: 2 });
 
+/** Portas da fachada frontal do térreo (a entrada, sob a varanda). */
+const vaosFrontais = (W: number): Abertura[] => [{ u0: W * 0.62 - 0.5, u1: W * 0.62 + 0.5, peitoril: 0, topo: 2.2, tipo: "porta", nome: "Porta de entrada" }];
+
 export function gerarCasa(p: ParametrosCasa): ModeloLido {
   const { largura: W, profundidade: D } = dimensionar(p);
   const pd = p.peDireito;
@@ -239,10 +250,17 @@ export function gerarCasa(p: ParametrosCasa): ModeloLido {
     const larguraJanela = Math.min(1.5, W / 2 - 1.2);
     const fundo = D - zT;
     const vaos: Record<string, Abertura[]> = {
-      "fachada frontal": [
-        { u0: W / 4 - larguraJanela / 2, u1: W / 4 + larguraJanela / 2, peitoril: 1.0, topo: 2.2, tipo: "janela", nome: "Janela do quarto esquerdo" },
-        { u0: (3 * W) / 4 - larguraJanela / 2, u1: (3 * W) / 4 + larguraJanela / 2, peitoril: 1.0, topo: 2.2, tipo: "janela", nome: "Janela do quarto direito" },
-      ],
+      // fachada frontal (ADR-31): no térreo, a entrada sob a varanda e uma janela larga; em cima, duas janelas
+      "fachada frontal": terreo
+        ? [
+            { u0: W / 4 - larguraJanela / 2, u1: W / 4 + larguraJanela / 2, peitoril: 1.0, topo: 2.2, tipo: "janela", nome: "Janela do quarto esquerdo" },
+            { u0: W * 0.62 - 0.5, u1: W * 0.62 + 0.5, peitoril: 0, topo: 2.2, tipo: "porta", nome: "Porta de entrada" },
+            { u0: W * 0.86 - Math.min(0.75, W * 0.12), u1: W * 0.86 + Math.min(0.75, W * 0.12), peitoril: 0.9, topo: 2.2, tipo: "janela", nome: "Janela da frente, direita" },
+          ]
+        : [
+            { u0: W / 4 - larguraJanela / 2, u1: W / 4 + larguraJanela / 2, peitoril: 1.0, topo: 2.2, tipo: "janela", nome: "Janela do quarto esquerdo" },
+            { u0: (3 * W) / 4 - larguraJanela / 2, u1: (3 * W) / 4 + larguraJanela / 2, peitoril: 1.0, topo: 2.2, tipo: "janela", nome: "Janela do quarto direito" },
+          ],
       "fachada dos fundos": terreo
         ? [
             { u0: W / 2 - 0.45, u1: W / 2 + 0.45, peitoril: 0, topo: 2.1, tipo: "porta", nome: "Porta dos fundos" },
@@ -250,9 +268,7 @@ export function gerarCasa(p: ParametrosCasa): ModeloLido {
           ]
         : [{ u0: W / 2 - 0.75, u1: W / 2 + 0.75, peitoril: 1.0, topo: 2.2, tipo: "janela", nome: "Janela dos fundos" }],
       "lateral esquerda": [
-        terreo
-          ? { u0: zT + 0.6, u1: zT + 1.6, peitoril: 0, topo: 2.1, tipo: "porta", nome: "Porta de entrada" }
-          : { u0: zT + 0.6, u1: zT + 1.8, peitoril: 1.0, topo: 2.2, tipo: "janela", nome: "Janela lateral esquerda" },
+        { u0: zT + 0.6, u1: zT + 1.8, peitoril: 1.0, topo: 2.2, tipo: "janela", nome: "Janela lateral esquerda" },
         { u0: zT + fundo * 0.65 - 0.6, u1: zT + fundo * 0.65 + 0.6, peitoril: 1.0, topo: 2.2, tipo: "janela", nome: "Janela da sala, esquerda" },
       ],
       "lateral direita": [{ u0: zT + fundo * 0.5 - 0.6, u1: zT + fundo * 0.5 + 0.6, peitoril: 1.4, topo: 2.2, tipo: "janela", nome: "Janela da sala, direita" }],
@@ -274,6 +290,11 @@ export function gerarCasa(p: ParametrosCasa): ModeloLido {
         const folha = faixa(l, a.u0, a.u1, y0 + a.peitoril, y0 + a.topo, 0.04);
         if (a.tipo === "porta") add("IfcDoor", "DOOR", `${a.nome}, ${pav.toLowerCase()}`, "madeira", [folha], pav);
         else add("IfcWindow", "WINDOW", `${a.nome}, ${pav.toLowerCase()}`, "vidro", [folha], pav);
+        // peitoril de granito (janela) ou soleira (porta) nas paredes externas, saindo 4 cm da parede (ADR-31)
+        if (l.externa && (a.tipo === "janela" || terreo)) {
+          const yP = y0 + a.peitoril;
+          add("IfcCovering", "MOLDING", `${a.tipo === "janela" ? "Peitoril" : "Soleira"}: ${a.nome.toLowerCase()}, ${pav.toLowerCase()}`, "granito", [faixa(l, a.u0 - (a.tipo === "janela" ? 0.05 : 0), a.u1 + (a.tipo === "janela" ? 0.05 : 0), yP - 0.03, yP + 0.01, ESP, 0.04)], pav);
+        }
         u = a.u1;
       }
       pecas.push(faixa(l, u, l.u1 + (l.externa ? ESP / 2 : 0), y0, y1));
@@ -302,6 +323,43 @@ export function gerarCasa(p: ParametrosCasa): ModeloLido {
       for (let i = 0; i < nDegraus; i++) degraus.push(caixa(escX0, y0, -(escU0 + i * PISO_DEGRAU), escX1, y0 + (i + 1) * espelho, -(escU0 + (i + 1) * PISO_DEGRAU)));
       add("IfcStair", "STRAIGHT_RUN_STAIR", "Escada", "concreto", degraus, pav);
     }
+  }
+
+  // ---- varanda, barrado de pedra e calçada (ADR-31): profundidade e sombra na fachada frontal
+  {
+    const xv0 = W / 2, xv1 = W, prof = 2.2, beiralV = 0.3;
+    const yAlto = pd - 0.02, yBaixo = yAlto - 0.15 * (prof + beiralV); // telhado com 15 % de caída para a frente
+    add("IfcCovering", "FLOORING", "Piso da varanda", "piso", [caixa(xv0, -0.02, prof, xv1 + ESP / 2, 0.03, ESP / 2)], "Térreo");
+    for (const x of [xv0 + 0.25, xv1 - 0.1]) add("IfcColumn", "USERDEFINED", `Pilar da varanda (${fmt(x)})`, "madeira", [caixa(x - 0.07, 0.03, prof - 0.1, x + 0.07, yBaixo + 0.15 * 0.4, prof - 0.24)], "Térreo", "PILAR DA VARANDA");
+    const y = (z: number) => yAlto - 0.15 * Math.max(z - ESP / 2, 0);
+    const baseV: Quad = [[xv0 - 0.1, y(ESP / 2), ESP / 2], [xv1 + beiralV, y(ESP / 2), ESP / 2], [xv1 + beiralV, y(prof + beiralV), prof + beiralV], [xv0 - 0.1, y(prof + beiralV), prof + beiralV]];
+    add("IfcSlab", "ROOF", "Telhado da varanda", "telha", [[baseV, baseV.map((q) => [q[0], q[1] + 0.08, q[2]]) as Quad]], "Térreo");
+    // barrado de pedra na base da fachada frontal, interrompido nas portas
+    const portas = (vaosFrontais(W)).filter((a) => a.tipo === "porta").sort((a, b) => a.u0 - b.u0);
+    const pecas: [Quad, Quad][] = [];
+    let u = -ESP / 2;
+    for (const a of portas) {
+      if (a.u0 > u + 0.05) pecas.push(caixa(u, 0, ESP / 2 + 0.03, a.u0, 0.9, ESP / 2));
+      u = a.u1;
+    }
+    pecas.push(caixa(u, 0, ESP / 2 + 0.03, W + ESP / 2, 0.9, ESP / 2));
+    add("IfcCovering", "CLADDING", "Revestimento de pedra da fachada", "pedra", pecas, "Térreo");
+    // calçada de 0,8 m em volta da casa (na frente, só onde não há varanda)
+    const c = 0.8, yc0 = -0.1, yc1 = -0.02;
+    add("IfcCovering", "FLOORING", "Calçada em volta da casa", "calcada", [
+      caixa(-ESP / 2 - c, yc0, ESP / 2 + c, xv0, yc1, ESP / 2),
+      caixa(-ESP / 2 - c, yc0, ESP / 2, -ESP / 2, yc1, -D - ESP / 2 - c),
+      caixa(W + ESP / 2, yc0, ESP / 2, W + ESP / 2 + c, yc1, -D - ESP / 2 - c),
+      caixa(-ESP / 2, yc0, -D - ESP / 2, W + ESP / 2, yc1, -D - ESP / 2 - c),
+    ], "Térreo");
+    // jardim no recuo da frente e caminho de pedra da calçada até a varanda (etapa de paisagismo)
+    const zLote = RECUOS.frente, xPorta = W * 0.62, meioCaminho = 0.6;
+    const lxa = -(p.terrenoLargura - W) / 2, lxb = W + (p.terrenoLargura - W) / 2;
+    add("IfcGeographicElement", null, "Jardim da frente", "grama", [
+      caixa(lxa, -0.1, zLote, xPorta - meioCaminho, -0.06, ESP / 2 + c),
+      caixa(xPorta + meioCaminho, -0.1, zLote, lxb, -0.06, prof + 0.05),
+    ], "Térreo", "PAISAGISMO");
+    add("IfcCovering", "FLOORING", "Caminho de entrada", "pedra", [caixa(xPorta - meioCaminho, -0.1, zLote, xPorta + meioCaminho, -0.04, prof)], "Térreo");
   }
 
   // ---- cobertura sobre a laje de forro
