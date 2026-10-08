@@ -20,7 +20,9 @@ export function Assistente() {
   // com falas, o vídeo segue as falas (+ a marca); sem elas, a duração da aba Vídeo e o roteiro sem pessoa
   const segundos = falas.trechos.length ? falas.totalS : segundosEscolhidos;
   const cenas = falas.trechos.length ? falas.cenas : normalizar(roteiroReels(false), segundos, false);
-  const liberado = (i: number) => i === 0 || (temPlanilha && pronto);
+  const gerando = useProjeto((s) => s.gerandoVideo);
+  // durante a geração, sair do passo descartaria o vídeo: a navegação fica travada
+  const liberado = (i: number) => !gerando && (i === 0 || (temPlanilha && pronto));
   // o que falta para seguir, dito ao lado do botão
   const ifcCitado = useProjeto((s) => s.planilha?.obra.arquivoIfc ?? null);
   const temModelo = useProjeto((s) => !!s.tipoModelo);
@@ -51,7 +53,7 @@ export function Assistente() {
         )}
       </div>
       <footer className="assistente-nav">
-        <button type="button" className="btn" disabled={passo === 0} onClick={() => setPasso(passo - 1)}>
+        <button type="button" className="btn" disabled={passo === 0 || gerando} onClick={() => setPasso(passo - 1)}>
           ← {PASSOS[passo - 1] ?? ""}
         </button>
         {passo === 0 && pendencia && (

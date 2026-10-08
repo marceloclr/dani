@@ -64,9 +64,14 @@ test("assistente: planilha, IFC e duas falas → conferir → MP4 com a voz das 
   // gerar: MP4 para WhatsApp com a voz (as duas falas = 4 s de tom) e o nome da obra
   await page.getByTestId("avancar").click();
   await page.getByTestId("assistente-saida").selectOption("mp4-whatsapp");
+  // ao terminar, o vídeo é salvo sozinho; durante a geração, não dá para sair do passo
+  const automatico = page.waitForEvent("download", { timeout: 240_000 });
   await page.getByTestId("assistente-gerar").click();
-  await expect(page.getByTestId("assistente-resultado")).toBeVisible({ timeout: 240_000 });
-  const [download] = await Promise.all([page.waitForEvent("download"), page.getByTestId("assistente-baixar-video").click()]);
+  await expect(page.getByTestId("passo-2")).toBeDisabled();
+  await expect(page.getByTestId("ir-gestao")).toHaveAttribute("aria-disabled", "true");
+  const download = await automatico;
+  await expect(page.getByTestId("assistente-salvo")).toContainText(download.suggestedFilename());
+  await expect(page.getByTestId("passo-2")).toBeEnabled();
   expect(download.suggestedFilename()).toMatch(/^sobrado-de-exemplo-\d{8}(-whatsapp)?\.mp4$/);
   const caminho = await download.path();
   const j = JSON.parse(execFileSync("ffprobe", ["-v", "error", "-show_entries", "stream=codec_type:format=duration", "-of", "json", caminho]).toString());

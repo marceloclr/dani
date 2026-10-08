@@ -59,6 +59,7 @@ export function App() {
   const parametrico = useProjeto((s) => s.tipoModelo === "PARAMETRICO");
   const estimado = useProjeto((s) => !!s.cronograma?.estimado);
   const nElementos = useProjeto((s) => s.elementos.length);
+  const gerandoVideo = useProjeto((s) => s.gerandoVideo);
   const ui = useUi();
   const [tema, setTema] = useState<Tema>(temaInicial);
 
@@ -135,7 +136,7 @@ export function App() {
                 ← Assistente
               </a>
             ) : (
-              <a className="btn" href="#/gestao" data-testid="ir-gestao" data-tip="Estúdio completo: modelo, tarefas, elementos, avisos, obra, vídeo, drone e insolação.">
+              <a className="btn" href="#/gestao" data-testid="ir-gestao" aria-disabled={gerandoVideo} onClick={(e) => gerandoVideo && e.preventDefault()} data-tip={gerandoVideo ? "Aguarde o fim da geração do vídeo." : "Estúdio completo: modelo, tarefas, elementos, avisos, obra, vídeo, drone e insolação."}>
                 Gestão e ajustes
               </a>
             )}

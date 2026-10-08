@@ -146,6 +146,7 @@ export function PainelVideo() {
       });
       const d = dimensoesDaSaida(saida, largura, altura, video.fps);
       setResultado({ ...arq, url: URL.createObjectURL(arq.blob), resumo: `${d.largura} × ${d.altura} · ${d.fps} fps · ${totalDeQuadros(segundos, d.fps)} quadros` });
+      baixar(arq.blob, arq.nome); // salva sozinho ao terminar, na pasta de downloads do navegador
     } catch (err) {
       if (err instanceof Cancelado) setAviso("Geração cancelada. Nenhum arquivo foi criado.");
       else st().mostrarErro({ mensagem: "Não foi possível gerar o vídeo.", orientacao: "Tente outro formato de saída ou uma duração menor.", detalhes: String((err as Error)?.stack ?? err) });
@@ -411,11 +412,14 @@ export function PainelVideo() {
         </p>
       )}
       {resultado && (
-        <div className="resultado-video" data-testid="resultado-video">
+        <div className="resultado-video" data-testid="resultado-video" ref={(el) => el?.scrollIntoView({ behavior: "smooth", block: "nearest" })}>
+          <p className="salvo-em" role="status">
+            Salvo na pasta de downloads: <strong className="mono">{resultado.nome}</strong>
+          </p>
           {resultado.tipo === "video" && <video src={resultado.url} controls muted={!resultado.comAudio} playsInline className="previa-canvas" data-com-audio={resultado.comAudio ? "sim" : "nao"} />}
           {resultado.tipo === "gif" && <img src={resultado.url} alt="Prévia do GIF" className="previa-canvas" />}
           <a className="btn primario largo" href={resultado.url} download={resultado.nome} data-testid="baixar-video">
-            Baixar {resultado.nome} ({mb(resultado.blob.size)})
+            Baixar de novo ({mb(resultado.blob.size)})
           </a>
           <Compartilhar arquivo={resultado} />
           <p className="tenue pequeno">

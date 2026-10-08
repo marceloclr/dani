@@ -18,6 +18,9 @@ export function nomeDaEntrega(obra: string | undefined, dia = hojeCivil()): stri
   return `${nomeSeguro(obra || "obra")}-${formatarISO(dia).replace(/-/g, "")}`;
 }
 
+/** Último vídeo gerado: continua disponível ao sair e voltar ao passo Gerar. */
+let ultimo: (ArquivoGerado & { url: string }) | null = null;
+
 export function PassoGerar({ falas, cenas, segundos }: { falas: FalasDoVideo; cenas: Cena[]; segundos: number }) {
   const video = useProjeto((s) => s.video);
   const obra = useProjeto((s) => s.planilha?.obra.nome);
@@ -27,7 +30,13 @@ export function PassoGerar({ falas, cenas, segundos }: { falas: FalasDoVideo; ce
   const [saidas, setSaidas] = useState<Saida[]>([]);
   const [saida, setSaida] = useState<Saida | null>(null);
   const [progresso, setProgresso] = useState<{ quadro: number; total: number; restanteS: number | null } | null>(null);
-  const [resultado, setResultado] = useState<(ArquivoGerado & { url: string }) | null>(null);
+  const [resultado, setResultadoLocal] = useState<(ArquivoGerado & { url: string }) | null>(ultimo);
+  const setResultado = (r: (ArquivoGerado & { url: string }) | null) => {
+    if (ultimo && ultimo !== r) URL.revokeObjectURL(ultimo.url);
+    ultimo = r;
+    setResultadoLocal(r);
+  };
+  const [salvo, setSalvo] = useState(false);
   const [aviso, setAviso] = useState<string | null>(null);
   const controle = useRef<AbortController | null>(null);
   const quadro = useRef<HTMLDivElement>(null);
@@ -45,13 +54,12 @@ export function PassoGerar({ falas, cenas, segundos }: { falas: FalasDoVideo; ce
       vivo = false;
     };
   }, [largura, altura, video.fps]);
-  useEffect(() => () => (resultado ? URL.revokeObjectURL(resultado.url) : undefined), [resultado]);
 
   const gerar = async () => {
     const cena = obterCena();
     if (!cena || !saida) return;
-    if (resultado) URL.revokeObjectURL(resultado.url);
     setResultado(null);
+    setSalvo(false);
     setAviso(null);
     const ac = new AbortController();
     controle.current = ac;
@@ -75,6 +83,9 @@ export function PassoGerar({ falas, cenas, segundos }: { falas: FalasDoVideo; ce
         },
       });
       setResultado({ ...arq, url: URL.createObjectURL(arq.blob) });
+      // salva sozinho ao terminar: o arquivo vai para a pasta de downloads do navegador
+      baixar(arq.blob, arq.nome);
+      setSalvo(true);
     } catch (e) {
       if (e instanceof Cancelado) setAviso("Geração cancelada.");
       else st().mostrarErro({ mensagem: "Não foi possível gerar o vídeo.", orientacao: "Tente a saída MP4 para WhatsApp ou um formato menor.", detalhes: String((e as Error)?.stack ?? e) });
@@ -130,10 +141,15 @@ export function PassoGerar({ falas, cenas, segundos }: { falas: FalasDoVideo; ce
         <div ref={quadro} className="quadro-gerando" />
         {aviso && <p className="tenue">{aviso}</p>}
         {resultado && (
-          <div className="resultado-gerar" data-testid="assistente-resultado">
+          <div className="resultado-gerar" data-testid="assistente-resultado" ref={(el) => el?.scrollIntoView({ behavior: "smooth", block: "nearest" })}>
+            {salvo && (
+              <p className="salvo-em" role="status" data-testid="assistente-salvo">
+                Vídeo salvo na pasta de downloads: <strong className="mono">{resultado.nome}</strong>
+              </p>
+            )}
             <video src={resultado.url} controls playsInline className={`video-final formato-${video.formato}`} />
-            <button type="button" className="btn primario" data-testid="assistente-baixar-video" onClick={() => baixar(resultado.blob, resultado.nome)}>
-              Baixar {resultado.nome}
+            <button type="button" className="btn" data-testid="assistente-baixar-video" onClick={() => baixar(resultado.blob, resultado.nome)}>
+              Baixar de novo
             </button>
           </div>
         )}
