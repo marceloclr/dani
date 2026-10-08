@@ -177,7 +177,8 @@ describe("sequência do vídeo (ADR-34)", async () => {
     });
     expect(r.itens.map((i) => [i.id, i.duracaoS])).toEqual([["foto:f.jpg", 5], ["obra", 15]]);
     expect(r.totalS).toBeCloseTo(20 + RESPIRO + MARCA);
-    expect(r.trilhas.map((t) => [t.nome, t.entra, t.iniS])).toEqual([["abre.mp3", "inicio", 0], ["fecha.mp3", "final", 5]]);
+    // final = 8 s antes do fim dos itens (20 s) = 12 s
+    expect(r.trilhas.map((t) => [t.nome, t.entra, t.iniS])).toEqual([["abre.mp3", "inicio", 0], ["fecha.mp3", "final", 12]]);
     expect(r.linhaDoTempo.every((t) => t.arquivo === null)).toBe(true);
   });
 

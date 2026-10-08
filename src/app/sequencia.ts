@@ -126,11 +126,36 @@ export function iniciosDosItens(itens: ItemSequencia[]): number[] {
   });
 }
 
-/** Segundo em que cada trilha começa: início = 0; antes de um item = começo dele; final = começo do último item. */
+/** A trilha "no final" entra este tanto antes do fim dos itens (s). */
+export const FINAL_ANTES_S = 8;
+/** Duas trilhas mais próximas que isto (s) se atropelariam. */
+export const TRILHAS_MIN_S = 2;
+
+/** Segundo em que uma trilha começa: início = 0; antes de um item = começo dele; final = `FINAL_ANTES_S` antes do fim dos itens. */
 export function inicioDaTrilha(entra: EntradaTrilha, itens: ItemSequencia[]): number {
   const ini = iniciosDosItens(itens);
   if (entra === "inicio" || !itens.length) return 0;
-  if (entra === "final") return ini[ini.length - 1];
+  const fim = ini[ini.length - 1] + itens[itens.length - 1].duracaoS;
+  if (entra === "final") return Math.max(0, fim - FINAL_ANTES_S);
   const k = itens.findIndex((i) => i.id === entra);
   return k >= 0 ? ini[k] : 0;
+}
+
+/**
+ * Segundos de entrada de todas as trilhas, sem atropelo: uma trilha que cairia a menos de `TRILHAS_MIN_S` da anterior
+ * (vídeo curto: "início" e "final" no mesmo ponto) vai para o meio do caminho entre a anterior e o fim dos itens.
+ */
+export function iniciosDasTrilhas(trilhas: TrilhaSequencia[], itens: ItemSequencia[]): number[] {
+  const fim = itens.reduce((s, i) => s + i.duracaoS, 0);
+  const brutos = trilhas.map((t, k) => ({ k, t: inicioDaTrilha(t.entra, itens) }));
+  const ordem = [...brutos].sort((a, b) => a.t - b.t || a.k - b.k);
+  const out = new Array<number>(trilhas.length);
+  let anterior = -Infinity;
+  for (const b of ordem) {
+    let t = b.t;
+    if (t - anterior < TRILHAS_MIN_S && Number.isFinite(anterior)) t = Math.max(t, anterior + Math.max(0, fim - anterior) / 2);
+    out[b.k] = t;
+    anterior = t;
+  }
+  return out;
 }

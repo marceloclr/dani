@@ -208,7 +208,7 @@ export function PassoCarregar({ falas }: { falas: FalasDoVideo }) {
         aceitar="video/mp4,video/quicktime,video/webm,.mp4,.mov,.m4v,.webm,audio/*,.mp3,.m4a,.aac,.wav,.ogg,.opus"
         multiplos
         rotulo="Enviar vídeos ou áudios"
-        dica="Vídeos da engenheira falando (MP4, MOV ou WebM) e/ou áudios de narração (MP3, M4A, WAV ou OGG): a narração toca sobre a obra, sem a pessoa. Cada arquivo é aberto aqui para conferir formato e duração. Com a aba Falas preenchida, o nome do arquivo deve ser o da coluna arquivo. A ordem se ajusta no passo Conferir."
+        dica="Vídeos da engenheira falando (MP4, MOV ou WebM) e/ou áudios de narração (MP3, M4A, WAV ou OGG): a narração toca sobre a obra, sem a pessoa. Cada arquivo é aberto aqui para conferir formato e duração. Com a aba Falas preenchida, o nome do arquivo deve ser o da coluna arquivo. A ordem se ajusta no passo Conferir. Para enviar vários de uma vez, segure Ctrl ao clicar nos arquivos ou arraste-os para o cartão."
         aoEscolher={async (f) => setAvisos("falas", (await adicionarFalas(f)).avisos)}
         avisos={avisos.falas}
       >
@@ -255,7 +255,7 @@ export function PassoCarregar({ falas }: { falas: FalasDoVideo }) {
         aceitar="audio/*,.mp3,.m4a,.aac,.wav,.ogg,.opus"
         multiplos
         rotulo="Enviar trilhas"
-        dica="Músicas de fundo (MP3, M4A, WAV ou OGG): uma para o início, uma para o final e, se quiser, outras no meio. O volume abaixa sozinho quando há voz e some no fim do vídeo. Onde cada uma entra se ajusta no Conferir. Use músicas com licença para redes sociais."
+        dica="Músicas de fundo (MP3, M4A, WAV ou OGG): uma para o início, uma para o final e, se quiser, outras no meio. O volume abaixa sozinho quando há voz e some no fim do vídeo. Onde cada uma entra se ajusta no Conferir. Use músicas com licença para redes sociais. Para enviar vários de uma vez, segure Ctrl ao clicar nos arquivos ou arraste-os para o cartão."
         aoEscolher={async (f) => setAvisos("trilhas", (await adicionarTrilhas(f)).avisos)}
         avisos={avisos.trilhas}
       >

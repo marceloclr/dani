@@ -887,7 +887,8 @@ O sobrado de exemplo passou a ter Fortaleza e a frente para 70° (lés-nordeste)
    - **Ordem padrão:** as vozes na ordem; cada foto, pela data, depois da voz em que o avanço acumulado passa do avanço da obra no dia dela; fotos sem data no fim.
    - **Ordem salva** (`ConfigVideo.sequencia`, ids `voz:`/`foto:`): itens novos entram junto do vizinho da ordem padrão.
    - **No passo Conferir:** painel "Sequência do vídeo" com ↑ ↓ e arrastar, duração de cada foto (2 a 6 s, padrão 3) e "Restaurar ordem".
-3. **Trilhas:** cada uma entra no início, antes de um item ou no final (o começo do último item), com volume de 0 a 100 e ▶ para ouvir 5 s.
+3. **Trilhas:** cada uma entra no início, antes de um item ou no final (8 s antes do fim dos itens), com volume de 0 a 100 e ▶ para ouvir 5 s.
+   - **Sem atropelo:** uma trilha a menos de 2 s da anterior vai para o meio do caminho entre a anterior e o fim. Num vídeo curto, "início" e "final" caíam no mesmo segundo, e a final cobria a de abertura (vídeo do usuário das 18h26).
    - **Padrão:** uma = início; duas = início e final; mais = as do meio espalhadas antes das vozes.
 4. **Roteiro** (`roteiroDasFalas` recebe a sequência):
    - foto = cena `foto`: a obra parada no dia da foto, vista isométrica, sem contar no avanço;

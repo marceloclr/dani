@@ -6,7 +6,7 @@ import type { LinhaFala } from "../planilha/tipos";
 import { APRESENTADORA_PADRAO, type ConfigApresentadora } from "../rendering/composicao";
 import { roteiroDasFalas, type Cena, type ItemRoteiro, type Passeio } from "../rendering/montagem";
 import type { TrechoDeFala } from "../rendering/apresentadora";
-import { FOTO_MAX_S, FOTO_MIN_S, FOTO_PADRAO_S, aplicarOrdem, aplicarTrilhas, idFoto, idVoz, inicioDaTrilha, sequenciaPadrao, type ItemSequencia, type TrilhaSequencia } from "./sequencia";
+import { FOTO_MAX_S, FOTO_MIN_S, FOTO_PADRAO_S, aplicarOrdem, aplicarTrilhas, idFoto, idVoz, iniciosDasTrilhas, sequenciaPadrao, type ItemSequencia, type TrilhaSequencia } from "./sequencia";
 
 /** Foto que pode entrar no vídeo (ADR-34). */
 export interface FotoParaVideo {
@@ -152,9 +152,10 @@ export function montarFalas(
   }
   const { cenas, totalS } = roteiroDasFalas(roteiro, { passeio });
   const cfgTrilhas = aplicarTrilhas(trilhasRecebidas.map((t) => t.nome), itens, extras.trilhasCfg);
-  const trilhas: TrilhaDoVideo[] = cfgTrilhas.map((c) => {
+  const inicios = iniciosDasTrilhas(cfgTrilhas, itens);
+  const trilhas: TrilhaDoVideo[] = cfgTrilhas.map((c, k) => {
     const r = trilhasRecebidas.find((t) => t.nome === c.nome)!;
-    return { ...c, blob: r.blob, duracaoS: r.duracaoS, iniS: inicioDaTrilha(c.entra, itens) };
+    return { ...c, blob: r.blob, duracaoS: r.duracaoS, iniS: inicios[k] };
   });
 
   const primeiro = comVideo[0] ? recebidos.get(comVideo[0].linha.arquivo.toLowerCase())! : null;

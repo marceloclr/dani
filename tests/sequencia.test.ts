@@ -1,6 +1,6 @@
 // Sequência do vídeo (ADR-34): ordem padrão, ordem salva, mover e trilhas.
 import { describe, expect, it } from "vitest";
-import { aplicarOrdem, aplicarTrilhas, inicioDaTrilha, mover, sequenciaPadrao, trilhasPadrao, type ItemSequencia } from "../src/app/sequencia";
+import { FINAL_ANTES_S, aplicarOrdem, aplicarTrilhas, inicioDaTrilha, iniciosDasTrilhas, mover, sequenciaPadrao, trilhasPadrao, type ItemSequencia } from "../src/app/sequencia";
 
 const voz = (nome: string, duracaoS: number, tipo: "fala" | "narracao" = "fala"): ItemSequencia => ({ id: `voz:${nome}`, tipo, nome, duracaoS });
 const foto = (nome: string, obra: number | null): ItemSequencia => ({ id: `foto:${nome}`, tipo: "foto", nome, duracaoS: 3, obra });
@@ -42,10 +42,17 @@ describe("trilhas", () => {
     expect(quatro.slice(1, 3).every((e) => e.startsWith("voz:"))).toBe(true);
     expect(new Set(quatro).size).toBe(4);
   });
-  it("instante de entrada: início = 0, antes de um item = começo dele, final = começo do último item", () => {
+  it("instante de entrada: início = 0, antes de um item = começo dele, final = 8 s antes do fim", () => {
     expect(inicioDaTrilha("inicio", itens)).toBe(0);
     expect(inicioDaTrilha("voz:b", itens)).toBe(13);
-    expect(inicioDaTrilha("final", itens)).toBe(33);
+    expect(inicioDaTrilha("final", itens)).toBe(43 - FINAL_ANTES_S);
+  });
+  it("vídeo curto: início e final não se atropelam (a final vai para o meio do caminho)", () => {
+    const curto = [voz("a", 5.3)];
+    const t = [{ nome: "abre", entra: "inicio", volume: 70 }, { nome: "fecha", entra: "final", volume: 70 }];
+    expect(iniciosDasTrilhas(t, curto)).toEqual([0, 2.65]);
+    // sem atropelo, ficam onde estão
+    expect(iniciosDasTrilhas(t, itens)).toEqual([0, 35]);
   });
   it("a configuração salva vale pelo nome; entrada que aponta para item que saiu volta à padrão; volume de 0 a 100", () => {
     const t = aplicarTrilhas(["t1", "t2"], itens, [{ nome: "T2", entra: "voz:sumiu", volume: 140 }, { nome: "t1", entra: "voz:c", volume: 30 }]);
