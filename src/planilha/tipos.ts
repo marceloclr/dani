@@ -5,6 +5,7 @@ import type { Recorte } from "../rendering/composicao";
 import type { Luz } from "../rendering/iluminacao";
 import type { Aparencia3D } from "../rendering/aparencia";
 import type { FormatoVideo } from "../state/projectStore";
+import type { Passeio } from "../rendering/montagem";
 
 /** Aba Obra. */
 export interface DadosObra {
@@ -59,6 +60,8 @@ export interface VideoPlanilha {
   luz?: Luz;
   animacao?: ModoAnimacao;
   assinatura?: boolean;
+  /** Passeio final (ADR-32). */
+  passeio?: Passeio;
 }
 
 export const SECOES_DOCUMENTO = ["ficha", "etapas", "imagens", "fotos", "video"] as const;
@@ -109,6 +112,7 @@ export const ROTULO_RECORTE: Record<Recorte, string> = { ia: "IA", verde: "fundo
 export const ROTULO_FORMATO: Record<FormatoVideo, string> = { vertical: "vertical 9:16", horizontal: "horizontal 16:9", quadrado: "quadrado 1:1" };
 export const ROTULO_ANIMACAO: Record<ModoAnimacao, string> = { progressivo: "Progressivo", aparecimento: "Aparecimento", fade: "Fade-in", crescimento: "Crescimento", fases: "Por fases" };
 export const ROTULO_APARENCIA: Record<Aparencia3D, string> = { realista: "Realista", tecnica: "Técnica" };
+export const ROTULO_PASSEIO: Record<Passeio, string> = { externo: "externo", interno: "interno", ambos: "ambos" };
 export const ROTULO_COBERTURA = { "duas-aguas": "duas águas", "uma-agua": "uma água", plana: "plana" } as const;
 
 /** Campos das abas de campo e valor, na ordem da planilha. */
@@ -141,6 +145,7 @@ export const CAMPOS_VIDEO = {
   luz: "Luz",
   animacao: "Animação",
   assinatura: "Marca no canto",
+  passeio: "Passeio",
 } as const;
 export const CAMPOS_DOCUMENTO = {
   titulo: "Título",

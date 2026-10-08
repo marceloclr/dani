@@ -43,6 +43,7 @@ LISTAS = {
     "aparencia": ["Realista", "Técnica"],
     "simnao": ["sim", "não"],
     "fps": ["30", "24"],
+    "passeio": ["externo", "interno", "ambos"],
 }
 
 borda = Border(bottom=Side(style="thin", color=LINHA))
@@ -239,6 +240,7 @@ ficha(wb.create_sheet("Vídeo"), [
     ("Luz", "Dia", "Ciclo = o dia corre do amanhecer à noite durante o voo.", "luz"),
     ("Animação", "Progressivo", "Como cada elemento surge durante a sua etapa.", "animacao"),
     ("Marca no canto", "sim", "Faixa com o monograma, o nome e o slogan.", "simnao"),
+    ("Passeio", "externo", "Fim do vídeo: volta por fora, por dentro (entra pela porta) ou ambos. Interno pede casa com porta de entrada.", "passeio"),
 ])
 
 # ---------- Documento ----------

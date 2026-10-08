@@ -19,7 +19,7 @@ describe("roteiro a partir das falas (ADR-30)", () => {
     // a terceira (só a voz) começa no 24, sem a pessoa, e termina no passeio do drone pela obra pronta
     expect(cenaNoTempo(cenas, 24.01, totalS).cena.pessoa).toBe("oculta");
     const passeio = cenas[cenas.length - 2];
-    expect(passeio).toMatchObject({ camera: "drone", obra: [1, 1], pessoa: "oculta" });
+    expect(passeio).toMatchObject({ camera: "orbita", percurso: "volta", rotulo: "Volta por fora", obra: [1, 1], pessoa: "oculta" }); // padrão: externo
     expect(seg[cenas.length - 2]).toBeCloseTo(12 * 0.4);
     expect(cenas[cenas.length - 1].tipo).toBe("marca");
     expect(seg[cenas.length - 1]).toBeCloseTo(MARCA_S);
@@ -27,19 +27,19 @@ describe("roteiro a partir das falas (ADR-30)", () => {
 
   it("a obra se forma de 0 a 1 ao longo das tomadas, sem voltar, e as tomadas têm de 2 a 5 s", () => {
     const { cenas, totalS } = roteiroDasFalas([{ cena: "sobre-obra", duracaoS: 20 }, { cena: "sobre-obra", duracaoS: 9 }]);
-    const tomadas = cenas.filter((c) => c.tipo === "obra" && c.camera !== "drone");
+    const tomadas = cenas.filter((c) => c.tipo === "obra" && !c.percurso);
     expect(tomadas[0].obra[0]).toBe(0);
     expect(tomadas[tomadas.length - 1].obra[1]).toBeCloseTo(1);
     tomadas.forEach((c, i) => i && expect(c.obra[0]).toBeCloseTo(tomadas[i - 1].obra[1]));
     const seg = duracoes(cenas, totalS);
-    cenas.forEach((c, i) => c.tipo === "obra" && c.camera !== "drone" && expect(seg[i]).toBeGreaterThanOrEqual(2) && expect(seg[i]).toBeLessThanOrEqual(5));
+    cenas.forEach((c, i) => c.tipo === "obra" && !c.percurso && expect(seg[i]).toBeGreaterThanOrEqual(2) && expect(seg[i]).toBeLessThanOrEqual(5));
     // câmeras em rodízio: duas tomadas seguidas nunca repetem a câmera
     tomadas.forEach((c, i) => i && expect(c.camera).not.toBe(tomadas[i - 1].camera));
   });
 
   it("fala curta não ganha passeio; sem falas, volta ao roteiro sem pessoa", () => {
     const curta = roteiroDasFalas([{ cena: "sobre-obra", duracaoS: 4 }]);
-    expect(curta.cenas.some((c) => c.camera === "drone")).toBe(false);
+    expect(curta.cenas.some((c) => c.percurso)).toBe(false);
     const nada = roteiroDasFalas([]);
     expect(nada.cenas.every((c) => c.pessoa === "oculta")).toBe(true);
   });
@@ -101,12 +101,38 @@ describe("aba Falas vazia", async () => {
   });
 });
 
-describe("casa sem interior (paramétrica)", () => {
-  it("o passeio final vira uma volta por fora, e nenhuma tomada é de cima", async () => {
-    const { roteiroDasFalas, CAMERAS_TOMADA } = await import("../src/rendering/montagem");
-    const { cenas } = roteiroDasFalas([{ cena: "sobre-obra", duracaoS: 20 }], { passeioInterno: false });
-    expect(cenas.some((c) => c.camera === "drone")).toBe(false);
-    expect(cenas[cenas.length - 2]).toMatchObject({ camera: "orbita", obra: [1, 1] });
+describe("passeio externo, interno ou ambos (ADR-32)", async () => {
+  const { roteiroDasFalas, CAMERAS_TOMADA, duracoes, MARCA_S, trechoInterno, ANTES_DA_PORTA_M, VELOCIDADE_INTERNA } = await import("../src/rendering/montagem");
+  const fala = [{ cena: "sobre-obra" as const, duracaoS: 20 }];
+  const fim = (passeio: "externo" | "interno" | "ambos") => {
+    const { cenas, totalS } = roteiroDasFalas(fala, { passeio });
+    const seg = duracoes(cenas, totalS);
+    return cenas.map((c, i) => ({ c, s: seg[i] })).filter((x) => x.c.percurso);
+  };
+  it("externo: uma volta por fora de 8 s (40 % de 20 s); interno: por dentro, 10 s; ambos: fora 4,4 s e depois dentro 6,6 s", () => {
+    const e = fim("externo"), i = fim("interno"), a = fim("ambos");
+    expect(e.map((x) => [x.c.percurso, x.c.camera])).toEqual([["volta", "orbita"]]);
+    expect(e[0].s).toBeCloseTo(8);
+    expect(i.map((x) => [x.c.percurso, x.c.camera, x.c.rotulo])).toEqual([["interno", "drone", "Por dentro"]]);
+    expect(i[0].s).toBeCloseTo(10);
+    expect(a.map((x) => x.c.percurso)).toEqual(["volta", "interno"]);
+    expect(a[0].s).toBeCloseTo(11 * 0.4);
+    expect(a[1].s).toBeCloseTo(11 * 0.6);
+    // total sempre = falas + marca
+    for (const p of ["externo", "interno", "ambos"] as const) expect(roteiroDasFalas(fala, { passeio: p }).totalS).toBe(20 + MARCA_S);
+  });
+  it("tomadas começam pela isométrica, sem vista de cima nem lateral", () => {
+    expect(CAMERAS_TOMADA[0]).toBe("isometrica");
     expect(CAMERAS_TOMADA).not.toContain("superior");
+    expect(CAMERAS_TOMADA).not.toContain("lateral");
+  });
+  it("por dentro: começa 3,5 m antes da porta, anda 1 m/s e nunca passa da volta final", () => {
+    // voo sintético: 200 m andando em u de 0 a 0,9; porta em u = 0,5; volta final em u = 0,6 (20 m de interior)
+    const voo = { comprimento: 200, marcas: { fimConstrucao: 0.3, inicioInterno: 0.5, inicioVoltaFinal: 0.6, fimMovimento: 0.9 } };
+    const mPorU = 200 / 0.9;
+    expect(trechoInterno(0, voo, 8)).toBeCloseTo(0.5 - ANTES_DA_PORTA_M / mPorU);
+    expect((trechoInterno(1, voo, 8) - trechoInterno(0, voo, 8)) * mPorU).toBeCloseTo(VELOCIDADE_INTERNA * 8);
+    // cena longa demais para o caminho: para na volta final
+    expect(trechoInterno(1, voo, 60)).toBeCloseTo(0.6);
   });
 });

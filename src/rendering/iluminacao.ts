@@ -53,7 +53,9 @@ const FAIXAS: [number, Numericos][] = [
   // dia: sol mais forte que o céu (sombra com contraste), céu limpo e azul, exposição contida para o branco não estourar (ADR-31)
   [25, { corSol: 0xfff1de, intensidadeSol: 3.2, corCeu: 0xd4e3f4, corChao: 0x6e5c46, intensidadeCeu: 0.72, intensidadeAmbiente: 0.34, luminarias: 0, exposicao: 0.74, turbidez: 2.6, rayleigh: 1.9, corNeblina: 0xbcd0e6 }],
   [10, { corSol: 0xffe0b0, intensidadeSol: 2.6, corCeu: 0xe6e0d4, corChao: 0x66553f, intensidadeCeu: 0.95, intensidadeAmbiente: 0.42, luminarias: 0, exposicao: 0.86, turbidez: 5.5, rayleigh: 1.6, corNeblina: 0xd4d3cc }],
-  [3, { corSol: 0xffa25a, intensidadeSol: 2.2, corCeu: 0xf2c79a, corChao: 0x5a4636, intensidadeCeu: 0.55, intensidadeAmbiente: 0.35, luminarias: 0.55, exposicao: 1.0, turbidez: 8, rayleigh: 2.5, corNeblina: 0xd6b08c }],
+  // entardecer (ADR-32): dourado no sol, mas céu limpo do azul ao laranja (turbidez baixa) e exposição contida;
+  // a correção de cor não aquece de novo (temperatura 0 com o sol baixo)
+  [3, { corSol: 0xffb36e, intensidadeSol: 2.5, corCeu: 0xc9d2e4, corChao: 0x5a4a3c, intensidadeCeu: 0.5, intensidadeAmbiente: 0.32, luminarias: 0.55, exposicao: 0.88, turbidez: 3.6, rayleigh: 2.2, corNeblina: 0xc8bfb6 }],
   [-2, { corSol: 0xc98a7c, intensidadeSol: 0.55, corCeu: 0x8a8fb8, corChao: 0x3a3238, intensidadeCeu: 0.5, intensidadeAmbiente: 0.3, luminarias: 0.9, exposicao: 1.1, turbidez: 3, rayleigh: 3, corNeblina: 0x6f6a8a }],
   [-8, { corSol: 0x8fa8d8, intensidadeSol: 0.45, corCeu: 0x6a80b0, corChao: 0x2a2a30, intensidadeCeu: 0.6, intensidadeAmbiente: 0.25, luminarias: 1, exposicao: 1.15, turbidez: 2, rayleigh: 3, corNeblina: 0x28324a }],
 ];

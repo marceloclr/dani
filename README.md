@@ -65,8 +65,10 @@ e publique a pasta `dist/` (GitHub Pages, Cloudflare Pages, Netlify ou Vercel).
    - os **vídeos da engenheira**, um por linha da aba Falas, casados pelo nome do arquivo;
    - as **fotos**.
    A ordem não importa.
-2. **Conferir.** Ficha da obra, avisos com aba e linha e prévia grande de cada cena no formato do vídeo, com a engenheira recortada sobre a obra.
-3. **Gerar.** MP4 com a voz das falas em sequência: abertura no terreno, revelação, a obra se formando, o passeio do drone e a marca.
+2. **Conferir.** Ficha da obra, avisos com aba e linha e prévia grande de cada cena no formato do vídeo, com a engenheira recortada sobre a obra. Em **Passeio**, escolha o fim do vídeo: **Externo** (padrão, uma volta baixa por fora), **Interno** (entra pela porta a passo de quem caminha) ou **Ambos** (a volta e, depois de um corte, por dentro). Interno e Ambos pedem a porta de entrada encontrada no modelo; a escolha também vai na aba Vídeo da planilha (ADR-32).
+3. **Gerar.** MP4 com a voz das falas em sequência: abertura no terreno, revelação, a obra se formando, o passeio pela obra pronta e a marca.
+
+Os arquivos exportados (vídeo, planilha, `.4dstudio`, cronograma, mapeamento e relatório) levam a data e a hora no nome: `<nome>-AAAAMMDD-HHMM`. Os modelos para download têm nome fixo.
 
 **Gestão e ajustes** (`#/gestao`, botão no topo) guarda o estúdio completo, descrito abaixo. **Exportar planilha** leva de volta para o .xlsx o que foi ajustado ali.
 

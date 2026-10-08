@@ -5,7 +5,7 @@ import { MUNICIPIOS, OUTRO_MUNICIPIO, NOME_OUTRO } from "../fourd/feriados";
 import { NOME_LUZ } from "../rendering/iluminacao";
 import {
   ABAS, CAMPOS_DOCUMENTO, CAMPOS_MODELO, CAMPOS_OBRA, CAMPOS_VIDEO, ROTULO_ACAO, ROTULO_ANIMACAO, ROTULO_APARENCIA, ROTULO_CENA, ROTULO_COBERTURA,
-  ROTULO_FORMATO, ROTULO_RECORTE, SECOES_DOCUMENTO, type ProjetoPlanilha,
+  ROTULO_FORMATO, ROTULO_PASSEIO, ROTULO_RECORTE, SECOES_DOCUMENTO, type ProjetoPlanilha,
 } from "./tipos";
 
 type Celula = string | number | { data: number } | null;
@@ -47,6 +47,7 @@ export function linhasDaPlanilha(p: ProjetoPlanilha): [string, Celula[][]][] {
       [CAMPOS_VIDEO.fps, p.video.fps ? String(p.video.fps) : null], [CAMPOS_VIDEO.qualidade, p.video.qualidade ? (p.video.qualidade === "maxima" ? "máxima" : "normal") : null],
       [CAMPOS_VIDEO.aparencia, p.video.aparencia ? ROTULO_APARENCIA[p.video.aparencia] : null], [CAMPOS_VIDEO.luz, p.video.luz ? NOME_LUZ[p.video.luz] : null],
       [CAMPOS_VIDEO.animacao, p.video.animacao ? ROTULO_ANIMACAO[p.video.animacao] : null], [CAMPOS_VIDEO.assinatura, simNao(p.video.assinatura)],
+      [CAMPOS_VIDEO.passeio, p.video.passeio ? ROTULO_PASSEIO[p.video.passeio] : null],
     ])],
     [ABAS.documento, ficha([
       [CAMPOS_DOCUMENTO.titulo, p.documento.titulo], [CAMPOS_DOCUMENTO.destinatario, p.documento.destinatario], [CAMPOS_DOCUMENTO.observacoes, p.documento.observacoes],

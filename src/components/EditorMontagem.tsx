@@ -51,7 +51,7 @@ export function EditorMontagem({ cenas, segundos, temFala, fundoVerde, atual, ao
       >
         {cenas.map((c, i) => (
           <span key={c.id} className={`bloco-cena tipo-${c.tipo}${atual === i ? " atual" : ""}`} style={{ flexGrow: c.peso }}>
-            <span>{NOME_CENA[c.tipo]}</span>
+            <span>{c.rotulo ?? NOME_CENA[c.tipo]}</span>
             <span className="num">{fmt(seg[i])} s</span>
           </span>
         ))}

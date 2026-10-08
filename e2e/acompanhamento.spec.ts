@@ -55,7 +55,7 @@ test("exemplo: planejado × real, fotos na timeline e relatório PDF", async ({ 
 
   // relatório PDF
   const [download] = await Promise.all([page.waitForEvent("download"), page.getByTestId("gerar-relatorio").click()]);
-  expect(download.suggestedFilename()).toBe("relatorio-casa-de-exemplo-ficticia-2026-04-20.pdf");
+  expect(download.suggestedFilename()).toMatch(/^relatorio-casa-de-exemplo-ficticia-2026-04-20-\d{8}-\d{4}\.pdf$/);
   const caminho = `e2e/resultados/${download.suggestedFilename()}`;
   await download.saveAs(caminho);
   const bytes = new Uint8Array(readFileSync(caminho));

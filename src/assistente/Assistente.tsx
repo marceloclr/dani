@@ -19,7 +19,8 @@ export function Assistente() {
   const segundosEscolhidos = useProjeto((s) => s.video.segundos);
   // com falas, o vídeo segue as falas (+ a marca); sem elas, a duração da aba Vídeo e o roteiro sem pessoa
   const segundos = falas.trechos.length ? falas.totalS : segundosEscolhidos;
-  const cenas = falas.trechos.length ? falas.cenas : normalizar(roteiroReels(false, false), segundos, false); // passeio por fora (ADR-31)
+  const passeio = useProjeto((s) => s.video.passeio ?? "externo");
+  const cenas = falas.trechos.length ? falas.cenas : normalizar(roteiroReels(false, passeio), segundos, false); // passeio escolhido (ADR-32)
   const gerando = useProjeto((s) => s.gerandoVideo);
   // durante a geração, sair do passo descartaria o vídeo: a navegação fica travada
   const liberado = (i: number) => !gerando && (i === 0 || (temPlanilha && pronto));

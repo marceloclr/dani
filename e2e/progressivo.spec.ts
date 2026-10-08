@@ -68,7 +68,7 @@ test("MP4 para WhatsApp: H.264 Baseline, yuv420p, 720 × 1280, índice no iníci
   await page.getByTestId("gerar-video").click();
   await expect(page.getByTestId("resultado-video")).toBeVisible({ timeout: 240_000 });
   const [d] = await Promise.all([page.waitForEvent("download"), page.getByTestId("baixar-video").click()]);
-  expect(d.suggestedFilename()).toBe("obra-4d-vertical-15s-whatsapp.mp4");
+  expect(d.suggestedFilename()).toMatch(/^demonstracao-vertical-\d{8}-\d{4}-whatsapp\.mp4$/);
   const caminho = "e2e/resultados/whatsapp.mp4";
   await d.saveAs(caminho);
   const s = sonda(caminho);

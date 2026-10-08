@@ -10,7 +10,7 @@ import type { AcaoTarefa, Excecao } from "../types";
 import type { ParametrosCasa } from "../bim/parametrico";
 import {
   ABAS, CAMPOS_DOCUMENTO, CAMPOS_MODELO, CAMPOS_OBRA, CAMPOS_VIDEO, DOCUMENTO_PADRAO, OBRA_VAZIA, ROTULO_ACAO, ROTULO_ANIMACAO, ROTULO_APARENCIA,
-  ROTULO_CENA, ROTULO_COBERTURA, ROTULO_FORMATO, ROTULO_RECORTE, SECOES_DOCUMENTO,
+  ROTULO_CENA, ROTULO_COBERTURA, ROTULO_FORMATO, ROTULO_PASSEIO, ROTULO_RECORTE, SECOES_DOCUMENTO,
   type CenaFala, type DadosObra, type DocumentoPlanilha, type LinhaFala, type LinhaFoto, type ProblemaPlanilha, type ProjetoPlanilha, type VideoPlanilha,
 } from "./tipos";
 
@@ -254,6 +254,9 @@ export function interpretarAbas(abas: Abas, sistema1904 = false): { projeto: Pro
     const an = escolha(ROTULO_ANIMACAO, c("animacao")?.valor);
     if (an === null) fora("animacao");
     else if (an) video.animacao = an;
+    const pas = escolha(ROTULO_PASSEIO, c("passeio")?.valor);
+    if (pas === null) fora("passeio");
+    else if (pas) video.passeio = pas;
     const ass = simNao(c("assinatura")?.valor);
     if (ass === null) fora("assinatura");
     else if (ass !== undefined) video.assinatura = ass;

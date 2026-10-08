@@ -8,7 +8,7 @@ import { duracaoObra } from "../fourd/simulacao";
 import { horarioDoVoo } from "../rendering/cicloDia";
 import { poseNoTempo, type PontoRoteiro } from "../rendering/cameras";
 import { diaDoVoo } from "../rendering/drone";
-import { cenaNoTempo, obraNaCena, poseDaCena, trechoDoVoo, type Cena as CenaMontagem } from "../rendering/montagem";
+import { cenaNoTempo, obraNaCena, poseDaCena, quadroDoVooNaCena, trechoDoVoo, trechoInterno, type Cena as CenaMontagem } from "../rendering/montagem";
 import { gerarVideo, type ArquivoGerado, type Saida } from "../rendering/VideoRenderer";
 import type { Cena } from "../rendering/Cena";
 import type { ConfigApresentadora } from "../rendering/composicao";
@@ -52,7 +52,7 @@ export async function gerarVideoDaObra(cena: Cena, p: PedidoDaObra): Promise<Arq
     if (comDrone && horaDoVoo) return horaDoVoo(t / seg);
     if (comMontagem && horaDoVoo && vooCiclo) {
       const m = cenaNoTempo(p.cenas, t, seg);
-      if (m.cena.camera === "drone" && m.cena.tipo === "obra") return horaDoVoo(trechoDoVoo(m.cena, m.u, vooCiclo.fimConstrucao));
+      if (m.cena.camera === "drone" && m.cena.tipo === "obra") return horaDoVoo(m.cena.percurso === "interno" ? trechoInterno(m.u, vooCiclo, m.fim - m.inicio) : trechoDoVoo(m.cena, m.u, vooCiclo.fimConstrucao));
     }
     return horarioDoVoo(uVideo, marcasGlobais, 0.85, efem);
   };
@@ -108,8 +108,8 @@ export function mostrarNaMontagem(cena: Cena, cenas: CenaMontagem[], t: number, 
   cena.pararGiro();
   if (c.tipo === "marca") return;
   const voo = c.camera === "drone" ? cena.voo() : null;
-  if (voo) cena.posicionarLivre(cena.camera, voo.quadro(trechoDoVoo(c, m.u, voo.fimConstrucao)));
-  else cena.mostrarPose(poseDaCena(c.camera === "drone" ? "orbita" : c.camera, cena.enquadramento(), m.u));
+  if (voo) cena.posicionarLivre(cena.camera, quadroDoVooNaCena(c, m.u, voo, m.fim - m.inicio));
+  else cena.mostrarPose(poseDaCena(c.camera === "drone" ? "orbita" : c.camera, cena.enquadramento(), m.u, c.percurso));
   // a fala no terreno mostra o terreno; a revelação, a obra pronta atrás dela
   st.definirDia((c.tipo === "revelacao" ? 1 : obraNaCena(c, m.u)) * Math.max(dias - 1, 0));
   cena.pedirQuadro();

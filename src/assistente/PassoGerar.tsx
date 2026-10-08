@@ -3,20 +3,19 @@ import { useEffect, useRef, useState } from "react";
 import { obterCena } from "../app/estadoCena";
 import { nomeSeguro } from "../app/projetos";
 import { gerarVideoDaObra } from "../app/videoDaObra";
-import { formatarISO, hojeCivil } from "../fourd/tempo";
 import { Cancelado, NOME_SAIDA, capacidades, dimensoesDaSaida, type ArquivoGerado, type Saida } from "../rendering/VideoRenderer";
 import { totalDeQuadros } from "../rendering/cameras";
 import { RESOLUCOES, useProjeto } from "../state/projectStore";
 import { NOME_LUZ } from "../rendering/iluminacao";
-import { baixar } from "../utils/baixar";
+import { baixar, carimboArquivo } from "../utils/baixar";
 import type { FalasDoVideo } from "../app/falas";
 import type { Cena } from "../rendering/montagem";
 
 const tempo = (s: number) => (s < 60 ? `${Math.ceil(s)} s` : `${Math.floor(s / 60)} min ${Math.ceil(s % 60)} s`);
 
-/** Nome dos arquivos gerados: obra e data, ex.: sobrado-de-exemplo-20261008. */
-export function nomeDaEntrega(obra: string | undefined, dia = hojeCivil()): string {
-  return `${nomeSeguro(obra || "obra")}-${formatarISO(dia).replace(/-/g, "")}`;
+/** Nome dos arquivos gerados: obra, data e hora, ex.: sobrado-de-exemplo-20261008-1342. */
+export function nomeDaEntrega(obra: string | undefined, agora = new Date()): string {
+  return `${nomeSeguro(obra || "obra")}-${carimboArquivo(agora)}`;
 }
 
 /** Último vídeo gerado: continua disponível ao sair e voltar ao passo Gerar. */

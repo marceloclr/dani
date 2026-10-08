@@ -5,7 +5,7 @@ import { SecaoApresentadora } from "./SecaoApresentadora";
 import { SolOrientacao } from "./SolOrientacao";
 import { EditorMontagem } from "./EditorMontagem";
 import { gerarVideoDaObra } from "../app/videoDaObra";
-import { NOME_CENA, cenaNoTempo, normalizar, obraNaCena, poseDaCena, roteiroReels, trechoDoVoo } from "../rendering/montagem";
+import { NOME_CENA, cenaNoTempo, normalizar, obraNaCena, poseDaCena, quadroDoVooNaCena, roteiroReels } from "../rendering/montagem";
 import { obterCena } from "../app/estadoCena";
 import { duracaoObra } from "../fourd/simulacao";
 import { PRESETS, diaDoQuadro, poseNoTempo, roteiroPadrao, totalDeQuadros, type PontoRoteiro, type Preset } from "../rendering/cameras";
@@ -13,7 +13,8 @@ import { FRACAO_CONSTRUCAO, diaDoVoo } from "../rendering/drone";
 import { CLIENTE, SLOGAN } from "../app/marca";
 import { Cancelado, DESCRICAO_SAIDA, NOME_SAIDA, capacidades, dimensoesDaSaida, dispositivoLimitado, estimarZipMB, type ArquivoGerado, type Capacidades, type Saida } from "../rendering/VideoRenderer";
 import { RESOLUCOES, useProjeto, type ConfigVideo, type FormatoVideo } from "../state/projectStore";
-import { baixar } from "../utils/baixar";
+import { baixar, carimboArquivo } from "../utils/baixar";
+import { nomeSeguro } from "../app/projetos";
 import { NOME_LUZ, type Luz } from "../rendering/iluminacao";
 
 const FPS: ConfigVideo["fps"][] = [24, 30];
@@ -93,8 +94,8 @@ export function PainelVideo() {
       const c = m.cena;
       if (c.tipo === "fala" || c.tipo === "marca") return;
       const voo = c.camera === "drone" ? cena.voo() : null;
-      if (voo) cena.posicionarLivre(cena.camera, voo.quadro(trechoDoVoo(c, m.u, voo.fimConstrucao)));
-      else cena.mostrarPose(poseDaCena(c.camera === "drone" ? "orbita" : c.camera, cena.enquadramento(), m.u));
+      if (voo) cena.posicionarLivre(cena.camera, quadroDoVooNaCena(c, m.u, voo, m.fim - m.inicio));
+      else cena.mostrarPose(poseDaCena(c.camera === "drone" ? "orbita" : c.camera, cena.enquadramento(), m.u, c.percurso));
       st().definirDia(obraNaCena(c, m.u) * dias);
       cena.pedirQuadro();
       return;
@@ -136,7 +137,7 @@ export function PainelVideo() {
         cenas,
         roteiro,
         fala: fala && blobFala ? { fonte: blobFala, cfg: fala } : null,
-        nomeBase: `obra-4d-${video.formato}-${segundos}s`,
+        nomeBase: `${nomeSeguro(st().planilha?.obra.nome || st().nomeProjeto || "obra")}-${video.formato}-${carimboArquivo()}`,
         sinal: ac.signal,
         aoProgredir: setProgresso,
         aoCriarCanvas: (c) => {

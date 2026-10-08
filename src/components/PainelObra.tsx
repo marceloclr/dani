@@ -7,7 +7,7 @@ import { avancoPlanejado, avancoReal, dataDeStatus, desviosDasTarefas, temDadosR
 import { formatarBR, formatarISO, lerData } from "../fourd/tempo";
 import { useProjeto } from "../state/projectStore";
 import { useUi } from "../state/uiStore";
-import { baixar } from "../utils/baixar";
+import { baixar, carimboArquivo } from "../utils/baixar";
 
 const pct = (f: number) => `${Math.round(f * 100)}%`;
 
@@ -37,7 +37,7 @@ export function PainelObra() {
     setGerando(true);
     try {
       const pdf = await gerarRelatorio(cena);
-      baixar(pdf, `relatorio-${nomeSeguro(st().nomeProjeto ?? "obra")}-${formatarISO(cronograma.inicio + dia)}.pdf`);
+      baixar(pdf, `relatorio-${nomeSeguro(st().nomeProjeto ?? "obra")}-${formatarISO(cronograma.inicio + dia)}-${carimboArquivo()}.pdf`);
     } catch (e) {
       st().mostrarErro({ mensagem: "Não foi possível gerar o relatório.", detalhes: String((e as Error)?.stack ?? e) });
     } finally {

@@ -7,7 +7,7 @@ import { avancoPlanejado, avancoReal, temDadosReais } from "../fourd/real";
 import { duracaoObra } from "../fourd/simulacao";
 import { formatarBR, hojeCivil } from "../fourd/tempo";
 import { NOME_LUZ, type Luz } from "../rendering/iluminacao";
-import { NOME_CENA, duracoes, type Cena } from "../rendering/montagem";
+import { NOME_CENA, NOME_PASSEIO, duracoes, type Cena } from "../rendering/montagem";
 import { localizarNaSequencia, previaApresentadora, quadroDaFala } from "../rendering/apresentadora";
 import { RESOLUCOES, useProjeto, type FormatoVideo } from "../state/projectStore";
 import type { FalasDoVideo } from "../app/falas";
@@ -30,6 +30,17 @@ export function PassoConferir({ falas, cenas, segundos }: { falas: FalasDoVideo;
   const nFotos = useProjeto((s) => s.fotos.length);
   const st = useProjeto.getState;
   const [atual, setAtual] = useState(0);
+  const passeio = useProjeto((s) => s.video.passeio ?? "externo");
+  // o interior só existe se o voo achou a porta de entrada (a cena 3D é a da prévia)
+  const [temInterior, setTemInterior] = useState(true);
+  useEffect(() => {
+    const id = setTimeout(() => {
+      const ok = !!obterCena()?.voo()?.entrada;
+      setTemInterior(ok);
+      if (!ok && (useProjeto.getState().video.passeio ?? "externo") !== "externo") useProjeto.getState().definirVideo({ passeio: "externo" });
+    }, 300);
+    return () => clearTimeout(id);
+  }, []);
   const [pessoa, setPessoa] = useState<string | null>(null);
   const seg_ = duracoes(cenas, segundos);
   const inicio = (i: number) => seg_.slice(0, i).reduce((a, b) => a + b, 0);
@@ -126,6 +137,27 @@ export function PassoConferir({ falas, cenas, segundos }: { falas: FalasDoVideo;
               </button>
             ))}
           </div>
+          <div className="segmentos" role="tablist" aria-label="Passeio" style={{ ["--acento" as string]: "var(--grafite)" }} data-testid="passeio">
+            {(["externo", "interno", "ambos"] as const).map((p) => {
+              const precisaInterior = p !== "externo";
+              const bloqueado = precisaInterior && !temInterior;
+              return (
+                <button
+                  key={p}
+                  type="button"
+                  role="tab"
+                  className="seg"
+                  aria-selected={passeio === p}
+                  disabled={bloqueado}
+                  data-testid={`passeio-${p}`}
+                  data-tip={bloqueado ? "Sem porta de entrada encontrada no modelo: o drone não tem por onde entrar." : { externo: "Fim do vídeo: volta por fora, à altura de quem olha da rua.", interno: "Fim do vídeo: o drone entra pela porta e percorre os cômodos, a passo de quem caminha.", ambos: "Fim do vídeo: volta por fora e, depois de um corte, entra pela porta." }[p]}
+                  onClick={() => st().definirVideo({ passeio: p })}
+                >
+                  {NOME_PASSEIO[p]}
+                </button>
+              );
+            })}
+          </div>
           <label className="campo campo-linha">
             <span>Luz</span>
             <select value={video.luz ?? "dia"} disabled={aparencia !== "realista"} data-testid="assistente-luz" onChange={(e) => st().definirVideo({ luz: e.target.value as Luz })}>
@@ -145,8 +177,8 @@ export function PassoConferir({ falas, cenas, segundos }: { falas: FalasDoVideo;
         <ol className="faixa-cenas" aria-label="Cenas do vídeo" data-testid="faixa-cenas-assistente">
           {cenas.map((c, i) => (
             <li key={c.id} style={{ flex: seg_[i] }}>
-              <button type="button" className={`bloco-cena tipo-${c.tipo}${i === atual ? " atual" : ""}`} aria-pressed={i === atual} data-tip={`${NOME_CENA[c.tipo]} · ${seg(seg_[i])}\nDe ${seg(inicio(i))} a ${seg(inicio(i) + seg_[i])}`} onClick={() => setAtual(i)}>
-                <span>{NOME_CENA[c.tipo]}</span>
+              <button type="button" className={`bloco-cena tipo-${c.tipo}${i === atual ? " atual" : ""}`} aria-pressed={i === atual} data-tip={`${c.rotulo ?? NOME_CENA[c.tipo]} · ${seg(seg_[i])}\nDe ${seg(inicio(i))} a ${seg(inicio(i) + seg_[i])}`} onClick={() => setAtual(i)}>
+                <span>{c.rotulo ?? NOME_CENA[c.tipo]}</span>
               </button>
             </li>
           ))}

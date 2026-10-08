@@ -13,7 +13,7 @@ function planilhaComFalas(): Buffer {
   const wb = XLSX.read(readFileSync("public/modelos/obra-dani.xlsx"), { type: "buffer" });
   XLSX.utils.sheet_add_aoa(wb.Sheets["Falas"], [
     [1, "abertura.mp4", "Apresentação", "terreno", "fundo verde", 0, 2],
-    [2, "etapas.mp4", "Etapas da obra", "sobre a obra", "fundo verde", 1, 3],
+    [2, "etapas.mp4", "Etapas da obra", "sobre a obra", "fundo verde", 0, 8], // 8 s: com passeio no fim
   ], { origin: "A2" });
   const video = wb.Sheets["Vídeo"];
   const linhas = XLSX.utils.sheet_to_json<Record<string, unknown>>(video, { defval: "" });
@@ -43,7 +43,7 @@ test("assistente: planilha, IFC e duas falas → conferir → MP4 com a voz das 
     { name: "abertura.mp4", mimeType: "video/mp4", buffer: FALA },
     { name: "etapas.mp4", mimeType: "video/mp4", buffer: FALA },
   ]);
-  await expect(page.getByTestId("estado-falas")).toHaveText(/^2 de 2 · 4 s$/, { timeout: 30_000 });
+  await expect(page.getByTestId("estado-falas")).toHaveText(/^2 de 2 · 10 s$/, { timeout: 30_000 });
   await page.getByTestId("entrada-ifc").setInputFiles("public/modelos/sobrado-exemplo.ifc");
   await expect(page.getByTestId("estado-ifc")).toHaveText("sobrado-exemplo.ifc · 157 elementos", { timeout: 90_000 });
   await expect(page.getByTestId("estado-falas")).toHaveText(/^2 de 2/);
@@ -51,7 +51,7 @@ test("assistente: planilha, IFC e duas falas → conferir → MP4 com a voz das 
   // conferir: ficha, faixa de cenas pelas falas e a prévia no formato do vídeo
   await page.getByTestId("avancar").click();
   await expect(page.getByTestId("ficha-conferir")).toContainText("02/03/2026 a 26/11/2026");
-  await expect(page.getByTestId("ficha-conferir")).toContainText("2 · 6,5 s de vídeo");
+  await expect(page.getByTestId("ficha-conferir")).toContainText("2 · 12,5 s de vídeo");
   const cenas = page.getByTestId("faixa-cenas-assistente").locator("button");
   await expect(cenas.first()).toHaveText("Fala no terreno");
   await expect(cenas.last()).toHaveText("Marca");
@@ -60,8 +60,14 @@ test("assistente: planilha, IFC e duas falas → conferir → MP4 com a voz das 
   await page.getByTestId("formato-vertical").click();
   await expect.poll(async () => { const b = (await page.getByTestId("moldura-previa").boundingBox())!; return b.width / b.height; }).toBeCloseTo(9 / 16, 1);
   await page.getByTestId("formato-horizontal").click();
+  // passeio (ADR-32): Ambos = volta por fora e, depois, por dentro, antes da marca
+  await page.getByTestId("passeio-ambos").click();
+  await expect(cenas.last()).toHaveText("Marca");
+  const nCenas = await cenas.count();
+  await expect(cenas.nth(nCenas - 3)).toHaveText("Volta por fora");
+  await expect(cenas.nth(nCenas - 2)).toHaveText("Por dentro");
 
-  // gerar: MP4 para WhatsApp com a voz (as duas falas = 4 s de tom) e o nome da obra
+  // gerar: MP4 para WhatsApp com a voz (as duas falas = 10 s de tom) e o nome da obra
   await page.getByTestId("avancar").click();
   await expect(page.getByTestId("config-gerar")).toContainText("Aparência Técnica");
   await expect(page.getByTestId("aviso-tecnica")).toBeVisible(); // a planilha do teste pede Técnica (sem GPU)
@@ -74,15 +80,15 @@ test("assistente: planilha, IFC e duas falas → conferir → MP4 com a voz das 
   const download = await automatico;
   await expect(page.getByTestId("assistente-salvo")).toContainText(download.suggestedFilename());
   await expect(page.getByTestId("passo-2")).toBeEnabled();
-  expect(download.suggestedFilename()).toMatch(/^sobrado-de-exemplo-\d{8}(-whatsapp)?\.mp4$/);
+  expect(download.suggestedFilename()).toMatch(/^sobrado-de-exemplo-\d{8}-\d{4}(-whatsapp)?\.mp4$/);
   const caminho = await download.path();
   const j = JSON.parse(execFileSync("ffprobe", ["-v", "error", "-show_entries", "stream=codec_type:format=duration", "-of", "json", caminho]).toString());
   expect(j.streams.map((s: { codec_type: string }) => s.codec_type).sort()).toEqual(["audio", "video"]);
-  expect(Number(j.format.duration)).toBeCloseTo(6.5, 0);
-  // voz nos 4 primeiros segundos (as duas falas) e silêncio na marca
+  expect(Number(j.format.duration)).toBeCloseTo(12.5, 0);
+  // voz nos 10 primeiros segundos (as duas falas) e silêncio na marca
   const vol = (ini: number, dur: number) => Number(/mean_volume: (-?[\d.]+) dB/.exec(spawnSync("ffmpeg", ["-hide_banner", "-ss", String(ini), "-t", String(dur), "-i", caminho, "-af", "volumedetect", "-vn", "-f", "null", "-"]).stderr.toString())?.[1] ?? -99);
-  expect(vol(0.2, 3.5)).toBeGreaterThan(-30);
-  expect(vol(4.6, 1.5)).toBeLessThan(-60);
+  expect(vol(0.2, 9.5)).toBeGreaterThan(-30);
+  expect(vol(10.6, 1.5)).toBeLessThan(-60);
 });
 
 test("Gestão e ajustes guarda o estúdio completo e volta ao assistente", async ({ page }) => {

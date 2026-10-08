@@ -7,7 +7,7 @@ import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { GTAOPass } from "three/addons/postprocessing/GTAOPass.js";
 import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
-import { passoAcabamento } from "./acabamento";
+import { passoAcabamento, temperaturaDoSol } from "./acabamento";
 import { materialRealista, uvsPorProjecao, type Aparencia3D } from "./aparencia";
 import { ESCALA_M, desenharTextura, type TipoTextura } from "./texturas";
 import type { MalhaElemento } from "../bim/parseIfc";
@@ -422,6 +422,7 @@ export class Cena {
         passoCena.camera = cam;
         gtao.camera = cam;
         acabamento.definirQuadro(quadro ?? 0);
+        acabamento.uniforms.temperatura.value = temperaturaDoSol(this.solElev);
         composer.render();
         this.scene.environment = anterior;
         this.scene.background = ceuAnterior;

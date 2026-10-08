@@ -1,6 +1,7 @@
 // Montagem em cenas (ADR-25): o vídeo vira uma sequência de cenas com cortes secos sobre a fala
 // contínua da apresentadora, como nos Reels de arquitetura. Puro, sem DOM: testado no Node.
 import { poseDoPreset, type Enquadramento, type Pose, type Preset } from "./cameras";
+import type { QuadroCamera, Voo } from "./drone";
 
 export type TipoCena = "fala" | "revelacao" | "obra" | "marca";
 export type CameraCena = "drone" | Preset;
@@ -16,33 +17,62 @@ export interface Cena {
   obra: [number, number];
   /** Como a apresentadora aparece: o quadro original inteiro, recortada no canto ou fora. */
   pessoa: PessoaNaCena;
+  /**
+   * Passeio pela obra pronta (ADR-32): "volta" = órbita baixa, à altura de quem olha a casa da rua;
+   * "interno" = trecho do voo do drone desde a porta de entrada, a passo de quem caminha.
+   */
+  percurso?: "volta" | "interno";
+  /** Nome na faixa de cenas (senão, o do tipo). */
+  rotulo?: string;
 }
+
+/** Passeio pela obra pronta no fim do vídeo do assistente (ADR-32). */
+export type Passeio = "externo" | "interno" | "ambos";
+export const NOME_PASSEIO: Record<Passeio, string> = { externo: "Externo", interno: "Interno", ambos: "Ambos" };
 
 export const NOME_CENA: Record<TipoCena, string> = { fala: "Fala no terreno", revelacao: "Revelação", obra: "Obra", marca: "Marca" };
 
 /** Duração mínima de uma cena, em segundos. */
 export const MINIMO_CENA_S = 0.8;
 
-const cena = (id: string, tipo: TipoCena, peso: number, camera: CameraCena, obra: [number, number], pessoa: PessoaNaCena): Cena => ({ id, tipo, peso, camera, obra, pessoa });
+const cena = (id: string, tipo: TipoCena, peso: number, camera: CameraCena, obra: [number, number], pessoa: PessoaNaCena, extra: Partial<Cena> = {}): Cena => ({ id, tipo, peso, camera, obra, pessoa, ...extra });
+
+/** Cenas do passeio final (ADR-32), com a parte de cada uma: externo = volta; interno = por dentro; ambos = volta e, depois, por dentro. */
+export function cenasDoPasseio(passeio: Passeio): { camera: CameraCena; parte: number; percurso: "volta" | "interno"; rotulo: string }[] {
+  const volta = { camera: "orbita" as CameraCena, percurso: "volta" as const, rotulo: "Volta por fora" };
+  const dentro = { camera: "drone" as CameraCena, percurso: "interno" as const, rotulo: "Por dentro" };
+  return passeio === "externo" ? [{ ...volta, parte: 1 }] : passeio === "interno" ? [{ ...dentro, parte: 1 }] : [{ ...volta, parte: 0.4 }, { ...dentro, parte: 0.6 }];
+}
+
+/** Duração do passeio final, pela última fala sobre a obra: externo até 10 s (40 %), interno até 14 s (50 %), ambos até 16 s (55 %). */
+export function duracaoDoPasseio(passeio: Passeio, falaS: number): number {
+  if (falaS < 6) return 0;
+  const [max, frac] = passeio === "externo" ? [10, 0.4] : passeio === "interno" ? [14, 0.5] : [16, 0.55];
+  return Math.min(max, falaS * frac);
+}
 
 /**
  * Roteiro Reels. Com a fala: abertura com ela no terreno, revelação do projeto atrás dela (a obra sobe
  * do terreno à pronta), passeio do drone pela obra pronta, volta dela em primeiro plano e a marca.
  * Sem a fala: a obra se monta, o drone passeia e a marca fecha.
  */
-export function roteiroReels(temFala: boolean, passeioInterno = true): Cena[] {
-  const passeio: CameraCena = passeioInterno ? "drone" : "orbita";
+export function roteiroReels(temFala: boolean, passeio: boolean | Passeio = true): Cena[] {
+  // true = o voo inteiro do drone (Gestão); um Passeio = as cenas do passeio do assistente (ADR-32)
+  const fim = (id: string, peso: number, pessoa: PessoaNaCena): Cena[] =>
+    typeof passeio === "boolean"
+      ? [cena(id, "obra", peso, passeio ? "drone" : "orbita", [1, 1], pessoa, passeio ? {} : { percurso: "volta", rotulo: "Volta por fora" })]
+      : cenasDoPasseio(passeio).map((p, k) => cena(`${id}${k}`, "obra", peso * p.parte, p.camera, [1, 1], pessoa, { percurso: p.percurso, rotulo: p.rotulo }));
   return temFala
     ? [
         cena("abertura", "fala", 0.15, "frontal", [0, 0], "cheia"),
         cena("revelacao", "revelacao", 0.25, "frontal", [0, 1], "cheia"),
-        cena("passeio", "obra", 0.4, passeio, [1, 1], "oculta"),
+        ...fim("passeio", 0.4, "oculta"),
         cena("volta", "obra", 0.12, "orbita", [1, 1], "recortada"),
         cena("marca", "marca", 0.08, "frontal", [1, 1], "oculta"),
       ]
     : [
         cena("montagem", "obra", 0.4, "isometrica", [0, 1], "oculta"),
-        cena("passeio", "obra", 0.5, passeio, [1, 1], "oculta"),
+        ...fim("passeio", 0.5, "oculta"),
         cena("marca", "marca", 0.1, "frontal", [1, 1], "oculta"),
       ];
 }
@@ -127,15 +157,54 @@ export function cortinaRevelacao(u: number, y: number): number {
  * Câmera de uma cena com vista (não drone): o preset com movimento lento, como num Reels: a órbita
  * anda 15 % da volta; as outras vistas se aproximam 8 % e giram 3,4°.
  */
-export function poseDaCena(camera: Preset, e: Enquadramento, u: number): Pose {
+export function poseDaCena(camera: Preset, e: Enquadramento, u: number, percurso?: Cena["percurso"]): Pose {
+  // volta por fora (ADR-32): baixa, à altura de quem olha da rua, andando um terço da volta
+  if (percurso === "volta") {
+    const p = poseDoPreset("orbita", e);
+    return { ...p, az: grauRad(-70) + grauRad(120) * u, el: grauRad(9), dist: 0.98 };
+  }
   if (camera === "orbita") return poseDoPreset("orbita", e, 0.15 * u);
   const p = poseDoPreset(camera, e);
   return { ...p, az: p.az + 0.06 * u, dist: p.dist * (1 - 0.08 * u) };
 }
 
+const grauRad = (g: number) => (g * Math.PI) / 180;
+
 /** Trecho do voo do drone (0 a 1) numa cena: a montagem até `fimConstrucao`, o passeio pela obra pronta depois. */
 export function trechoDoVoo(c: Cena, u: number, fimConstrucao: number): number {
   return c.obra[0] >= 1 ? fimConstrucao + u * (1 - fimConstrucao) : u * fimConstrucao;
+}
+
+/** Passo do passeio por dentro (m/s), o mínimo quando o caminho é curto, e o recuo antes da porta (m) (ADR-32). */
+export const VELOCIDADE_INTERNA = 1.0;
+export const VELOCIDADE_INTERNA_MINIMA = 0.6;
+export const ANTES_DA_PORTA_M = 3.5;
+/** Campo de visão no passeio por dentro, como em vídeo de imóvel. */
+export const FOV_INTERNO = 75;
+
+/**
+ * Instante do voo (0 a 1) no passeio por dentro (ADR-32): começa `ANTES_DA_PORTA_M` antes da porta de entrada
+ * (`marcas.inicioInterno`) e anda `VELOCIDADE_INTERNA` × duração da cena, sem passar de `inicioVoltaFinal`; se o
+ * caminho é curto, a velocidade cai até `VELOCIDADE_INTERNA_MINIMA` e, se ainda sobrar tempo, a câmera para no fim.
+ * Fórmula: u_voo = início + u × metros da cena ÷ metros por unidade de u (= comprimento ÷ fimMovimento).
+ */
+export function trechoInterno(u: number, voo: Pick<Voo, "comprimento" | "marcas">, duracaoS: number): number {
+  const { inicioInterno, inicioVoltaFinal, fimMovimento } = voo.marcas;
+  const mPorU = voo.comprimento / Math.max(fimMovimento, 1e-6);
+  const ini = Math.max(0, inicioInterno - ANTES_DA_PORTA_M / mPorU);
+  const disponivel = (inicioVoltaFinal - ini) * mPorU;
+  const metros = Math.min(VELOCIDADE_INTERNA * duracaoS, Math.max(disponivel, 0));
+  const andado = Math.min(u * Math.max(metros, Math.min(VELOCIDADE_INTERNA_MINIMA * duracaoS, disponivel)), disponivel);
+  return ini + andado / mPorU;
+}
+
+/** Câmera do voo numa cena de drone: o trecho certo do voo e, por dentro, o campo de visão mais aberto. */
+export function quadroDoVooNaCena(c: Cena, u: number, voo: Voo, duracaoS: number): QuadroCamera {
+  if (c.percurso === "interno" && voo.entrada) {
+    const q = voo.quadro(trechoInterno(u, voo, duracaoS));
+    return { ...q, fov: Math.max(q.fov, FOV_INTERNO) };
+  }
+  return voo.quadro(trechoDoVoo(c, u, voo.fimConstrucao));
 }
 
 /** Onde cada fala da planilha entra (ADR-30): no terreno (abertura e revelação), sobre a obra (recortada) ou só a voz. */
@@ -147,7 +216,8 @@ export const MARCA_S = 2.5;
 export const TOMADA_S = 3.5;
 /** Câmeras das tomadas sobre a obra, em rodízio. */
 // sem a vista de cima: de cima, por dentro, a obra vira um piso branco sem leitura (ADR-31)
-export const CAMERAS_TOMADA: Preset[] = ["externa", "isometrica", "frontal", "orbita", "lateral"];
+// começa pela isométrica (mostra o lote inteiro); sem a lateral, que costuma ser parede cega (ADR-32)
+export const CAMERAS_TOMADA: Preset[] = ["isometrica", "externa", "frontal", "orbita"];
 
 /**
  * Roteiro a partir das falas da planilha (ADR-30). As cenas seguem as falas, na ordem e com a duração de cada
@@ -157,17 +227,16 @@ export const CAMERAS_TOMADA: Preset[] = ["externa", "isometrica", "frontal", "or
  *   todas essas falas (do terreno à pronta), com ela recortada no canto ou fora do quadro;
  * - a última fala sobre a obra, se tiver 6 s ou mais, termina com o passeio do drone pela obra pronta (40 %, até 10 s).
  */
-export function roteiroDasFalas(falas: { cena: CenaDaFala; duracaoS: number }[], opcoes: { passeioInterno?: boolean } = {}): { cenas: Cena[]; totalS: number } {
-  // casa paramétrica (sem IFC) não tem interior que valha o passeio: a última tomada vira uma volta por fora
-  const cameraPasseio: CameraCena = opcoes.passeioInterno === false ? "orbita" : "drone";
+export function roteiroDasFalas(falas: { cena: CenaDaFala; duracaoS: number }[], opcoes: { passeio?: Passeio } = {}): { cenas: Cena[]; totalS: number } {
+  const passeio = opcoes.passeio ?? "externo";
   const soma = falas.reduce((s, f) => s + Math.max(0, f.duracaoS), 0);
   if (!falas.length || !(soma > 0)) return { cenas: roteiroReels(false), totalS: 30 };
   const totalS = soma + MARCA_S;
-  const brutas: { tipo: TipoCena; s: number; camera: CameraCena; obra: [number, number]; pessoa: PessoaNaCena }[] = [];
+  const brutas: { tipo: TipoCena; s: number; camera: CameraCena; obra: [number, number]; pessoa: PessoaNaCena; extra?: Partial<Cena> }[] = [];
   // a última fala sobre a obra guarda o fim para o passeio pela obra pronta
   let ultimaObra = -1;
   falas.forEach((f, i) => (f.cena !== "terreno" ? (ultimaObra = i) : undefined));
-  const passeioS = ultimaObra >= 0 && falas[ultimaObra].duracaoS >= 6 ? Math.min(10, falas[ultimaObra].duracaoS * 0.4) : 0;
+  const passeioS = ultimaObra >= 0 ? duracaoDoPasseio(passeio, falas[ultimaObra].duracaoS) : 0;
   const tempoObra = falas.reduce((s, f) => (f.cena === "terreno" ? s : s + f.duracaoS), 0) - passeioS;
   let progresso = 0, rodizio = 0;
   falas.forEach((f, i) => {
@@ -187,8 +256,9 @@ export function roteiroDasFalas(falas: { cena: CenaDaFala; duracaoS: number }[],
       brutas.push({ tipo: "obra", s, camera: CAMERAS_TOMADA[rodizio++ % CAMERAS_TOMADA.length], obra: [ini, fim], pessoa });
       progresso = fim;
     }
-    if (i === ultimaObra && passeioS > 0) brutas.push({ tipo: "obra", s: passeioS, camera: cameraPasseio, obra: [1, 1], pessoa });
+    if (i === ultimaObra && passeioS > 0)
+      for (const p of cenasDoPasseio(passeio)) brutas.push({ tipo: "obra", s: passeioS * p.parte, camera: p.camera, obra: [1, 1], pessoa, extra: { percurso: p.percurso, rotulo: p.rotulo } });
   });
   brutas.push({ tipo: "marca", s: MARCA_S, camera: "frontal", obra: [1, 1], pessoa: "oculta" });
-  return { cenas: brutas.map((b, i) => cena(`f${i}`, b.tipo, b.s / totalS, b.camera, b.obra, b.pessoa)), totalS };
+  return { cenas: brutas.map((b, i) => cena(`f${i}`, b.tipo, b.s / totalS, b.camera, b.obra, b.pessoa, b.extra)), totalS };
 }

@@ -7,7 +7,7 @@ import { chaveApresentadora, chaveFala, chaveFoto, chavePlanta, excluirProjeto, 
 import { blobDaFoto, blobDaPlanta, gravarTodosAnexos, limparAnexos, restaurarAnexos } from "./anexos";
 import { ErroProjeto, exportar4dstudio, importar4dstudio, type ArquivosAnexos, type RegistroProjeto } from "../storage/projeto";
 import { useProjeto, type Estado } from "../state/projectStore";
-import { baixar } from "../utils/baixar";
+import { baixar, carimboArquivo } from "../utils/baixar";
 
 const ESPERA_MS = 600;
 let temporizador: ReturnType<typeof setTimeout> | null = null;
@@ -226,7 +226,7 @@ export async function exportarProjeto(id: string | null): Promise<void> {
   if (!registro) return;
   try {
     const zip = exportar4dstudio(registro, ifc ? await bytes(ifc) : null, anexos);
-    baixar(new Blob([zip as BlobPart], { type: "application/zip" }), `${nomeSeguro(registro.nome)}.4dstudio`);
+    baixar(new Blob([zip as BlobPart], { type: "application/zip" }), `${nomeSeguro(registro.nome)}-${carimboArquivo()}.4dstudio`);
   } catch (e) {
     st.mostrarErro({ mensagem: e instanceof ErroProjeto ? e.message : "Não foi possível exportar o projeto.", detalhes: String(e) });
   }
@@ -277,7 +277,7 @@ export function exportarCronogramaJson(): void {
     ...(t.realFim !== undefined ? { fim_real: formatarISO(c.inicio + t.realFim) } : {}),
     ...(t.avanco !== undefined ? { avanco: t.avanco } : {}),
   }));
-  baixar(new Blob([JSON.stringify({ ...(c.estimado ? { estimativa: "gerado automaticamente; não é cronograma executivo" } : {}), tarefas }, null, 2)], { type: "application/json" }), `${nomeSeguro(s.nomeProjeto ?? "cronograma")}-cronograma.json`);
+  baixar(new Blob([JSON.stringify({ ...(c.estimado ? { estimativa: "gerado automaticamente; não é cronograma executivo" } : {}), tarefas }, null, 2)], { type: "application/json" }), `${nomeSeguro(s.nomeProjeto ?? "cronograma")}-cronograma-${carimboArquivo()}.json`);
 }
 
 /** CSV com ponto e vírgula e BOM, para abrir direto no Excel brasileiro. */
@@ -291,7 +291,7 @@ export function exportarCronogramaCsv(): void {
     "id;nome;inicio;fim;categoria;pavimento;inicio_real;fim_real;avanco",
     ...c.tarefas.map((t) => [t.id, t.nome, d(t.ini), d(t.fim), t.categoria, t.pavimento ?? "", d(t.realIni), d(t.realFim), t.avanco === undefined ? "" : `${Math.round(t.avanco * 100)}%`].map(campo).join(";")),
   ];
-  baixar(new Blob(["﻿" + linhas.join("\r\n") + "\r\n"], { type: "text/csv;charset=utf-8" }), `${nomeSeguro(s.nomeProjeto ?? "cronograma")}-cronograma.csv`);
+  baixar(new Blob(["﻿" + linhas.join("\r\n") + "\r\n"], { type: "text/csv;charset=utf-8" }), `${nomeSeguro(s.nomeProjeto ?? "cronograma")}-cronograma-${carimboArquivo()}.csv`);
 }
 
 export function exportarMapeamentoJson(): void {
@@ -308,5 +308,5 @@ export function exportarMapeamentoJson(): void {
     politicaSemTarefa: s.politica,
     elementosSemTarefa: semTarefa(vinculos),
   };
-  baixar(new Blob([JSON.stringify(dados, null, 2)], { type: "application/json" }), `${nomeSeguro(s.nomeProjeto ?? "projeto")}-mapeamento.json`);
+  baixar(new Blob([JSON.stringify(dados, null, 2)], { type: "application/json" }), `${nomeSeguro(s.nomeProjeto ?? "projeto")}-mapeamento-${carimboArquivo()}.json`);
 }

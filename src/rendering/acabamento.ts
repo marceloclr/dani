@@ -14,9 +14,14 @@ export interface AjusteCor {
   granulacao: number;
   /** Aquecimento leve (positivo puxa para o âmbar). */
   temperatura: number;
+  /** Filtro degradê: escurece o alto do quadro (o céu), como o filtro ND graduado dos fotógrafos (0 a 0,4). */
+  degrade: number;
 }
 
-export const AJUSTE_PADRAO: AjusteCor = { contraste: 0.28, saturacao: 1.08, vinheta: 0.22, granulacao: 0.012, temperatura: 0.02 };
+export const AJUSTE_PADRAO: AjusteCor = { contraste: 0.28, saturacao: 1.08, vinheta: 0.22, granulacao: 0.012, temperatura: 0.02, degrade: 0.2 };
+
+/** Aquecimento da correção de cor pela elevação do sol: com o sol baixo a luz já é dourada, e não se aquece de novo. */
+export const temperaturaDoSol = (elevacao: number) => (elevacao >= 20 ? AJUSTE_PADRAO.temperatura : elevacao <= 8 ? 0 : (AJUSTE_PADRAO.temperatura * (elevacao - 8)) / 12);
 
 /** Curva em S aplicada a um canal (0–1): a mesma do shader, exportada para o teste. */
 export function curvaS(v: number, contraste: number): number {
@@ -33,6 +38,7 @@ export function passoAcabamento(ajuste: AjusteCor = AJUSTE_PADRAO): ShaderPass &
       vinheta: { value: ajuste.vinheta },
       granulacao: { value: ajuste.granulacao },
       temperatura: { value: ajuste.temperatura },
+      degrade: { value: ajuste.degrade },
       semente: { value: 0 },
     },
     vertexShader: /* glsl */ `
@@ -40,7 +46,7 @@ export function passoAcabamento(ajuste: AjusteCor = AJUSTE_PADRAO): ShaderPass &
       void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
     fragmentShader: /* glsl */ `
       uniform sampler2D tDiffuse;
-      uniform float contraste, saturacao, vinheta, granulacao, temperatura, semente;
+      uniform float contraste, saturacao, vinheta, granulacao, temperatura, degrade, semente;
       varying vec2 vUv;
       float ruido(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233)) + semente * 0.618) * 43758.5453); }
       void main() {
@@ -50,6 +56,7 @@ export function passoAcabamento(ajuste: AjusteCor = AJUSTE_PADRAO): ShaderPass &
         float l = dot(cor, vec3(0.2126, 0.7152, 0.0722));
         cor = mix(vec3(l), cor, saturacao);
         cor += vec3(temperatura, temperatura * 0.35, -temperatura);
+        cor *= 1.0 - degrade * smoothstep(0.55, 1.0, vUv.y); // degradê: o céu não estoura no alto do quadro
         vec2 d = vUv - 0.5;
         cor *= 1.0 - vinheta * smoothstep(0.35, 0.85, length(d * vec2(1.0, 0.85)) * 1.25);
         cor += (ruido(gl_FragCoord.xy) - 0.5) * granulacao;

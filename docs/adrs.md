@@ -775,3 +775,40 @@ O sobrado de exemplo passou a ter Fortaleza e a frente para 70° (lés-nordeste)
   - roteiro sem vista de cima e com volta por fora;
   - fachada da casa paramétrica.
 - **Playwright:** a bateria inteira.
+
+## ADR-32 — Passeio externo, interno ou ambos; nomes com data e hora; Entardecer e degradê
+
+**Status:** aceito em 2026-10-08.
+
+**Pedidos.**
+- "Planeje oferecer a opção de passeio externo, interno ou ambos."
+- "Ajuste o padrão de geração do nome dos arquivos exportados pelo sistema para incluir HHMM."
+- Correções da avaliação do vídeo gerado (`a.mp4`, guardado fora do git).
+
+**Contexto.** Com o sobrado IFC, o passeio interno ficava colado nas paredes: o voo inteiro do drone (cerca de 2,5 min, com volta, entrada, escada e quartos) era espremido em ~10 s. A correção imediata (`660b38d`) passou o fim do vídeo do assistente para sempre uma volta externa. Esta decisão devolve o interior, agora como escolha.
+
+**Decisão.**
+1. **Opção "Passeio"** (`ConfigVideo.passeio`: `externo` | `interno` | `ambos`; padrão Externo, que funciona em qualquer casa).
+   - **Onde se escolhe:** na aba **Vídeo** da planilha (lista suspensa; vazio = externo) e nos segmentos *Externo · Interno · Ambos* do passo **Conferir** do assistente.
+   - **Interior só com entrada:** se o voo não acha a porta de entrada (`voo.entrada === null`), Interno e Ambos ficam desabilitados, com a dica dizendo por quê, e o vídeo usa Externo.
+   - **A Gestão** continua com o voo completo, para vídeos longos.
+2. **Cenas finais**, antes da marca (`cenasDoPasseio`, `duracaoDoPasseio`), tiradas da última fala sobre a obra, quando ela tem 6 s ou mais:
+   - **Externo:** "Volta por fora", até 10 s (40 % da fala);
+   - **Interno:** "Por dentro", até 14 s (50 %);
+   - **Ambos:** "Volta por fora" (40 %) → corte → "Por dentro" (60 %), juntos até 16 s (55 %).
+   - A faixa de cenas mostra esses nomes (`Cena.rotulo`) em vez de "Obra".
+3. **"Volta por fora"** (`Cena.percurso = "volta"`): órbita baixa, a 9° de elevação, à altura de quem olha a casa da rua, andando um terço da volta (120°).
+4. **"Por dentro"** (`trechoInterno`, `quadroDoVooNaCena`): um trecho do próprio voo do drone, sem comprimir.
+   - Começa 3,5 m antes da porta de entrada (`marcas.inicioInterno`) e anda a **1,0 m/s**, passo de quem caminha.
+   - **Fórmula:** u_voo = início + u × metros da cena ÷ (comprimento ÷ fimMovimento), com metros = mín(1,0 × duração, caminho até `inicioVoltaFinal`).
+   - Se o caminho é curto, desacelera até 0,6 m/s e, se ainda sobrar tempo, termina parado no último ponto.
+   - Campo de visão de no mínimo **75°**, como em vídeo de imóvel, para não encher a tela de parede.
+5. **Rodízio das tomadas** (`CAMERAS_TOMADA`): começa pela isométrica, que mostra o lote inteiro, e perde a lateral, que costuma ser parede cega (isométrica, externa, frontal, órbita).
+6. **Nomes dos arquivos exportados:** `<base>-AAAAMMDD-HHMM`, na hora local (`carimboArquivo()` em `src/utils/baixar.ts`), em todas as exportações: vídeo do assistente e da Gestão, planilha, `.4dstudio`, cronograma JSON/CSV, mapeamento e relatório PDF. Os arquivos modelo para download continuam com nome fixo.
+7. **Luz Entardecer mais limpa** (`iluminacao.ts`, faixa de 3°): sol dourado, mas céu do azul ao laranja (turbidez 3,6 em vez de 8) e exposição 0,88 em vez de 1,0. A correção de cor não aquece de novo uma luz que já é dourada (`temperaturaDoSol`: 0 com o sol abaixo de 8°, o padrão a partir de 20°, linear no meio).
+8. **Filtro degradê** (`acabamento.ts`, `degrade` 0,2): escurece o alto do quadro, como o filtro ND graduado dos fotógrafos, para o céu não estourar.
+
+**Verificação.**
+- **Vitest:** os três modos geram as cenas certas, na ordem e com as durações esperadas (soma = falas + marca); o trecho interno começa antes da porta, anda 1 m/s, não passa de `inicioVoltaFinal` e desacelera com caminho curto; a planilha lê e escreve "Passeio" na ida e volta e recusa valor fora da lista; carimbo dos arquivos.
+- **Playwright:** a bateria inteira; o assistente escolhe Ambos, com falas de 2 s e 8 s.
+- **Visual:** prévia com Ambos no sobrado IFC: "Volta por fora" baixa, com a rua, e "Por dentro" na porta de entrada, com pedra e madeira.

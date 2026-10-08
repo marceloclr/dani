@@ -23,7 +23,7 @@ describe("planilha única (ADR-29)", () => {
     const laj = p.cronograma!.tarefas.find((t) => t.id === "LAJ-S")!;
     expect(laj.avanco).toBeCloseTo(0.7);
     expect(laj.realFim).toBeUndefined();
-    expect(p.video).toMatchObject({ formato: "vertical", segundos: null, fps: 30, qualidade: "maxima", aparencia: "realista", luz: "dia", animacao: "progressivo", assinatura: true });
+    expect(p.video).toMatchObject({ formato: "vertical", segundos: null, fps: 30, qualidade: "maxima", aparencia: "realista", luz: "dia", animacao: "progressivo", assinatura: true, passeio: "externo" });
     expect(p.documento.titulo).toBe("Relatório de acompanhamento da obra");
     expect(Object.values(p.documento.secoes).every(Boolean)).toBe(true);
     expect(p.falas).toEqual([]);
@@ -96,5 +96,13 @@ describe(".4dstudio com a planilha", () => {
     };
     const r = importar4dstudio(exportar4dstudio(base, null));
     expect(r.registro.planilha).toEqual(planilha);
+  });
+});
+
+describe("nome dos arquivos exportados", async () => {
+  const { carimboArquivo } = await import("../src/utils/baixar");
+  it("AAAAMMDD-HHMM na hora local", () => {
+    expect(carimboArquivo(new Date(2026, 9, 8, 9, 5))).toBe("20261008-0905");
+    expect(carimboArquivo(new Date(2026, 11, 31, 23, 59))).toBe("20261231-2359");
   });
 });

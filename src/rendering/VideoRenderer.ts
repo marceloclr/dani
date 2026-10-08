@@ -11,7 +11,7 @@ import { diaDoQuadro, totalDeQuadros } from "./cameras";
 import { desenharAssinatura, desenharVinheta, opacidadeVinheta, sobrepor, type Sobreposicao, type TextoMarca } from "./marcaVideo";
 import { abrirQuadros, audioDaFala, criarCamadaApresentadora, pedacosDeAudio, type CamadaApresentadora, type FonteFala, type QuadrosDaFala } from "./apresentadora";
 import { cantoDaAssinatura, ganhoDeNormalizacao, type ConfigApresentadora } from "./composicao";
-import { cenaNoTempo, obraNaCena, poseDaCena, trechoDoVoo, type Cena as CenaMontagem } from "./montagem";
+import { cenaNoTempo, obraNaCena, poseDaCena, quadroDoVooNaCena, type Cena as CenaMontagem } from "./montagem";
 import type { Enquadramento } from "./cameras";
 import type { Voo } from "./drone";
 
@@ -200,7 +200,8 @@ export async function gerarVideo(cena: Cena, pedido: PedidoVideo): Promise<Arqui
   const inicio = performance.now();
   /** Quadro de uma montagem em cenas (ADR-25). */
   const desenharCena = async (i: number, m: NonNullable<PedidoVideo["montagem"]>) => {
-    const { cena: c, u } = cenaNoTempo(m.cenas, i / p.fps, total / p.fps);
+    const ponto = cenaNoTempo(m.cenas, i / p.fps, total / p.fps);
+    const { cena: c, u } = ponto;
     if (c.tipo !== "fala" && c.tipo !== "marca") p.aplicarDia(obraNaCena(c, u) * p.diasDeObra);
     p.aoQuadro?.(i, total);
     const img = fala ? await fala.proximo(i / p.fps) : null; // a leitura da fala é sequencial: avança sempre
@@ -209,10 +210,10 @@ export async function gerarVideo(cena: Cena, pedido: PedidoVideo): Promise<Arqui
       renderer.setClearColor(0x000000, 1);
       renderer.clear();
     } else {
-      if (c.camera === "drone" && m.voo) cena.posicionarLivre(camera, m.voo.quadro(trechoDoVoo(c, u, m.voo.fimConstrucao)));
+      if (c.camera === "drone" && m.voo) cena.posicionarLivre(camera, quadroDoVooNaCena(c, u, m.voo, ponto.fim - ponto.inicio));
       else {
         cena.atualizarPortas(null);
-        cena.posicionar(camera, poseDaCena(c.camera === "drone" ? "orbita" : c.camera, m.enquadramento, u));
+        cena.posicionar(camera, poseDaCena(c.camera === "drone" ? "orbita" : c.camera, m.enquadramento, u, c.percurso));
       }
       desenhista.desenhar(camera, i);
     }

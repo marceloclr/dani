@@ -64,7 +64,7 @@ test("exportar e importar .4dstudio", async ({ page }) => {
   const antes = await estado(page);
   await page.getByTestId("abrir-projetos").click();
   const [download] = await Promise.all([page.waitForEvent("download"), page.getByTestId("exportar-atual").click()]);
-  expect(download.suggestedFilename()).toBe("demonstracao.4dstudio");
+  expect(download.suggestedFilename()).toMatch(/^demonstracao-\d{8}-\d{4}\.4dstudio$/);
   const caminho = "e2e/resultados/demonstracao.4dstudio";
   await download.saveAs(caminho);
 

@@ -48,7 +48,7 @@ test("planilha + IFC citado: cronograma, município, rumo, formato e vínculos",
 
   // exportar: a planilha baixada lê de volta com os mesmos dados
   const [download] = await Promise.all([page.waitForEvent("download"), page.getByTestId("exportar-planilha").click()]);
-  expect(download.suggestedFilename()).toBe("sobrado-de-exemplo-planilha.xlsx");
+  expect(download.suggestedFilename()).toMatch(/^sobrado-de-exemplo-planilha-\d{8}-\d{4}\.xlsx$/);
   const { projeto, problemas } = await lerPlanilha(new Uint8Array(readFileSync(await download.path())));
   expect(problemas.filter((p) => p.nivel === "erro")).toEqual([]);
   expect(projeto!.obra).toMatchObject({ nome: "Sobrado de exemplo", municipio: "fortaleza", arquivoIfc: "sobrado-exemplo.ifc", rumoFrente: 70 });

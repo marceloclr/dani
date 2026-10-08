@@ -10,7 +10,7 @@ import { DOCUMENTO_PADRAO, OBRA_VAZIA, type ProblemaPlanilha, type ProjetoPlanil
 import type { Problema } from "../importers/cronograma";
 import { useProjeto, type ConfigVideo, type Estado } from "../state/projectStore";
 import { CLIENTE } from "./marca";
-import { baixar } from "../utils/baixar";
+import { baixar, carimboArquivo } from "../utils/baixar";
 
 const DURACOES: ConfigVideo["segundos"][] = [15, 30, 60, 90, 120];
 
@@ -29,6 +29,7 @@ function videoDaPlanilha(v: VideoPlanilha): Partial<ConfigVideo> {
   if (v.qualidade) out.qualidade = v.qualidade;
   if (v.luz) out.luz = v.luz;
   if (v.assinatura !== undefined) out.assinatura = v.assinatura;
+  if (v.passeio) out.passeio = v.passeio;
   // por enquanto a duração usa as opções do painel Vídeo (a mais próxima); vazio = acompanha a fala
   if (typeof v.segundos === "number") out.segundos = DURACOES.reduce((a, b) => (Math.abs(b - v.segundos!) < Math.abs(a - v.segundos!) ? b : a));
   return out;
@@ -105,7 +106,7 @@ export function planilhaDoEstado(s: Estado = useProjeto.getState()): ProjetoPlan
     fotos: s.fotos.length ? s.fotos.map((f) => ({ arquivo: f.arquivo, dia: f.dia, local: f.local, descricao: f.descricao, etapa: f.etapa })) : pl?.fotos ?? [],
     video: {
       formato: s.video.formato, segundos: s.video.segundos, fps: s.video.fps, qualidade: s.video.qualidade ?? "normal", aparencia: s.aparencia3d,
-      luz: s.video.luz ?? "dia", animacao: s.modoAnimacao, assinatura: s.video.assinatura !== false,
+      luz: s.video.luz ?? "dia", animacao: s.modoAnimacao, assinatura: s.video.assinatura !== false, passeio: s.video.passeio ?? "externo",
     },
     documento: pl?.documento ?? DOCUMENTO_PADRAO,
   };
@@ -114,5 +115,5 @@ export function planilhaDoEstado(s: Estado = useProjeto.getState()): ProjetoPlan
 export async function exportarPlanilha(): Promise<void> {
   const s = useProjeto.getState();
   const bytes = await escreverPlanilha(planilhaDoEstado(s));
-  baixar(new Blob([bytes as BlobPart], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }), `${nomeSeguro(s.planilha?.obra.nome || s.nomeProjeto || "obra")}-planilha.xlsx`);
+  baixar(new Blob([bytes as BlobPart], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }), `${nomeSeguro(s.planilha?.obra.nome || s.nomeProjeto || "obra")}-planilha-${carimboArquivo()}.xlsx`);
 }

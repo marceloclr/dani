@@ -6,7 +6,7 @@ import type { ParametrosCasa } from "../bim/parametrico";
 import type { Aparencia3D } from "../rendering/aparencia";
 import type { Luz } from "../rendering/iluminacao";
 import type { ConfigApresentadora } from "../rendering/composicao";
-import type { Cena } from "../rendering/montagem";
+import type { Cena, Passeio } from "../rendering/montagem";
 import type { ConfigSol } from "../rendering/cicloDia";
 import type { GeoIfc } from "../bim/parseIfc";
 import type { FotoObra, PlantaSobreposta, Tarefa, Visao } from "../types";
@@ -52,6 +52,8 @@ export interface ConfigVideo {
   apresentadora?: ConfigApresentadora | null;
   /** Qualidade do vídeo (ADR-24): máxima renderiza a 1,5× e reduz (mais lento). */
   qualidade?: "normal" | "maxima";
+  /** Passeio final no vídeo do assistente (ADR-32): externo (padrão), interno ou ambos. */
+  passeio?: Passeio;
 }
 
 /** Tarefa em edição, com datas absolutas (dia civil). */
