@@ -73,11 +73,11 @@ export function App() {
     <div className="app">
       <header className="topo">
         <div className="topo-linha">
-          <div className="marca-topo" data-testid="marca-topo" data-tip={`${CLIENTE.empresa} · ${CLIENTE.slogan}\nConstruction 4D Studio`}>
+          <div className="marca-topo" data-testid="marca-topo" data-tip={`${CLIENTE.empresa} · ${CLIENTE.slogan}\nConstruction 4D Studio · Simulação 4D de obras residenciais`}>
             <Monograma tamanho={38} titulo={`Monograma ${CLIENTE.empresa}`} />
             <div className="marca-topo-texto">
               <h1>{CLIENTE.nome.toLocaleUpperCase("pt-BR")}</h1>
-              <span className="slogan-topo">Simulação 4D de obras residenciais</span>
+              <span className="slogan-topo" data-testid="slogan-topo">{CLIENTE.slogan.toLocaleUpperCase("pt-BR")}</span>
             </div>
           </div>
           <div className="titulo-bloco">

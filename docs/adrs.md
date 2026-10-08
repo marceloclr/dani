@@ -569,7 +569,7 @@ O sobrado de exemplo passou a ter Fortaleza e a frente para 70° (lés-nordeste)
 **Aba Vídeo, "Sol e orientação":** bússola (planta com a frente embaixo, o N e o sol do entardecer), o rumo da frente com a origem, o local com a origem e o resumo "nasce… bate na…; no entardecer, bate na…".
 
 **Também neste incremento:**
-- marca da cliente no cabeçalho (monograma, DANIELLA POMPEU e "Simulação 4D de obras residenciais");
+- marca da cliente no cabeçalho (monograma, DANIELLA POMPEU e "Simulação 4D de obras residenciais"; em 2026-10-08 a segunda linha voltou a ser o slogan do logo, "ENGENHARIA QUE TRANSFORMA", e a descrição do produto foi para a dica);
 - o slogan do produto saiu do cabeçalho (fica na tela inicial, na assinatura do vídeo e no relatório).
 
 **Limites:**
