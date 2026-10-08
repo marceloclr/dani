@@ -25,9 +25,13 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm test
+      # carimbo da versão (DDMMAAAA-HHMM, Fortaleza): o mesmo no topo do app e no nome index-<carimbo>.html
+      - run: echo "VERSAO_PUBLICADA=$(TZ=America/Fortaleza date +%d%m%Y-%H%M)" >> "$GITHUB_ENV"
       - run: npm run build
         env:
           BASE: /dani/
+      # só a atual é index.html; as duas anteriores continuam no ar como index-DDMMAAAA-HHMM.html
+      - run: node tools/versoes-anteriores.mjs https://marceloclr.github.io/dani/
       - uses: actions/upload-pages-artifact@v5
         with:
           path: dist

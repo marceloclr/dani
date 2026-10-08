@@ -17,6 +17,7 @@ export default defineConfig(({ command }) => ({
   plugins: [react()],
   worker: { format: "es" },
   // no servidor de desenvolvimento não há versão publicada
-  define: { __VERSAO_PUBLICADA__: JSON.stringify(command === "build" ? carimboDaVersao() : "local") },
+  // VERSAO_PUBLICADA vem do workflow do Pages, para o carimbo e o nome index-DDMMAAAA-HHMM.html baterem
+  define: { __VERSAO_PUBLICADA__: JSON.stringify(command === "build" ? process.env.VERSAO_PUBLICADA || carimboDaVersao() : "local") },
   test: { include: ["tests/**/*.test.ts"], environment: "node", testTimeout: 60_000 },
 }));

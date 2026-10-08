@@ -51,7 +51,9 @@ O build é estático. Para um subcaminho, como o GitHub Pages em `https://<usuá
 BASE=/dani/ npm run build
 ```
 
-e publique a pasta `dist/` (GitHub Pages, Cloudflare Pages, Netlify ou Vercel). Sem `BASE`, o build usa caminhos relativos e funciona em qualquer pasta. Os arquivos `.wasm` do web-ifc vão junto, em `dist/wasm/`; nada é carregado de CDN.
+e publique a pasta `dist/` (GitHub Pages, Cloudflare Pages, Netlify ou Vercel).
+
+**Versões anteriores.** Só a versão atual é o `index.html`. As duas anteriores continuam no ar como `index-DDMMAAAA-HHMM.html`, com o carimbo da publicação no horário de Fortaleza, o mesmo que aparece no topo do app. Por exemplo: `https://marceloclr.github.io/dani/index-08102026-1004.html`. O workflow grava o carimbo em `VERSAO_PUBLICADA` e roda `tools/versoes-anteriores.mjs` depois do build. O script lê o `versoes.json` do site no ar e traz de volta a página e os arquivos de `assets/` das duas versões mais recentes. Os nomes desses arquivos têm hash, então as versões não colidem. A lista vai para o novo `versoes.json`. Sem `BASE`, o build usa caminhos relativos e funciona em qualquer pasta. Os arquivos `.wasm` do web-ifc vão junto, em `dist/wasm/`; nada é carregado de CDN.
 
 ## Como usar
 
