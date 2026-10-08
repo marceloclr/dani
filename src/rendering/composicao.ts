@@ -110,6 +110,13 @@ export const COBERTURA_MAXIMA = 0.7;
 export const FRACAO_PARTE = 0.3;
 /** A pessoa que fala para a câmera encosta na base do quadro: a mancha precisa chegar a esta altura (de cima). */
 export const BASE_DO_QUADRO = 0.92;
+/**
+ * Confiança média mínima da IA na mancha da pessoa (ADR-33): com a pessoa fora ou pequena, a maior mancha na base
+ * pode ser o fundo (uma escada, um móvel), que a IA marca com pouca certeza e entrava semitransparente no vídeo.
+ */
+export const CONFIANCA_MINIMA = 0.75;
+/** Quanto (fração da largura) o centro da pessoa pode andar de um quadro para o outro; mais que isso é outra mancha. */
+export const SALTO_MAXIMO = 0.2;
 
 /**
  * Limpa a máscara de confiança da IA (ADR-31), quadro a quadro: fica só a pessoa (a maior mancha contínua e as
@@ -119,6 +126,8 @@ export const BASE_DO_QUADRO = 0.92;
 export class LimpezaDeMascara {
   private anterior: Float32Array | null = null;
   private presenca = 0;
+  /** Centro horizontal (0–1) da última mancha aceita como a pessoa, enquanto ela está presente. */
+  private centro: number | null = null;
   constructor(readonly largura: number, readonly altura: number, private readonly memoria = 0.35, private readonly passoPresenca = 0.2) {}
 
   /** `conf`: confiança 0–1 por pixel, de cima para baixo. Devolve a máscara 0–1 e a cobertura medida. */
@@ -127,12 +136,14 @@ export class LimpezaDeMascara {
     // 1) manchas contínuas (vizinhança de 4) na máscara binária
     const rotulo = new Int32Array(n).fill(-1);
     const tamanhos: number[] = [];
+    const somaConf: number[] = [];
+    const somaX: number[] = [];
     const caixas: [number, number, number, number][] = []; // x0, y0, x1, y1 de cada mancha
     const pilha = new Int32Array(n);
     for (let i = 0; i < n; i++) {
       if (rotulo[i] !== -1 || conf[i] < 0.5) continue;
       const id = tamanhos.length;
-      let topo = 0, tam = 0;
+      let topo = 0, tam = 0, sc = 0, sx = 0;
       const cx: [number, number, number, number] = [w, h, -1, -1];
       pilha[topo++] = i;
       rotulo[i] = id;
@@ -140,6 +151,8 @@ export class LimpezaDeMascara {
         const p = pilha[--topo];
         tam++;
         const x = p % w, y = (p - x) / w;
+        sc += conf[p];
+        sx += x;
         if (x < cx[0]) cx[0] = x;
         if (y < cx[1]) cx[1] = y;
         if (x > cx[2]) cx[2] = x;
@@ -148,6 +161,8 @@ export class LimpezaDeMascara {
         for (const q of viz) if (q >= 0 && rotulo[q] === -1 && conf[q] >= 0.5) (rotulo[q] = id), (pilha[topo++] = q);
       }
       tamanhos.push(tam);
+      somaConf.push(sc);
+      somaX.push(sx);
       caixas.push(cx);
     }
     // 2) a pessoa é a maior mancha que encosta na base do quadro (objeto solto no meio não é ela); as partes
@@ -176,7 +191,13 @@ export class LimpezaDeMascara {
           }
       }
     // 3) presença: some e volta aos poucos (sem piscar) quando o recorte deixa de ser confiável
-    const confiavel = cobertura >= COBERTURA_MINIMA && cobertura <= COBERTURA_MAXIMA;
+    // a mancha precisa ter a certeza de uma pessoa e não pular de lugar enquanto ela está em cena (ADR-33)
+    const confMedia = principal >= 0 ? somaConf[principal] / tamanhos[principal] : 0;
+    const centro = principal >= 0 ? (somaX[principal] / tamanhos[principal] + 0.5) / w : null;
+    const salto = centro !== null && this.centro !== null && this.presenca > 0 && Math.abs(centro - this.centro) > SALTO_MAXIMO;
+    const confiavel = cobertura >= COBERTURA_MINIMA && cobertura <= COBERTURA_MAXIMA && confMedia >= CONFIANCA_MINIMA && !salto;
+    if (confiavel) this.centro = centro;
+    else if (this.presenca <= this.passoPresenca) this.centro = null; // saiu de cena: pode voltar em outro lugar
     // o primeiro quadro já entra com a presença certa (prévia de um quadro só, começo do vídeo)
     this.presenca = !this.anterior ? (confiavel ? 1 : 0) : Math.min(1, Math.max(0, this.presenca + (confiavel ? this.passoPresenca : -this.passoPresenca)));
     // 4) suavização no tempo (menos tremor na borda)

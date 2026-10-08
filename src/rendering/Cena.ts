@@ -202,8 +202,15 @@ export class Cena {
 
   /** Sombra do sol em 4.096 px (vídeo em qualidade máxima) ou 2.048 px (padrão). */
   sombraMaxima(sim: boolean): void {
-    const n = sim ? 4096 : 2048;
-    if (this.sol.shadow.mapSize.x === n) return;
+    this.tamanhoDaSombra(sim ? 4096 : 2048);
+  }
+
+  /**
+   * Muda o tamanho do mapa de sombra descartando o anterior (ADR-33): o three redimensiona o alvo existente
+   * com texStorage2D, que falha numa textura imutável ("Texture is immutable") e deixa a cena sem sombra.
+   */
+  private tamanhoDaSombra(n: number): void {
+    if (this.sol.shadow.mapSize.x === n && this.sol.shadow.mapSize.y === n) return;
     this.sol.shadow.mapSize.set(n, n);
     this.sol.shadow.map?.dispose();
     this.sol.shadow.map = null;
@@ -355,7 +362,7 @@ export class Cena {
     cam.near = 0.5;
     cam.far = r * 4;
     cam.updateProjectionMatrix();
-    if (this.sol.shadow.mapSize.x < 2048) this.sol.shadow.mapSize.set(2048, 2048);
+    if (this.sol.shadow.mapSize.x < 2048) this.tamanhoDaSombra(2048);
     this.sol.shadow.bias = -0.0004;
     this.sol.shadow.normalBias = 0.03;
     this.sol.shadow.radius = 3;

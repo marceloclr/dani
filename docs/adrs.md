@@ -843,7 +843,9 @@ O sobrado de exemplo passou a ter Fortaleza e a frente para 70° (lés-nordeste)
    - **regra:** se o sol real está a até 60° da frente, fica; senão, gira para 40° da frente, do lado em que está (manhã ou tarde), com a mesma elevação;
    - **onde vale:** só no vídeo com a luz Dia. A viewport, a prévia, a Insolação e as outras luzes continuam com o sol real.
 8. **Casas do outro lado da rua sem sombra** (avaliação do vídeo das 15h04): com a frente ao sol, essas casas ficam atrás da câmera nas vistas da frente, e a sombra dos telhados caía na rua em degraus, sem a casa no quadro. O usuário viu isso como "parte de uma escada" sobre o vídeo, entre 20 e 30 s. Só elas deixam de fazer sombra; as casas dos lados e do fundo continuam fazendo.
-9. **Esmaecimento para a marca:** nos primeiros 0,4 s da cena Marca, a vinheta entra sobre o último quadro da cena de obra anterior (opacidade em curva suave).
+9. **Escada do vídeo original sobre a obra** (vídeos das 15h04 e 16h49, de 20 a 30 s): com a pessoa fora de cena ou pequena, a maior mancha da máscara da IA que encostava na base do quadro era a escada do fundo da gravação. Ela entrava semitransparente, porque a IA tem pouca certeza sobre ela. Agora a mancha só conta como pessoa com confiança média ≥ `CONFIANCA_MINIMA` (0,75) e sem saltar mais que `SALTO_MAXIMO` (20 % da largura) de um quadro para o outro enquanto a pessoa está em cena. Se não, a pessoa some aos poucos e pode voltar em outro lugar depois de sair.
+10. **Sombras que sumiam numa sessão inteira:** o mapa de sombra do sol nascia com 512 px no primeiro quadro e era aumentado para 2048 sem ser descartado. O three redimensionava uma textura imutável ("glTexStorage2D: Texture is immutable", no `brave://gpu` do usuário) e a cena ficava sem sombra, dependendo de qual quadro saía primeiro (o vídeo das 16h49 saiu sem sombra; o das 15h04, com). `tamanhoDaSombra` descarta o mapa antes de mudar o tamanho.
+11. **Esmaecimento para a marca:** nos primeiros 0,4 s da cena Marca, a vinheta entra sobre o último quadro da cena de obra anterior (opacidade em curva suave).
 
 **Fora do escopo.**
 - **Sombra no chão sob a pessoa:** os pés ficam fora do quadro; a sombra deslocada que já existe continua.
@@ -856,6 +858,7 @@ O sobrado de exemplo passou a ter Fortaleza e a frente para 70° (lés-nordeste)
   - trecho interno no voo sintético e no sobrado real (começa de 0,5 a 2 m da porta, olhando para ela, e está dentro aos 2 s);
   - divisas (muro alto só atrás da fachada, portão no eixo da porta, casa encostada no alinhamento);
   - sol do vídeo (mantém o sol que já ilumina a frente; gira o de trás para 40°, do lado certo);
-  - casas do outro lado da rua sem sombra; as dos lados e do fundo com sombra.
+  - casas do outro lado da rua sem sombra; as dos lados e do fundo com sombra;
+  - máscara: fundo com pouca certeza não vira pessoa; mancha que pula de lugar some aos poucos.
 - **Quadros do sobrado** (20/04 e pronto, vistas Externa e Isométrica): obra visível pela grade, gramado claro, rua cinza.
 - **Playwright:** a bateria inteira.

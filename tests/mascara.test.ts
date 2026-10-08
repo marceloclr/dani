@@ -48,6 +48,22 @@ describe("limpeza da máscara da IA (ADR-31)", () => {
     expect(inteiro.limpar(mascara([0, 0, 40, 40])).presenca).toBe(0);
   });
 
+  it("fundo com pouca certeza da IA (uma escada atrás da pessoa) não vira pessoa (ADR-33)", () => {
+    const fraca = mascara([10, 20, 20, 40]).map((v) => v * 0.6);
+    expect(new LimpezaDeMascara(W, H, 0).limpar(fraca).presenca).toBe(0);
+    const forte = mascara([10, 20, 20, 40]).map((v) => v * 0.9);
+    expect(new LimpezaDeMascara(W, H, 0).limpar(forte).presenca).toBe(1);
+  });
+
+  it("a mancha que pula de lugar não é a pessoa: ela some aos poucos; depois de sair, pode voltar em outro lugar (ADR-33)", () => {
+    const l = new LimpezaDeMascara(W, H, 0, 0.5);
+    expect(l.limpar(mascara([4, 20, 12, 40])).presenca).toBe(1); // pessoa à esquerda
+    const outra = mascara([28, 20, 36, 40]); // mancha do mesmo tamanho, à direita
+    expect(l.limpar(outra).presenca).toBe(0.5);
+    expect(l.limpar(outra).presenca).toBe(0);
+    expect(l.limpar(outra).presenca).toBe(0.5); // fora de cena, ela volta no lugar novo
+  });
+
   it("suaviza no tempo: metade do quadro anterior entra no seguinte", () => {
     const l = new LimpezaDeMascara(W, H, 0.5);
     l.limpar(mascara([10, 20, 20, 40]));
