@@ -29,7 +29,7 @@ export function falasAutomaticas(recebidos: Map<string, { nome: string }>): Linh
 }
 
 /** Puro (o Blob só passa adiante): testado no Node com objetos no lugar dos arquivos. */
-export function montarFalas(linhasDaPlanilha: LinhaFala[], recebidos: Map<string, Pick<ArquivoDeFala, "nome" | "blob" | "duracaoS" | "largura" | "altura">>, base: Partial<ConfigApresentadora> = {}): FalasDoVideo {
+export function montarFalas(linhasDaPlanilha: LinhaFala[], recebidos: Map<string, Pick<ArquivoDeFala, "nome" | "blob" | "duracaoS" | "largura" | "altura">>, base: Partial<ConfigApresentadora> = {}, passeioInterno = true): FalasDoVideo {
   const automaticas = !linhasDaPlanilha.length && recebidos.size > 0;
   const linhas = automaticas ? falasAutomaticas(recebidos) : linhasDaPlanilha;
   const citados = new Set(linhas.map((l) => l.arquivo.toLowerCase()));
@@ -55,7 +55,7 @@ export function montarFalas(linhasDaPlanilha: LinhaFala[], recebidos: Map<string
   }
   const recortes = new Set(trechos.map((t) => t.linha.recorte));
   if (recortes.size > 1) avisos.push(`As falas usam recortes diferentes; o vídeo usa o da primeira (${trechos[0].linha.recorte === "ia" ? "IA" : "fundo verde"}) em todas.`);
-  const { cenas, totalS } = roteiroDasFalas(trechos.map((t) => ({ cena: t.linha.cena, duracaoS: t.fimS - t.inicioS })));
+  const { cenas, totalS } = roteiroDasFalas(trechos.map((t) => ({ cena: t.linha.cena, duracaoS: t.fimS - t.inicioS })), { passeioInterno });
   const primeiro = trechos[0] ? recebidos.get(trechos[0].linha.arquivo.toLowerCase())! : null;
   const cfg: ConfigApresentadora | null = primeiro
     ? {

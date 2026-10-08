@@ -30,18 +30,19 @@ const cena = (id: string, tipo: TipoCena, peso: number, camera: CameraCena, obra
  * do terreno à pronta), passeio do drone pela obra pronta, volta dela em primeiro plano e a marca.
  * Sem a fala: a obra se monta, o drone passeia e a marca fecha.
  */
-export function roteiroReels(temFala: boolean): Cena[] {
+export function roteiroReels(temFala: boolean, passeioInterno = true): Cena[] {
+  const passeio: CameraCena = passeioInterno ? "drone" : "orbita";
   return temFala
     ? [
         cena("abertura", "fala", 0.15, "frontal", [0, 0], "cheia"),
         cena("revelacao", "revelacao", 0.25, "frontal", [0, 1], "cheia"),
-        cena("passeio", "obra", 0.4, "drone", [1, 1], "oculta"),
+        cena("passeio", "obra", 0.4, passeio, [1, 1], "oculta"),
         cena("volta", "obra", 0.12, "orbita", [1, 1], "recortada"),
         cena("marca", "marca", 0.08, "frontal", [1, 1], "oculta"),
       ]
     : [
         cena("montagem", "obra", 0.4, "isometrica", [0, 1], "oculta"),
-        cena("passeio", "obra", 0.5, "drone", [1, 1], "oculta"),
+        cena("passeio", "obra", 0.5, passeio, [1, 1], "oculta"),
         cena("marca", "marca", 0.1, "frontal", [1, 1], "oculta"),
       ];
 }
@@ -145,7 +146,8 @@ export const MARCA_S = 2.5;
 /** Duração aproximada de cada tomada sobre a obra: cortes a cada 3 a 4 s, como nos Reels. */
 export const TOMADA_S = 3.5;
 /** Câmeras das tomadas sobre a obra, em rodízio. */
-export const CAMERAS_TOMADA: Preset[] = ["isometrica", "orbita", "externa", "lateral", "frontal", "superior"];
+// sem a vista de cima: de cima, por dentro, a obra vira um piso branco sem leitura (ADR-31)
+export const CAMERAS_TOMADA: Preset[] = ["externa", "isometrica", "frontal", "orbita", "lateral"];
 
 /**
  * Roteiro a partir das falas da planilha (ADR-30). As cenas seguem as falas, na ordem e com a duração de cada
@@ -155,7 +157,9 @@ export const CAMERAS_TOMADA: Preset[] = ["isometrica", "orbita", "externa", "lat
  *   todas essas falas (do terreno à pronta), com ela recortada no canto ou fora do quadro;
  * - a última fala sobre a obra, se tiver 6 s ou mais, termina com o passeio do drone pela obra pronta (40 %, até 10 s).
  */
-export function roteiroDasFalas(falas: { cena: CenaDaFala; duracaoS: number }[]): { cenas: Cena[]; totalS: number } {
+export function roteiroDasFalas(falas: { cena: CenaDaFala; duracaoS: number }[], opcoes: { passeioInterno?: boolean } = {}): { cenas: Cena[]; totalS: number } {
+  // casa paramétrica (sem IFC) não tem interior que valha o passeio: a última tomada vira uma volta por fora
+  const cameraPasseio: CameraCena = opcoes.passeioInterno === false ? "orbita" : "drone";
   const soma = falas.reduce((s, f) => s + Math.max(0, f.duracaoS), 0);
   if (!falas.length || !(soma > 0)) return { cenas: roteiroReels(false), totalS: 30 };
   const totalS = soma + MARCA_S;
@@ -183,7 +187,7 @@ export function roteiroDasFalas(falas: { cena: CenaDaFala; duracaoS: number }[])
       brutas.push({ tipo: "obra", s, camera: CAMERAS_TOMADA[rodizio++ % CAMERAS_TOMADA.length], obra: [ini, fim], pessoa });
       progresso = fim;
     }
-    if (i === ultimaObra && passeioS > 0) brutas.push({ tipo: "obra", s: passeioS, camera: "drone", obra: [1, 1], pessoa });
+    if (i === ultimaObra && passeioS > 0) brutas.push({ tipo: "obra", s: passeioS, camera: cameraPasseio, obra: [1, 1], pessoa });
   });
   brutas.push({ tipo: "marca", s: MARCA_S, camera: "frontal", obra: [1, 1], pessoa: "oculta" });
   return { cenas: brutas.map((b, i) => cena(`f${i}`, b.tipo, b.s / totalS, b.camera, b.obra, b.pessoa)), totalS };

@@ -4,7 +4,7 @@
 import * as THREE from "three";
 import { ALL_FORMATS, BlobSource, CanvasSink, Input, type WrappedCanvas } from "mediabunny";
 import type { ImageSegmenter } from "@mediapipe/tasks-vision";
-import { croma, layoutApresentadora, type ConfigApresentadora, type Retangulo } from "./composicao";
+import { LimpezaDeMascara, croma, layoutApresentadora, type ConfigApresentadora, type Retangulo } from "./composicao";
 import { BORDA_CORTINA, type PessoaNaCena } from "./montagem";
 
 const temWebCodecs = () => typeof VideoDecoder !== "undefined" && typeof VideoFrame !== "undefined";
@@ -307,6 +307,8 @@ export async function criarCamadaApresentadora(largura: number, altura: number, 
   mascara.flipY = true; // a máscara vem de cima para baixo, como a imagem
   mascara.needsUpdate = true;
   const seg = ia ? await obterSegmentador() : null;
+  // só a pessoa, estável no tempo; some quando o recorte não é confiável (ADR-31)
+  const limpeza = new LimpezaDeMascara(pequeno.width, pequeno.height);
 
   const material = (cheia: boolean) => {
     // tela cheia: recorte central do quadro na proporção do vídeo de saída (cover)
@@ -362,7 +364,10 @@ export async function criarCamadaApresentadora(largura: number, altura: number, 
         relogioMs += 33;
         const r = seg.segmentForVideo(pequeno, relogioMs);
         const conf = r.confidenceMasks?.[0]?.getAsFloat32Array();
-        if (conf) for (let i = 0; i < conf.length && i < dadosMascara.length; i++) dadosMascara[i] = Math.round(Math.min(1, Math.max(0, conf[i])) * 255);
+        if (conf) {
+          const { mascara: m } = limpeza.limpar(conf);
+          for (let i = 0; i < m.length && i < dadosMascara.length; i++) dadosMascara[i] = Math.round(Math.min(1, Math.max(0, m[i])) * 255);
+        }
         r.close();
         mascara.needsUpdate = true;
       }

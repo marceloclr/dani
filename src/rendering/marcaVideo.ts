@@ -160,14 +160,20 @@ export interface Sobreposicao {
   dispose(): void;
 }
 
-export function sobrepor(c: HTMLCanvasElement, largura: number, altura: number, onde: "canto" | "canto-direito" | "cheia", margem = 0): Sobreposicao {
+/** Faixa de cima que o Instagram cobre no Reels (nome do perfil e botões): a assinatura fica logo abaixo. */
+export const TOPO_RESERVADO_REELS = 0.12;
+
+export function sobrepor(c: HTMLCanvasElement, largura: number, altura: number, onde: "canto" | "canto-direito" | "topo" | "topo-direito" | "cheia", margem = 0): Sobreposicao {
   const tex = new THREE.CanvasTexture(c);
   tex.colorSpace = THREE.SRGBColorSpace;
   const mat = new THREE.MeshBasicMaterial({ map: tex, transparent: true, toneMapped: false, depthTest: false });
   const plano = new THREE.Mesh(new THREE.PlaneGeometry(c.width, c.height), mat);
   if (onde !== "cheia") {
     const m = margem || Math.round(Math.min(largura, altura) * 0.03);
-    plano.position.set(onde === "canto" ? m + c.width / 2 : largura - m - c.width / 2, m + c.height / 2, 0);
+    const x = onde === "canto" || onde === "topo" ? m + c.width / 2 : largura - m - c.width / 2;
+    // no topo (vídeo vertical, ADR-31): fora da área da pessoa e da legenda do Reels, abaixo do cabeçalho do app
+    const y = onde === "topo" || onde === "topo-direito" ? altura - Math.round(altura * TOPO_RESERVADO_REELS) - c.height / 2 : m + c.height / 2;
+    plano.position.set(x, y, 0);
   } else plano.position.set(largura / 2, altura / 2, 0);
   const cena = new THREE.Scene();
   cena.add(plano);

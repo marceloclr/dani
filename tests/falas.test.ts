@@ -100,3 +100,13 @@ describe("aba Falas vazia", async () => {
     expect(r.naoCitados).toEqual(["extra.mp4"]);
   });
 });
+
+describe("casa sem interior (paramétrica)", () => {
+  it("o passeio final vira uma volta por fora, e nenhuma tomada é de cima", async () => {
+    const { roteiroDasFalas, CAMERAS_TOMADA } = await import("../src/rendering/montagem");
+    const { cenas } = roteiroDasFalas([{ cena: "sobre-obra", duracaoS: 20 }], { passeioInterno: false });
+    expect(cenas.some((c) => c.camera === "drone")).toBe(false);
+    expect(cenas[cenas.length - 2]).toMatchObject({ camera: "orbita", obra: [1, 1] });
+    expect(CAMERAS_TOMADA).not.toContain("superior");
+  });
+});

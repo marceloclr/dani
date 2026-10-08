@@ -3,7 +3,7 @@
 // marca, vinheta, apresentadora (uma fala ou a sequência da planilha) e câmera (roteiro, drone ou montagem).
 import { camadasPara } from "./estadoCena";
 import { aplicarSol, cicloDoVoo, definirInsolacaoAtiva, diaCivilDaSimulacao, insolacaoLigada, solDoProjeto } from "./solDaCena";
-import { CLIENTE, NOME_MARCA, SLOGAN } from "./marca";
+import { CLIENTE } from "./marca";
 import { duracaoObra } from "../fourd/simulacao";
 import { horarioDoVoo } from "../rendering/cicloDia";
 import { poseNoTempo, type PontoRoteiro } from "../rendering/cameras";
@@ -77,8 +77,9 @@ export async function gerarVideoDaObra(cena: Cena, p: PedidoDaObra): Promise<Arq
       },
       maxima: video.qualidade === "maxima" && st().aparencia3d === "realista",
       ...(p.fala ? { apresentadora: { arquivo: p.fala.fonte, cfg: p.fala.cfg } } : {}),
-      ...(video.assinatura !== false ? { assinatura: { nome: CLIENTE.nome, slogan: CLIENTE.slogan, secundario: SLOGAN } } : {}),
-      ...(video.vinheta !== false && seg >= 6 ? { vinheta: { nome: CLIENTE.nome, slogan: CLIENTE.slogan, secundario: `${NOME_MARCA} · ${SLOGAN}` } } : {}),
+      // só nome e slogan: a linha do produto ficava ilegível no celular (ADR-31); a vinheta fecha com o @
+      ...(video.assinatura !== false ? { assinatura: { nome: CLIENTE.nome, slogan: CLIENTE.slogan } } : {}),
+      ...(video.vinheta !== false && seg >= 6 ? { vinheta: { nome: CLIENTE.nome, slogan: CLIENTE.slogan, secundario: CLIENTE.instagram } } : {}),
       poseNoTempo: (t) => poseNoTempo(p.roteiro, e, t, seg),
       ...(montagem ? { montagem } : {}),
       ...(voo

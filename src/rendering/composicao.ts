@@ -99,3 +99,110 @@ export function duracaoDoVideo(escolhida: number, fala: ConfigApresentadora | nu
   if (!fala || !fala.acompanharFala || !(fala.duracaoS > 0)) return escolhida;
   return Math.min(300, Math.max(6, Math.ceil(fala.duracaoS * 10) / 10));
 }
+
+// ------------------------------------------------------------------ limpeza da máscara da IA
+
+/** Parte do quadro (0–1) abaixo da qual o recorte é ruído (pessoa ausente ou longe demais): a pessoa some. */
+export const COBERTURA_MINIMA = 0.02;
+/** Acima disto, a IA marcou quase o quadro todo como pessoa: falhou, e a pessoa some. */
+export const COBERTURA_MAXIMA = 0.7;
+/** Uma mancha separada só fica se tiver ao menos esta fração da maior (mão ou braço destacados do corpo). */
+export const FRACAO_PARTE = 0.3;
+
+/**
+ * Limpa a máscara de confiança da IA (ADR-31), quadro a quadro: fica só a pessoa (a maior mancha contínua e as
+ * partes grandes), com a borda suave original; o resultado é suavizado no tempo e some aos poucos quando o
+ * recorte não é confiável. Puro: testado no Node.
+ */
+export class LimpezaDeMascara {
+  private anterior: Float32Array | null = null;
+  private presenca = 0;
+  constructor(readonly largura: number, readonly altura: number, private readonly memoria = 0.35, private readonly passoPresenca = 0.2) {}
+
+  /** `conf`: confiança 0–1 por pixel, de cima para baixo. Devolve a máscara 0–1 e a cobertura medida. */
+  limpar(conf: ArrayLike<number>): { mascara: Float32Array; cobertura: number; presenca: number } {
+    const w = this.largura, h = this.altura, n = w * h;
+    // 1) manchas contínuas (vizinhança de 4) na máscara binária
+    const rotulo = new Int32Array(n).fill(-1);
+    const tamanhos: number[] = [];
+    const pilha = new Int32Array(n);
+    for (let i = 0; i < n; i++) {
+      if (rotulo[i] !== -1 || conf[i] < 0.5) continue;
+      const id = tamanhos.length;
+      let topo = 0, tam = 0;
+      pilha[topo++] = i;
+      rotulo[i] = id;
+      while (topo) {
+        const p = pilha[--topo];
+        tam++;
+        const x = p % w, y = (p - x) / w;
+        const viz = [x > 0 ? p - 1 : -1, x < w - 1 ? p + 1 : -1, y > 0 ? p - w : -1, y < h - 1 ? p + w : -1];
+        for (const q of viz) if (q >= 0 && rotulo[q] === -1 && conf[q] >= 0.5) (rotulo[q] = id), (pilha[topo++] = q);
+      }
+      tamanhos.push(tam);
+    }
+    const maior = tamanhos.length ? Math.max(...tamanhos) : 0;
+    const cobertura = maior / n;
+    // 2) só a pessoa: a maior mancha e as partes grandes; a borda suave (confiança < 0,5) só junto delas
+    const fica = new Uint8Array(n);
+    for (let i = 0; i < n; i++) if (rotulo[i] >= 0 && tamanhos[rotulo[i]] >= maior * FRACAO_PARTE) fica[i] = 1;
+    const perto = new Uint8Array(n);
+    const R = 2;
+    for (let y = 0; y < h; y++)
+      for (let x = 0; x < w; x++) {
+        if (!fica[y * w + x]) continue;
+        for (let dy = -R; dy <= R; dy++)
+          for (let dx = -R; dx <= R; dx++) {
+            const xx = x + dx, yy = y + dy;
+            if (xx >= 0 && xx < w && yy >= 0 && yy < h) perto[yy * w + xx] = 1;
+          }
+      }
+    // 3) presença: some e volta aos poucos (sem piscar) quando o recorte deixa de ser confiável
+    const confiavel = cobertura >= COBERTURA_MINIMA && cobertura <= COBERTURA_MAXIMA;
+    // o primeiro quadro já entra com a presença certa (prévia de um quadro só, começo do vídeo)
+    this.presenca = !this.anterior ? (confiavel ? 1 : 0) : Math.min(1, Math.max(0, this.presenca + (confiavel ? this.passoPresenca : -this.passoPresenca)));
+    // 4) suavização no tempo (menos tremor na borda)
+    const saida = new Float32Array(n);
+    const ant = this.anterior;
+    for (let i = 0; i < n; i++) {
+      const v = perto[i] ? conf[i] : 0;
+      saida[i] = ant ? v * (1 - this.memoria) + ant[i] * this.memoria : v;
+    }
+    this.anterior = saida;
+    const mascara = new Float32Array(n);
+    for (let i = 0; i < n; i++) mascara[i] = saida[i] * this.presenca;
+    return { mascara, cobertura, presenca: this.presenca };
+  }
+}
+
+// ------------------------------------------------------------------ volume da fala
+
+/** Volume médio da voz (dBFS, RMS dos trechos com fala) e pico máximo, no padrão das redes (ADR-31). */
+export const ALVO_RMS_DB = -18;
+export const PICO_MAXIMO_DB = -1;
+const db = (x: number) => 20 * Math.log10(Math.max(x, 1e-9));
+
+/**
+ * Ganho que leva a voz ao volume das redes: RMS dos trechos com fala (janelas de 50 ms acima de −50 dBFS) em
+ * `ALVO_RMS_DB`, sem o pico passar de `PICO_MAXIMO_DB`. Fórmula: ganho = mín(10^((alvo − rms)/20), 10^((pico máx − pico)/20)).
+ */
+export function ganhoDeNormalizacao(canais: Float32Array[], taxa: number): { ganho: number; rmsDb: number; picoDb: number } {
+  const janela = Math.max(1, Math.round(taxa * 0.05));
+  let pico = 0, somaAtiva = 0, nAtiva = 0;
+  const n = canais[0]?.length ?? 0;
+  for (let ini = 0; ini < n; ini += janela) {
+    let s = 0, k = 0;
+    for (const c of canais)
+      for (let i = ini; i < Math.min(n, ini + janela); i++) {
+        const v = c[i];
+        s += v * v;
+        k++;
+        if (Math.abs(v) > pico) pico = Math.abs(v);
+      }
+    if (k && db(Math.sqrt(s / k)) > -50) (somaAtiva += s), (nAtiva += k);
+  }
+  if (!nAtiva) return { ganho: 1, rmsDb: -Infinity, picoDb: db(pico) };
+  const rmsDb = db(Math.sqrt(somaAtiva / nAtiva)), picoDb = db(pico);
+  const ganho = Math.min(10 ** ((ALVO_RMS_DB - rmsDb) / 20), 10 ** ((PICO_MAXIMO_DB - picoDb) / 20));
+  return { ganho: Math.min(8, Math.max(0.1, ganho)), rmsDb, picoDb };
+}

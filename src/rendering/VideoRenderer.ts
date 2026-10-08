@@ -10,7 +10,7 @@ import type { QuadroCamera } from "./drone";
 import { diaDoQuadro, totalDeQuadros } from "./cameras";
 import { desenharAssinatura, desenharVinheta, opacidadeVinheta, sobrepor, type Sobreposicao, type TextoMarca } from "./marcaVideo";
 import { abrirQuadros, audioDaFala, criarCamadaApresentadora, pedacosDeAudio, type CamadaApresentadora, type FonteFala, type QuadrosDaFala } from "./apresentadora";
-import { cantoDaAssinatura, type ConfigApresentadora } from "./composicao";
+import { cantoDaAssinatura, ganhoDeNormalizacao, type ConfigApresentadora } from "./composicao";
 import { cenaNoTempo, obraNaCena, poseDaCena, trechoDoVoo, type Cena as CenaMontagem } from "./montagem";
 import type { Enquadramento } from "./cameras";
 import type { Voo } from "./drone";
@@ -175,9 +175,17 @@ export async function gerarVideo(cena: Cena, pedido: PedidoVideo): Promise<Arqui
     const telaCheia = !!p.montagem?.cenas.some((c) => c.tipo === "fala" || c.tipo === "revelacao" || c.pessoa === "cheia");
     camada = await criarCamadaApresentadora(lr, ar, p.apresentadora.cfg, fala.largura, fala.altura, telaCheia);
     if (p.saida !== "gif" && p.saida !== "png-zip") audio = await audioDaFala(p.apresentadora.arquivo);
+    // volume das redes: voz em −18 dBFS de média, pico até −1 dBFS (ADR-31)
+    if (audio) {
+      const canais = Array.from({ length: audio.numberOfChannels }, (_, c) => audio!.getChannelData(c));
+      const { ganho } = ganhoDeNormalizacao(canais, audio.sampleRate);
+      if (Math.abs(ganho - 1) > 0.01) for (const c of canais) for (let i = 0; i < c.length; i++) c[i] *= ganho;
+    }
   }
   const canto = cantoDaAssinatura(p.apresentadora ? p.apresentadora.cfg.posicao : null);
-  const marca = p.assinatura ? sobrepor(desenharAssinatura(lr, ar, p.assinatura), lr, ar, canto === "esquerda" ? "canto" : "canto-direito") : null;
+  // vertical: no topo; horizontal e quadrado: embaixo, no canto oposto ao da apresentadora
+  const vertical = ar > lr;
+  const marca = p.assinatura ? sobrepor(desenharAssinatura(lr, ar, p.assinatura), lr, ar, vertical ? (canto === "esquerda" ? "topo" : "topo-direito") : canto === "esquerda" ? "canto" : "canto-direito") : null;
   const vinheta = p.vinheta && !p.montagem ? sobrepor(desenharVinheta(lr, ar, p.vinheta), lr, ar, "cheia") : null;
   // a cena "marca" da montagem: a vinheta parada, em opacidade cheia
   const cartela = p.montagem?.cenas.some((c) => c.tipo === "marca") ? sobrepor(desenharVinheta(lr, ar, p.montagem.cartela), lr, ar, "cheia") : null;
