@@ -113,6 +113,9 @@ test("cada arquivo é conferido no envio: vídeo com a aba Falas vazia entra na 
   await page.getByTestId("entrada-falas").setInputFiles({ name: "quebrado.mp4", mimeType: "video/mp4", buffer: Buffer.from("isto não é um vídeo") });
   await expect(page.getByTestId("avisos-falas")).toContainText('"quebrado.mp4" não abriu');
   await expect(page.getByTestId("estado-falas")).toHaveText("1 vídeo · 8 s");
+  // enviado para o cartão errado: o × tira o arquivo
+  await page.getByTestId("remover-minha-fala.mp4").click();
+  await expect(page.getByTestId("estado-falas")).toHaveText("nenhum arquivo");
 });
 
 test("sem o IFC citado: a tela diz o que falta e segue com a casa da aba Modelo", async ({ page }) => {

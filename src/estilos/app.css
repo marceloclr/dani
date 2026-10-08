@@ -353,6 +353,8 @@ button.link { appearance: none; border: 0; background: none; padding: 0; font: i
 .resumo-cartao { margin: 0; color: var(--tinta-2); }
 .lista-arquivos { margin: 0; padding: 0; list-style: none; font-size: 12.5px; display: flex; flex-direction: column; gap: 3px; }
 .lista-arquivos li { display: flex; justify-content: space-between; gap: 8px; }
+.lista-arquivos li .mono { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.lista-arquivos .remover-arquivo { min-width: 22px; height: 20px; padding: 0 5px; line-height: 1; }
 .lista-arquivos li[data-ok="false"] .tenue { color: var(--risco); }
 .avisos-cartao { margin: 0; padding: 8px 10px 8px 26px; border-radius: var(--raio-p); background: color-mix(in srgb, var(--alerta) 10%, transparent); color: var(--tinta-2); font-size: 12.5px; display: flex; flex-direction: column; gap: 3px; }
 .lista-arquivos li[data-ok="fora"] .tenue { color: var(--alerta); }

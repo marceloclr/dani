@@ -1,6 +1,6 @@
 // Passo 1 do assistente (ADR-30): um cartão por tipo de arquivo, cada um com o que foi recebido e o que falta.
 import { useRef, useState, useSyncExternalStore, type ReactNode } from "react";
-import { adicionarFalas, adicionarFotos, adicionarTrilhas, aoMudarTrilhas, arquivosDeTrilha } from "../app/anexos";
+import { adicionarFalas, adicionarFotos, adicionarTrilhas, aoMudarTrilhas, arquivosDeTrilha, removerFala, removerTrilha } from "../app/anexos";
 import { abrirPlanilha, usarCasaDaPlanilha } from "../app/planilha";
 import { abrirIfcComoProjeto } from "../app/projetos";
 import { formatarBR } from "../fourd/tempo";
@@ -24,6 +24,15 @@ interface PropsCartao {
   /** Resultado da verificação do último envio (formato, leitura, nome). */
   avisos?: string[];
   children?: ReactNode;
+}
+
+/** Botão × que tira um arquivo enviado (para o cartão errado, por exemplo). */
+function Remover({ nome, aoRemover }: { nome: string; aoRemover(): void }) {
+  return (
+    <button type="button" className="btn-icone remover-arquivo" aria-label={`Remover ${nome}`} data-tip="Remover este arquivo" data-testid={`remover-${nome}`} onClick={aoRemover}>
+      ×
+    </button>
+  );
 }
 
 /** Cartão de um tipo de arquivo: zona de soltar, botão e o estado do que chegou. */
@@ -220,6 +229,7 @@ export function PassoCarregar({ falas }: { falas: FalasDoVideo }) {
                 <li key={l.arquivo} data-ok={!!t}>
                   <span className="mono">{l.arquivo}</span>
                   <span className="tenue">{t ? `${t.semVideo ? "narração · " : ""}${seg(t.fimS - t.inicioS)}` : "falta"}</span>
+                  {t && <Remover nome={l.arquivo} aoRemover={() => void removerFala(l.arquivo)} />}
                 </li>
               );
             })}
@@ -265,6 +275,7 @@ export function PassoCarregar({ falas }: { falas: FalasDoVideo }) {
               <li key={t.nome} data-ok>
                 <span className="mono">{t.nome}</span>
                 <span className="tenue">{seg(t.duracaoS)}</span>
+                <Remover nome={t.nome} aoRemover={() => void removerTrilha(t.nome)} />
               </li>
             ))}
           </ol>
