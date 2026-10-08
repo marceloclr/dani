@@ -612,3 +612,15 @@ O sobrado de exemplo passou a ter Fortaleza e a frente para 70° (lés-nordeste)
 - **Navegação:** os revestimentos não barram o drone (`IfcCovering` já estava fora do mapa de ocupação). O batente estreita o vão em 3 cm de cada lado, e o teste de colisão do voo inteiro continua passando.
 
 **Verificação.** Vitest: contagem do sobrado, voo sem colisões e luminárias. Playwright: as contagens nas telas e as capturas da fachada frontal, da porta e dos fundos.
+
+## ADR-28 — Olhar suave no voo do drone e carimbo da versão publicada
+
+**Status:** aceito em 2026-10-08.
+
+**Pedido.** "Identifique porque o vídeo gerado não é fluido e adicione no frame superior a data e hora DDMMAAAA-HHMM da versão publicada."
+
+**Diagnóstico.** A codificação é determinística (cada quadro tem carimbo exato de 1/fps) e o deslocamento do drone já era constante (≈0,2 m por quadro a 30 fps). O que saltava era a **direção do olhar**: a velocidade constante (ADR-23) refaz o tempo só pela posição, e a orientação mudava de golpe nas emendas dos trechos, nas quinas do passeio, no fim de cada `seguir` e nas meias-voltas. Medido no sobrado de exemplo (60 s, 30 fps): giro de até **124° num único quadro** e 225 quadros acima de 3°.
+
+**Decisão.** `olharSuave` (`src/rendering/drone.ts`): rumo (azimute desenrolado), inclinação e lente passam por um filtro gaussiano ao longo do caminho (σ = 4 m, `SUAVIZACAO_OLHAR_M`). Rumo e inclinação em separado: numa meia-volta o olhar gira de lado, como um piloto, em vez de mergulhar para o chão (a média de vetores opostos aponta para baixo). A posição não muda, então colisões e tempo das portas permanecem como estavam. Resultado: giro máximo de 3,9° por quadro.
+
+**Carimbo.** O build grava `__VERSAO_PUBLICADA__` (DDMMAAAA-HHMM, horário de Fortaleza) e o cabeçalho o exibe à direita, com dica; no `vite dev` aparece "local".

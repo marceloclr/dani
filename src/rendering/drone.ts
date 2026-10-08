@@ -87,6 +87,60 @@ function velocidadeConstante(bruto: (u: number) => QuadroCamera, marcas: number[
   return { quadro, marcas: marcas.map((m) => acum[Math.round(m * N)] / total), comprimento: total };
 }
 
+/** Desvio-padrão, em metros de caminho, da suavização da direção do olhar (ADR-28). */
+export const SUAVIZACAO_OLHAR_M = 4;
+
+/**
+ * Olhar suave (ADR-28): a velocidade constante iguala só o deslocamento; a direção do olhar ainda
+ * saltava nas emendas dos trechos, nas quinas do passeio e no fim de cada `seguir` (até 120° num
+ * quadro). Aqui a direção e a lente passam por um filtro gaussiano ao longo do caminho; a posição
+ * não muda, então a distância às paredes e o tempo das portas continuam os mesmos.
+ */
+function olharSuave(quadro: (u: number) => QuadroCamera, metrosPorU: number, sigmaM = SUAVIZACAO_OLHAR_M): (u: number) => QuadroCamera {
+  const N = 6000;
+  // rumo (azimute, desenrolado pelo caminho mais curto) e inclinação em separado: numa meia-volta o
+  // olhar gira de lado, como um piloto, em vez de passar pelo chão (a média de vetores opostos aponta para baixo)
+  const rumo = new Float64Array(N + 1), incl = new Float64Array(N + 1), fov = new Float64Array(N + 1);
+  for (let i = 0; i <= N; i++) {
+    const q = quadro(i / N);
+    const dx = q.alvo[0] - q.pos[0], dy = q.alvo[1] - q.pos[1], dz = q.alvo[2] - q.pos[2];
+    const h = Math.hypot(dx, dz);
+    const a = h > 1e-6 ? Math.atan2(dx, dz) : i > 0 ? rumo[i - 1] : 0;
+    if (i > 0) {
+      let d = a - (rumo[i - 1] % (2 * Math.PI));
+      d = ((d % (2 * Math.PI)) + 3 * Math.PI) % (2 * Math.PI) - Math.PI;
+      rumo[i] = rumo[i - 1] + d;
+    } else rumo[i] = a;
+    incl[i] = Math.atan2(dy, h);
+    fov[i] = q.fov;
+  }
+  const sigma = Math.max(1, (sigmaM / Math.max(metrosPorU, 1e-6)) * N), raio = Math.ceil(sigma * 3);
+  const pesos = Array.from({ length: raio + 1 }, (_, j) => Math.exp(-(j * j) / (2 * sigma * sigma)));
+  const filtrar = (v: Float64Array) => {
+    const r = new Float64Array(N + 1);
+    for (let i = 0; i <= N; i++) {
+      let a = 0, s = 0;
+      for (let j = -raio; j <= raio; j++) {
+        const w = pesos[Math.abs(j)];
+        a += v[Math.min(Math.max(i + j, 0), N)] * w;
+        s += w;
+      }
+      r[i] = a / s;
+    }
+    return r;
+  };
+  const rumoS = filtrar(rumo), inclS = filtrar(incl), fovS = filtrar(fov);
+  return (u) => {
+    const q = quadro(u);
+    const x = Math.min(Math.max(u, 0), 1) * N, i = Math.min(Math.floor(x), N - 1), t = x - i;
+    const em = (v: Float64Array) => v[i] * (1 - t) + v[i + 1] * t;
+    const az = em(rumoS), el = em(inclS);
+    const dist = Math.max(Math.hypot(q.alvo[0] - q.pos[0], q.alvo[1] - q.pos[1], q.alvo[2] - q.pos[2]), 1);
+    const alvo: P3 = [q.pos[0] + dist * Math.cos(el) * Math.sin(az), q.pos[1] + dist * Math.sin(el), q.pos[2] + dist * Math.cos(el) * Math.cos(az)];
+    return { ...q, alvo, fov: em(fovS) };
+  };
+}
+
 interface Trecho {
   peso: number; // duração relativa
   quadro(u: number): QuadroCamera;
@@ -624,7 +678,8 @@ export function montarVoo(solidos: Solido[], caixa: { min: P3; max: P3 }, centro
     if (lugar) pessoas.push(lugar);
   }
   const listaFolhas = folhas(todasPortas, [passagem, passeio]);
-  const quadro = comPortas(comParada, vc.comprimento / andando, listaFolhas); // metros por unidade de u (com a parada)
+  const metrosPorU = vc.comprimento / andando; // metros por unidade de u (com a parada)
+  const quadro = olharSuave(comPortas(comParada, metrosPorU, listaFolhas), metrosPorU);
   const marcas = { fimConstrucao: vc.marcas[0] * andando, inicioInterno: vc.marcas[1] * andando, inicioVoltaFinal: vc.marcas[2] * andando, fimMovimento: andando };
   return { quadro, passeio, temEscada: !!escada, entrada, resumo, pessoas, folhas: listaFolhas, fimConstrucao: marcas.fimConstrucao, comprimento: vc.comprimento, marcas, centro };
 }

@@ -29,3 +29,6 @@ interface CodificadorH264 {
 interface Window {
   HME?: { createH264MP4Encoder(): Promise<CodificadorH264> };
 }
+
+/** Data e hora do build publicado (DDMMAAAA-HHMM, horário de Fortaleza), ou "local" no desenvolvimento. */
+declare const __VERSAO_PUBLICADA__: string;

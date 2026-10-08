@@ -105,6 +105,18 @@ export function App() {
             </span>
           )}
           <div className="topo-acoes">
+            <span
+              className="versao-topo mono"
+              data-testid="versao-publicada"
+              aria-label={`Versão publicada ${__VERSAO_PUBLICADA__}`}
+              data-tip={
+                __VERSAO_PUBLICADA__ === "local"
+                  ? "Versão de desenvolvimento: o carimbo de data e hora só é gravado na publicação."
+                  : `Versão publicada em ${__VERSAO_PUBLICADA__.slice(0, 2)}/${__VERSAO_PUBLICADA__.slice(2, 4)}/${__VERSAO_PUBLICADA__.slice(4, 8)}, às ${__VERSAO_PUBLICADA__.slice(9, 11)}h${__VERSAO_PUBLICADA__.slice(11, 13)} (horário de Fortaleza).\nFormato: DDMMAAAA-HHMM, gravado no momento da compilação que foi ao ar.`
+              }
+            >
+              v. {__VERSAO_PUBLICADA__}
+            </span>
             <button type="button" className="btn" data-testid="abrir-projetos" data-tip="Projetos salvos neste navegador: abrir, duplicar, exportar, importar e excluir." onClick={() => ui.abrir({ projetos: true })}>
               Projetos
             </button>
