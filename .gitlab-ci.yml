@@ -1,0 +1,36 @@
+# Publicação do dani no GitLab Pages: reproduz o workflow pages.yml do GitHub
+# (npm test, carimbo da versão, build com BASE=/dani/ e manutenção das duas versões anteriores).
+pages:
+  stage: deploy
+  image: node:22
+  interruptible: true
+  cache:
+    key:
+      files:
+        - package-lock.json
+    paths:
+      - .npm/
+  variables:
+    BASE: /dani/
+    SITE_GITLAB: https://marceloclr.gitlab.io/dani/
+    SITE_GITHUB: https://marceloclr.github.io/dani/
+  script:
+    - npm ci --cache .npm --prefer-offline
+    - npm test
+    # carimbo da versão (DDMMAAAA-HHMM, Fortaleza): o mesmo no topo do app e no nome index-<carimbo>.html.
+    # Calculado pelo Node (ICU embutido), sem depender do tzdata da imagem.
+    - |
+      export VERSAO_PUBLICADA="$(node -e 'const p = Object.fromEntries(new Intl.DateTimeFormat("pt-BR", { timeZone: "America/Fortaleza", day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).formatToParts(new Date()).map((x) => [x.type, x.value])); console.log(`${p.day}${p.month}${p.year}-${p.hour}${p.minute}`)')"
+      echo "VERSAO_PUBLICADA=$VERSAO_PUBLICADA"
+      npm run build
+      # só a atual é index.html; as duas anteriores continuam no ar como index-DDMMAAAA-HHMM.html.
+      # Enquanto o site do GitLab não tiver versoes.json (primeira publicação), o histórico vem do GitHub Pages.
+      if curl -fsS -o /dev/null "${SITE_GITLAB}versoes.json"; then ORIGEM="$SITE_GITLAB"; else ORIGEM="$SITE_GITHUB"; fi
+      echo "histórico de versões lido de $ORIGEM"
+      node tools/versoes-anteriores.mjs "$ORIGEM"
+    - rm -rf public && mv dist public
+  artifacts:
+    paths:
+      - public
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
