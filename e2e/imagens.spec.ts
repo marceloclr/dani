@@ -100,6 +100,43 @@ test("PDF → imagens com títulos → MP4 com trilha, roteiro e trabalho guarda
   expect(erros).toEqual([]);
 });
 
+test("IFC no vídeo de imagens: trilha preservada, voo no Conferir e no roteiro, × tira o IFC", async ({ page }) => {
+  const erros: string[] = [];
+  page.on("pageerror", (e) => erros.push(String(e)));
+  await page.goto("/#/imagens");
+  await page.getByTestId("entrada-trilhas-img").setInputFiles({ name: "trilha.wav", mimeType: "audio/wav", buffer: wavDeTom(20) });
+  await expect(page.getByTestId("lista-trilhas-img")).toContainText("trilha.wav");
+  await page.getByTestId("entrada-imagens").setInputFiles({ name: "apresentacao.pdf", mimeType: "application/pdf", buffer: pdfDeApresentacao() });
+  await expect(page.getByTestId("estado-imagens")).toHaveText(/^3 imagens/, { timeout: 60_000 });
+  await expect(page.getByTestId("estado-ifc-img")).toHaveText("opcional: voo do drone");
+  await page.getByTestId("entrada-ifc-img").setInputFiles("public/modelos/sobrado-exemplo.ifc");
+  await expect(page.getByTestId("estado-ifc-img")).toHaveText("sobrado-exemplo.ifc · 157 elementos", { timeout: 90_000 });
+  // abrir o IFC sem planilha limpa os anexos: a trilha tem de continuar
+  await expect(page.getByTestId("lista-trilhas-img")).toContainText("trilha.wav");
+
+  await page.getByTestId("img-avancar").click();
+  await expect(page.getByTestId("bloco-voo")).toBeVisible();
+  await expect(page.getByTestId("voo-abertura")).toHaveAttribute("aria-selected", "true"); // padrão com IFC
+  await page.getByTestId("duracao-img-30").click();
+  await page.getByTestId("voo-ambos").click();
+  await page.getByTestId("voo-duracao").selectOption("6");
+  const [roteiro] = await Promise.all([page.waitForEvent("download"), page.getByTestId("baixar-roteiro").click()]);
+  const txt = readFileSync(await roteiro.path(), "utf8");
+  expect(txt).toMatch(/0:00,0 – 0:06,0 {2}Voo do drone pela casa \(abertura\)/);
+  expect(txt).toMatch(/0:24,0 – 0:30,0 {2}Voo do drone pela casa \(encerramento\)/);
+  await page.getByTestId("img-avancar").click();
+  await expect(page.getByTestId("config-img")).toContainText("voo do drone (abertura e encerramento, 6 s)");
+
+  // × do IFC: o voo some do Conferir e a trilha continua
+  await page.getByTestId("img-passo-1").click();
+  await page.getByTestId("remover-sobrado-exemplo.ifc").click();
+  await expect(page.getByTestId("estado-ifc-img")).toHaveText("opcional: voo do drone");
+  await expect(page.getByTestId("lista-trilhas-img")).toContainText("trilha.wav");
+  await page.getByTestId("img-avancar").click();
+  await expect(page.getByTestId("bloco-voo")).toHaveCount(0);
+  expect(erros).toEqual([]);
+});
+
 /** WAV mono 48 kHz com um tom de 330 Hz (trilha de teste). */
 function wavDeTom(segundos: number): Buffer {
   const taxa = 48000, n = taxa * segundos, b = Buffer.alloc(44 + n * 2);

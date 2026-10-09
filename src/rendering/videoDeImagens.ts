@@ -3,7 +3,7 @@
 // mixagem do vídeo da obra. Sem cena 3D: gerar leva segundos.
 import { COR_DOURADO, COR_DOURADO_CLARO } from "../app/marca";
 import { totalDeQuadros } from "./cameras";
-import { CAPA, VOZ_INICIO_S, camadasNoTempo, planoDoVideo, recorteNoTempo, recorteQueCobre, tituloNoTempo, ZOOM_MOVIMENTO, type ImagemDoVideo, type PlanoDoVideo } from "./imagensNoVideo";
+import { CAPA, VOZ_INICIO_S, camadasNoTempo, planoDoVideo, recorteNoTempo, recorteQueCobre, tituloNoTempo, vooNoTempo, ZOOM_MOVIMENTO, type ImagemDoVideo, type ParteDoVoo, type PlanoDoVideo } from "./imagensNoVideo";
 import { TOPO_RESERVADO_REELS, desenharAssinatura, desenharVinheta, opacidadeVinheta, type TextoMarca } from "./marcaVideo";
 import { Cancelado, codificar, dimensoesDaSaida, mixagemDoVideo, type ArquivoGerado, type Saida } from "./VideoRenderer";
 import type { TrechoDeFala } from "./apresentadora";
@@ -24,12 +24,44 @@ export interface PedidoImagens {
   trilhas?: { blob: Blob; iniS: number; volume: number }[];
   assinatura?: TextoMarca;
   vinheta?: TextoMarca;
+  /** Voo do drone pela casa 3D (INC-20): os tempos e quem prepara o trecho 3D no tamanho do vídeo. */
+  voo?: { aberturaS?: number; encerramentoS?: number; criar(largura: number, altura: number): Promise<DesenhoDoVoo & { dispose(): void }> };
   sinal: AbortSignal;
   aoProgredir(p: { quadro: number; total: number; restanteS: number | null }): void;
   aoCriarCanvas?(c: HTMLCanvasElement): void;
 }
 
 const caixaAlta = (s: string) => s.toLocaleUpperCase("pt-BR");
+
+/** Quem desenha o voo 3D (INC-20); na prévia, um quadro que o representa. */
+export interface DesenhoDoVoo {
+  desenhar(ctx: CanvasRenderingContext2D, parte: ParteDoVoo, u: number, duracaoS: number, quadro: number, opacidade: number): void;
+}
+
+/** Prévia do voo: a cena 3D pesaria demais na prévia; um quadro grafite diz o que entra ali no vídeo. */
+export const VOO_NA_PREVIA: DesenhoDoVoo = {
+  desenhar(ctx, parte, u, _d, _q, opacidade) {
+    const W = ctx.canvas.width, H = ctx.canvas.height, base = Math.min(W, H);
+    ctx.save();
+    ctx.globalAlpha = opacidade;
+    const g = ctx.createLinearGradient(0, 0, W, H);
+    g.addColorStop(0, "#3a4250");
+    g.addColorStop(1, "#1f2328");
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = "#f4f1ec";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.font = `500 ${Math.round(base * 0.05)}px "IBM Plex Sans", "Segoe UI", sans-serif`;
+    ctx.fillText("VOO DO DRONE PELA CASA 3D", W / 2, H / 2, W * 0.9);
+    ctx.fillStyle = COR_DOURADO_CLARO;
+    ctx.font = `400 ${Math.round(base * 0.032)}px "IBM Plex Sans", "Segoe UI", sans-serif`;
+    ctx.fillText(parte === "abertura" ? "abertura · aparece no vídeo gerado" : "encerramento · aparece no vídeo gerado", W / 2, H / 2 + base * 0.07, W * 0.9);
+    ctx.fillStyle = COR_DOURADO;
+    ctx.fillRect(W * 0.2, H / 2 + base * 0.13, W * 0.6 * u, Math.max(2, base * 0.006));
+    ctx.restore();
+  },
+};
 
 /**
  * Imagens decodificadas só quando entram no vídeo e soltas quando saem (90 renders de 2000 px não cabem
@@ -126,13 +158,17 @@ export async function desenharQuadroDeImagens(
   plano: PlanoDoVideo,
   t: number,
   imagens: (indices: number[]) => Promise<{ i: number; bmp: ImageBitmap; k: number }[]>,
-  extras: { capa?: string; assinatura?: HTMLCanvasElement | null; vinheta?: HTMLCanvasElement | null },
+  extras: { capa?: string; assinatura?: HTMLCanvasElement | null; vinheta?: HTMLCanvasElement | null; voo?: DesenhoDoVoo | null; quadro?: number },
 ): Promise<void> {
   ctx.globalAlpha = 1;
   ctx.fillStyle = "#1c1c1c";
   ctx.fillRect(0, 0, W, H);
   ctx.imageSmoothingEnabled = true;
   ctx.imageSmoothingQuality = "high";
+  // voo de abertura por baixo das imagens (a primeira dissolve sobre ele)
+  const voo = extras.voo ? vooNoTempo(plano, t) : null;
+  const durVoo = (parte: ParteDoVoo) => plano.voos.find((v) => v.parte === parte)!;
+  if (voo && !voo.porCima) extras.voo!.desenhar(ctx, voo.parte, voo.u, durVoo(voo.parte).fim - durVoo(voo.parte).ini, extras.quadro ?? 0, 1);
   const camadas = camadasNoTempo(plano, t);
   const bmps = new Map((await imagens(camadas.map((c) => c.item.indice))).map((x) => [x.i, x]));
   for (const c of camadas) {
@@ -145,6 +181,8 @@ export async function desenharQuadroDeImagens(
     ctx.drawImage(bmp, r.x * k, r.y * k, r.w * k, r.h * k, 0, 0, W, H);
   }
   ctx.globalAlpha = 1;
+  // voo de encerramento por cima da última imagem
+  if (voo && voo.porCima) extras.voo!.desenhar(ctx, voo.parte, voo.u, durVoo(voo.parte).fim - durVoo(voo.parte).ini, extras.quadro ?? 0, voo.opacidade);
   const capa = extras.capa?.trim();
   if (capa) {
     const o = opacidadeCapa(t);
@@ -175,7 +213,7 @@ export async function gerarVideoDeImagens(pedido: PedidoImagens): Promise<Arquiv
   const d = dimensoesDaSaida(pedido.saida, pedido.largura, pedido.altura, pedido.fps);
   const p = { ...pedido, largura: d.largura, altura: d.altura, fps: d.fps };
   const W = p.largura, H = p.altura;
-  const plano = planoDoVideo(p.imagens, p.segundos, W, H);
+  const plano = planoDoVideo(p.imagens, p.segundos, W, H, p.voo ?? {});
   if (!plano.itens.length) throw new Error(plano.aviso ?? "Nenhuma imagem marcada.");
   const canvas = document.createElement("canvas");
   canvas.width = W;
@@ -191,7 +229,10 @@ export async function gerarVideoDeImagens(pedido: PedidoImagens): Promise<Arquiv
       ]
     : null;
   const audio = await mixagemDoVideo(p.saida, total / p.fps, voz, p.trilhas);
+  const trecho3d = p.voo && plano.voos.length ? await p.voo.criar(W, H) : null;
   const extras = {
+    voo: trecho3d,
+    quadro: 0,
     capa: p.tituloDoVideo,
     assinatura: p.assinatura ? desenharAssinatura(W, H, p.assinatura) : null,
     vinheta: p.vinheta && p.segundos >= 6 ? desenharVinheta(W, H, p.vinheta) : null,
@@ -199,6 +240,7 @@ export async function gerarVideoDeImagens(pedido: PedidoImagens): Promise<Arquiv
   p.aoCriarCanvas?.(canvas);
   const inicio = performance.now();
   const desenhar = async (i: number) => {
+    extras.quadro = i;
     await desenharQuadroDeImagens(ctx, W, H, plano, i / p.fps, (ix) => banco.usar(ix), extras);
     if (i % 4 === 0) await ceder();
   };
@@ -213,5 +255,6 @@ export async function gerarVideoDeImagens(pedido: PedidoImagens): Promise<Arquiv
     return await codificar(p, canvas, total, desenhar, progredir, conferir, audio);
   } finally {
     banco.fechar();
+    trecho3d?.dispose();
   }
 }

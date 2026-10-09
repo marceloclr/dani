@@ -1,7 +1,10 @@
 // Vídeo de imagens (INC-19), passo Gerar: o MP4 na resolução escolhida, com a narração e as trilhas.
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { aoMudarTrilhas, arquivosDeTrilha } from "../app/anexos";
-import { dimensoesDoFormato, duracaoEfetiva } from "../app/imagensDoVideo";
+import { dimensoesDoFormato, duracaoEfetiva, opcoesDoVoo } from "../app/imagensDoVideo";
+import { obterCena } from "../app/estadoCena";
+import { criarTrecho3D } from "../app/vooNasImagens";
+import { Viewport } from "../components/Viewport";
 import { CLIENTE } from "../app/marca";
 import { nomeSeguro } from "../app/projetos";
 import { totalDeQuadros } from "../rendering/cameras";
@@ -30,6 +33,9 @@ export function GerarImagens() {
   const st = useProjeto.getState;
   const { largura, altura } = dimensoesDoFormato(e);
   const segundos = duracaoEfetiva(e);
+  const temModelo = useProjeto((s) => !!s.tipoModelo);
+  const voo = opcoesDoVoo(e.voo, temModelo);
+  const comVoo = !!(voo.aberturaS || voo.encerramentoS);
   const [saidas, setSaidas] = useState<Saida[]>([]);
   const [saida, setSaida] = useState<Saida | null>(null);
   const [progresso, setProgresso] = useState<{ quadro: number; total: number; restanteS: number | null } | null>(null);
@@ -83,6 +89,18 @@ export function GerarImagens() {
         trilhas: lista.flatMap((t, k) => (inicios[k] === null ? [] : [{ blob: t.blob, iniS: inicios[k]!, volume: 1 }])),
         assinatura: { nome: CLIENTE.nome, slogan: CLIENTE.slogan },
         vinheta: { nome: CLIENTE.nome, slogan: CLIENTE.slogan, secundario: CLIENTE.instagram },
+        ...(comVoo
+          ? {
+              voo: {
+                ...voo,
+                criar: async (w: number, h: number) => {
+                  const cena = obterCena();
+                  if (!cena) throw new Error("A cena 3D do voo não abriu.");
+                  return criarTrecho3D(cena, w, h, e.voo.percurso);
+                },
+              },
+            }
+          : {}),
         sinal: ac.signal,
         aoProgredir: setProgresso,
         aoCriarCanvas: (c) => {
@@ -119,7 +137,7 @@ export function GerarImagens() {
           </span>
         </header>
         <p className="config-gerar" data-testid="config-img">
-          {marcadas} imagens · {semVoz ? "sem narração" : `narração ${e.narracao!.nome}`} · {trilhas.size ? `${Math.min(2, trilhas.size)} trilha${trilhas.size > 1 ? "s" : ""}` : "sem trilha"}
+          {marcadas} imagens{comVoo ? ` · voo do drone (${{ abertura: "abertura", encerramento: "encerramento", ambos: "abertura e encerramento", nenhum: "" }[e.voo.onde]}, ${e.voo.duracaoS} s)` : ""} · {semVoz ? "sem narração" : `narração ${e.narracao!.nome}`} · {trilhas.size ? `${Math.min(2, trilhas.size)} trilha${trilhas.size > 1 ? "s" : ""}` : "sem trilha"}
         </p>
         <div className="linha-gerar">
           <label className="campo campo-linha">
@@ -168,6 +186,12 @@ export function GerarImagens() {
           </div>
         )}
       </section>
+      {/* o voo precisa da cena 3D: fica fora da vista, como no vídeo da obra */}
+      {comVoo && (
+        <div className="cena-oculta" aria-hidden>
+          <Viewport simples />
+        </div>
+      )}
     </div>
   );
 }
