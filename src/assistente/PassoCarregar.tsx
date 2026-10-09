@@ -6,6 +6,8 @@ import { abrirIfcComoProjeto } from "../app/projetos";
 import { formatarBR } from "../fourd/tempo";
 import { useProjeto } from "../state/projectStore";
 import type { FalasDoVideo } from "../app/falas";
+import { fotosRecomendadas } from "../app/sequencia";
+import { DicaQuantidade } from "../components/DicaQuantidade";
 
 export type Situacao = "ok" | "falta" | "opcional" | "aviso";
 const COR: Record<Situacao, string> = { ok: "var(--musgo)", falta: "var(--carmim)", opcional: "var(--neutro)", aviso: "var(--ocre)" };
@@ -242,6 +244,13 @@ export function PassoCarregar({ falas }: { falas: FalasDoVideo }) {
           </ol>
         )}
         {falas.automaticas && <p className="nota-cartao">Aba Falas vazia: os arquivos entram na ordem de envio.</p>}
+        {tempoDeVoz > 0 && (
+          <DicaQuantidade
+            testId="dica-falas"
+            rotulo={`${seg(tempoDeVoz)} de voz: combinam até ${fotosRecomendadas(tempoDeVoz).ideal} foto${fotosRecomendadas(tempoDeVoz).ideal > 1 ? "s" : ""}`}
+            texto={`O vídeo dura o tempo da voz (${seg(tempoDeVoz)}), mais 3 s por foto, mais 1 s de respiro e a marca no fim.\n${fotosRecomendadas(tempoDeVoz).texto}\nNos Reels, falas curtas (até uns 15 s cada) costumam segurar melhor a atenção; com mais de 60 s no total, considere dividir em dois vídeos.`}
+          />
+        )}
       </CartaoArquivo>
 
       <CartaoArquivo
@@ -255,7 +264,14 @@ export function PassoCarregar({ falas }: { falas: FalasDoVideo }) {
         dica="Fotos JPEG, PNG ou WebP. Data, local, descrição e etapa vêm da aba Fotos, pelo nome do arquivo. No vídeo, cada foto entra emoldurada, com data e etapa, no ponto da obra do dia dela (a ordem se ajusta no Conferir)."
         aoEscolher={async (f) => setAvisos("fotos", (await adicionarFotos(f)).avisos)}
         avisos={avisos.fotos}
-      />
+      >
+        <DicaQuantidade
+          testId="dica-fotos"
+          situacao={fotos.length <= fotosRecomendadas(tempoDeVoz).ideal ? (fotos.length ? "ok" : "neutra") : "alerta"}
+          rotulo={`Ideal: até ${fotosRecomendadas(tempoDeVoz).ideal} foto${fotosRecomendadas(tempoDeVoz).ideal > 1 ? "s" : ""}${fotos.length ? ` · enviadas: ${fotos.length}` : ""}`}
+          texto={`${fotosRecomendadas(tempoDeVoz).texto}\nCada foto fica 3 s na tela (de 2 a 6 s, ajustável no Conferir), emoldurada sobre a obra no dia dela.${fotos.length > fotosRecomendadas(tempoDeVoz).ideal ? `\nCom ${fotos.length} fotos, o vídeo ganha ${seg(fotos.length * 3)} sem voz: tire algumas no Conferir ou grave mais fala.` : ""}`}
+        />
+      </CartaoArquivo>
 
       <CartaoArquivo
         id="trilhas"

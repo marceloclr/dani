@@ -40,6 +40,32 @@ export function ambientesDe(imgs: Pick<ImagemDoVideo, "titulo">[]): Ambiente[] {
   return out;
 }
 
+/** Tempo por imagem de um vídeo calmo (s): o limite de cima da faixa recomendada. */
+export const IMAGEM_CALMA_S = 4;
+
+export interface Recomendacao {
+  /** Imagens com 3 s cada. */
+  ideal: number;
+  /** Faixa: de calmo (4 s cada) a dinâmico (2,5 s cada, o mínimo). */
+  min: number;
+  max: number;
+  /** Tempo que as imagens dividem (s), sem os voos. */
+  tempoS: number;
+}
+
+/** Quantas imagens combinam com o tempo das imagens (a duração menos os voos). */
+export function recomendacaoDeImagens(duracaoS: number, voo: { aberturaS?: number; encerramentoS?: number } = {}): Recomendacao {
+  const p = planoDoVideo([{ largura: 1, altura: 1, titulo: "", marcada: true }], duracaoS, 1, 1, voo);
+  const tempoS = p.voos.length ? (p.voos.find((v) => v.parte === "encerramento")?.ini ?? duracaoS) - (p.voos.find((v) => v.parte === "abertura")?.fim ?? 0) + DISSOLVE_S * p.voos.length : duracaoS;
+  return { ideal: imagensQueCabem(tempoS), min: imagensQueCabem(tempoS, IMAGEM_CALMA_S), max: imagensQueCabem(tempoS, IMAGEM_MIN_S), tempoS };
+}
+
+/** Texto da dica: "41,4 s → ideal 17 imagens (3 s cada); de 13 (calmo, 4 s) a 21 (dinâmico, 2,5 s)". */
+export function textoDaRecomendacao(r: Recomendacao): string {
+  const s = (x: number) => x.toFixed(1).replace(".", ",").replace(/,0$/, "");
+  return `${s(r.tempoS)} s de imagens → o ideal são ${r.ideal} imagens (${s(IMAGEM_PADRAO_S)} s cada); de ${r.min} (ritmo calmo, ${s(IMAGEM_CALMA_S)} s cada) a ${r.max} (dinâmico, ${s(IMAGEM_MIN_S)} s cada, o mínimo).`;
+}
+
 /** Quantas imagens cabem em `duracaoS` com `porImagemS` cada, contando a dissolução que as sobrepõe. */
 export const imagensQueCabem = (duracaoS: number, porImagemS = IMAGEM_PADRAO_S) => Math.max(1, Math.floor((duracaoS - DISSOLVE_S) / (porImagemS - DISSOLVE_S)));
 

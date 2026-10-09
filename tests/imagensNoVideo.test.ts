@@ -18,6 +18,8 @@ import {
   tempoDoRoteiro,
   vooNoTempo,
   transicoesDoPlano,
+  recomendacaoDeImagens,
+  textoDaRecomendacao,
   selecionarPelaDuracao,
   tituloNoTempo,
   type ImagemDoVideo,
@@ -240,5 +242,17 @@ describe("transições variadas", () => {
     expect(new Set(transicoesDoPlano([true, false, true], "dissolver").map((x) => x.transicao))).toEqual(new Set(["dissolver"]));
     const p = planoDoVideo([img("Sala"), img("Cozinha"), img()], 12, 1920, 1080);
     expect(p.itens.map((x) => x.transicao)).toEqual(["dissolver", "empurrar", "dissolver"]);
+  });
+});
+describe("recomendação de imagens pela duração", () => {
+  it("41,4 s (narração de 37 s): ideal 17, de 12 (calmo) a 21 (dinâmico)", () => {
+    const r = recomendacaoDeImagens(41.4);
+    expect([r.ideal, r.min, r.max]).toEqual([17, 12, 21]);
+    expect(textoDaRecomendacao(r)).toBe("41,4 s de imagens → o ideal são 17 imagens (3 s cada); de 12 (ritmo calmo, 4 s cada) a 21 (dinâmico, 2,5 s cada, o mínimo).");
+  });
+  it("os voos saem do tempo das imagens", () => {
+    const r = recomendacaoDeImagens(30, { aberturaS: 8, encerramentoS: 8 });
+    expect(r.tempoS).toBeCloseTo(15.2, 6);
+    expect(r.ideal).toBe(6);
   });
 });

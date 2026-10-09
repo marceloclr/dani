@@ -1,6 +1,6 @@
 // Sequência do vídeo (ADR-34): ordem padrão, ordem salva, mover e trilhas.
 import { describe, expect, it } from "vitest";
-import { FINAL_ANTES_S, aplicarOrdem, aplicarTrilhas, inicioDaTrilha, iniciosDasTrilhas, mover, sequenciaPadrao, trilhasPadrao, type ItemSequencia } from "../src/app/sequencia";
+import { FINAL_ANTES_S, aplicarOrdem, fotosRecomendadas, aplicarTrilhas, inicioDaTrilha, iniciosDasTrilhas, mover, sequenciaPadrao, trilhasPadrao, type ItemSequencia } from "../src/app/sequencia";
 
 const voz = (nome: string, duracaoS: number, tipo: "fala" | "narracao" = "fala"): ItemSequencia => ({ id: `voz:${nome}`, tipo, nome, duracaoS });
 const foto = (nome: string, obra: number | null): ItemSequencia => ({ id: `foto:${nome}`, tipo: "foto", nome, duracaoS: 3, obra });
@@ -57,5 +57,15 @@ describe("trilhas", () => {
   it("a configuração salva vale pelo nome; entrada que aponta para item que saiu volta à padrão; volume de 0 a 100", () => {
     const t = aplicarTrilhas(["t1", "t2"], itens, [{ nome: "T2", entra: "voz:sumiu", volume: 140 }, { nome: "t1", entra: "voz:c", volume: 30 }]);
     expect(t).toEqual([{ nome: "t1", entra: "voz:c", volume: 30 }, { nome: "t2", entra: "final", volume: 100 }]);
+  });
+});
+
+describe("fotos que combinam com a voz (vídeo da obra)", () => {
+  it("até 20 % do tempo de voz, 3 s por foto; ao menos 1; sem voz, até 3", () => {
+    expect(fotosRecomendadas(45).ideal).toBe(3);
+    expect(fotosRecomendadas(10).ideal).toBe(1);
+    expect(fotosRecomendadas(120).ideal).toBe(8);
+    expect(fotosRecomendadas(0).ideal).toBe(3);
+    expect(fotosRecomendadas(45).texto).toMatch(/Com 45 s de voz, o ideal são até 3 fotos/);
   });
 });

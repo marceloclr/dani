@@ -4,6 +4,9 @@ import { useEffect, useState, useSyncExternalStore } from "react";
 import { adicionarTrilhas, aoMudarTrilhas, arquivosDeTrilha, removerTrilha } from "../app/anexos";
 import { iniciarGuardaDeImagens } from "../app/guardaImagens";
 import { abrirIfcParaImagens, tirarIfcDasImagens } from "../app/vooNasImagens";
+import { DicaQuantidade } from "../components/DicaQuantidade";
+import { duracaoPelaNarracao, recomendacaoDeImagens, textoDaRecomendacao } from "../rendering/imagensNoVideo";
+import { duracaoEfetiva, opcoesDoVoo } from "../app/imagensDoVideo";
 import { adicionarArquivos, adicionarNarracao, aoMudarImagens, estadoImagens, origemDa, removerNarracao, removerPdf, removerSoltas, removerTodas } from "../app/imagensDoVideo";
 import { useProjeto } from "../state/projectStore";
 import { CartaoArquivo, Remover } from "./PassoCarregar";
@@ -25,6 +28,11 @@ function CarregarImagens() {
   const arquivoModelo = useProjeto((s) => s.arquivoModelo);
   const nElementos = useProjeto((s) => s.elementos.length);
   const marcadas = e.imagens.filter((i) => i.marcada).length;
+  // quantas imagens combinam com o tempo do vídeo (a narração define, quando escolhida), sem os voos
+  const segundos = duracaoEfetiva(e);
+  const rec = recomendacaoDeImagens(segundos, opcoesDoVoo(e.voo, !!tipoModelo));
+  const fmt = (s: number) => s.toLocaleString("pt-BR", { maximumFractionDigits: 1 });
+  const dentro = marcadas >= rec.min && marcadas <= rec.max;
   const soltas = e.imagens.filter((i) => !origemDa(i)).length;
 
   return (
@@ -70,6 +78,12 @@ function CarregarImagens() {
                 <strong>{e.tituloDoVideo}</strong>
               </p>
             )}
+            <DicaQuantidade
+              testId="dica-imagens"
+              situacao={dentro ? "ok" : "alerta"}
+              rotulo={`Para ${fmt(segundos)} s, o ideal são ${rec.ideal} imagens (de ${rec.min} a ${rec.max}); marcadas: ${marcadas}`}
+              texto={`${textoDaRecomendacao(rec)}\nA duração é ${e.duracao === "narracao" && e.narracao ? "a da narração (com vinheta, respiro e encerramento)" : "a escolhida no Conferir"}${rec.tempoS < segundos - 0.05 ? ", sem o tempo dos voos do drone" : ""}.\nNo Conferir, "Escolher pela duração" marca o ideal, espalhado entre os ambientes.`}
+            />
             <div className="botoes">
               <button type="button" className="btn btn-pequeno" data-testid="remover-imagens" onClick={removerTodas}>
                 Remover todas
@@ -113,6 +127,13 @@ function CarregarImagens() {
         avisos={avisos.narracao}
       >
         {e.narracao && (
+          <DicaQuantidade
+            testId="dica-narracao"
+            rotulo={`Esta narração pede ${recomendacaoDeImagens(duracaoPelaNarracao(e.narracao.duracaoS), opcoesDoVoo(e.voo, !!tipoModelo)).ideal} imagens`}
+            texto={`A narração tem ${fmt(e.narracao.duracaoS)} s; com a vinheta (1,2 s), o respiro (1 s) e o encerramento (2 s), o vídeo fica com ${fmt(duracaoPelaNarracao(e.narracao.duracaoS))} s.\n${textoDaRecomendacao(recomendacaoDeImagens(duracaoPelaNarracao(e.narracao.duracaoS), opcoesDoVoo(e.voo, !!tipoModelo)))}`}
+          />
+        )}
+        {e.narracao && (
           <ol className="lista-arquivos">
             <li data-ok>
               <span className="mono">{e.narracao.nome}</span>
@@ -135,6 +156,18 @@ function CarregarImagens() {
         aoEscolher={async (f) => setAvisos("trilhas-img", (await adicionarTrilhas(f)).avisos)}
         avisos={avisos["trilhas-img"]}
       >
+        {trilhas.size > 0 && (() => {
+          const primeira = [...trilhas.values()][0];
+          const cobre = primeira.duracaoS >= segundos;
+          return (
+            <DicaQuantidade
+              testId="dica-trilha"
+              situacao={cobre ? "ok" : "neutra"}
+              rotulo={cobre ? `A trilha cobre o vídeo de ${fmt(segundos)} s` : `A trilha (${fmt(primeira.duracaoS)} s) é mais curta que o vídeo (${fmt(segundos)} s)`}
+              texto={cobre ? "A primeira trilha dura mais que o vídeo: ela é cortada com um fade-out nos últimos 3 s." : `A trilha se repete em laço, com cruzamento de 1 s, até o fim do vídeo. Para não repetir, use uma trilha de ${Math.ceil(segundos)} s ou mais, ou envie uma segunda trilha (entra 8 s antes do fim).`}
+            />
+          );
+        })()}
         {trilhas.size > 0 && (
           <ol className="lista-arquivos" data-testid="lista-trilhas-img">
             {[...trilhas.values()].map((t, k) => (

@@ -25,6 +25,19 @@ export interface TrilhaSequencia {
   volume: number;
 }
 
+/**
+ * Fotos que combinam com a voz (vídeo da obra): cada foto soma o seu tempo ao vídeo; para não quebrar o ritmo da
+ * obra, as fotos ficam em até cerca de 20 % do tempo de voz (falas e narrações). Sem voz, até 3.
+ */
+export function fotosRecomendadas(vozS: number, porFotoS = FOTO_PADRAO_S): { ideal: number; texto: string } {
+  const ideal = vozS > 0 ? Math.max(1, Math.round((0.2 * vozS) / porFotoS)) : 3;
+  const s = (x: number) => x.toFixed(1).replace(".", ",").replace(/,0$/, "");
+  const texto = vozS > 0
+    ? `Com ${s(vozS)} s de voz, o ideal são até ${ideal} foto${ideal > 1 ? "s" : ""}: cada uma soma ${s(porFotoS)} s ao vídeo, e mais que isso (cerca de 20 % do tempo de voz) quebra o ritmo da obra.`
+    : "Sem voz, o ideal são até 3 fotos: cada uma soma 3 s ao vídeo.";
+  return { ideal, texto };
+}
+
 /** Duração padrão, mínima e máxima de uma foto no vídeo (s). */
 export const FOTO_PADRAO_S = 3, FOTO_MIN_S = 2, FOTO_MAX_S = 6;
 export const VOLUME_PADRAO = 70;

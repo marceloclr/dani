@@ -19,7 +19,8 @@ import {
   type FormatoImagens,
   type ImagemRecebida,
 } from "../app/imagensDoVideo";
-import { DURACOES_IMAGENS, VOO_MAX_S, VOO_MIN_S, ambientesDe, planoDoVideo, roteiroDeTempos } from "../rendering/imagensNoVideo";
+import { DURACOES_IMAGENS, VOO_MAX_S, VOO_MIN_S, ambientesDe, duracaoPelaNarracao, planoDoVideo, recomendacaoDeImagens, roteiroDeTempos, textoDaRecomendacao } from "../rendering/imagensNoVideo";
+import { DicaQuantidade } from "../components/DicaQuantidade";
 import { useProjeto } from "../state/projectStore";
 import { nomeSeguro } from "../app/projetos";
 import { baixar, carimboArquivo } from "../utils/baixar";
@@ -119,6 +120,7 @@ export function ConferirImagens() {
   const temModelo = useProjeto((s) => !!s.tipoModelo);
   const voo = useMemo(() => opcoesDoVoo(e.voo, temModelo), [e.voo, temModelo]);
   const plano = useMemo(() => planoDoVideo(e.imagens, segundos, largura, altura, voo, e.transicoes), [e.imagens, segundos, largura, altura, voo, e.transicoes]);
+  const recomendacao = recomendacaoDeImagens(segundos, voo);
   const marcadas = e.imagens.filter((i) => i.marcada).length;
   const ambientes = ambientesDe(e.imagens);
   // título que vale para cada imagem (o digitado ou o do ambiente anterior), para a dica do campo
@@ -163,12 +165,12 @@ export function ConferirImagens() {
             <span>Duração</span>
             <div className="segmentos" role="radiogroup" aria-label="Duração">
               {e.narracao && (
-                <button type="button" className="seg" role="radio" aria-selected={e.duracao === "narracao"} aria-checked={e.duracao === "narracao"} data-testid="duracao-narracao" data-tip="O vídeo dura a narração, mais a vinheta, um respiro e o encerramento." onClick={() => definirConfig({ duracao: "narracao" })}>
+                <button type="button" className="seg" role="radio" aria-selected={e.duracao === "narracao"} aria-checked={e.duracao === "narracao"} data-testid="duracao-narracao" data-tip={`O vídeo dura a narração, mais a vinheta, um respiro e o encerramento: ${seg(duracaoPelaNarracao(e.narracao.duracaoS))}.\n${textoDaRecomendacao(recomendacaoDeImagens(duracaoPelaNarracao(e.narracao.duracaoS), voo))}`} onClick={() => definirConfig({ duracao: "narracao" })}>
                   Narração
                 </button>
               )}
               {DURACOES_IMAGENS.map((d) => (
-                <button key={d} type="button" className="seg" role="radio" aria-selected={e.duracao === d} aria-checked={e.duracao === d} data-testid={`duracao-img-${d}`} onClick={() => definirConfig({ duracao: d })}>
+                <button key={d} type="button" className="seg" role="radio" aria-selected={e.duracao === d} aria-checked={e.duracao === d} data-testid={`duracao-img-${d}`} data-tip={`${d} s: ${textoDaRecomendacao(recomendacaoDeImagens(d, voo))}${e.narracao && e.duracao !== "narracao" ? `\nCom uma duração fixa, a narração (${seg(e.narracao.duracaoS)}) é cortada ou termina antes do vídeo: prefira "Narração".` : ""}`} onClick={() => definirConfig({ duracao: d })}>
                   {d} s
                 </button>
               ))}
@@ -186,7 +188,7 @@ export function ConferirImagens() {
             </div>
           </div>
           <div className="botoes">
-            <button type="button" className="btn" data-testid="selecionar-auto" data-tip="Marca as imagens que cabem na duração (cerca de 3 s cada), espalhadas entre os ambientes." onClick={selecionarAutomaticamente}>
+            <button type="button" className="btn" data-testid="selecionar-auto" data-tip={`Marca ${recomendacao.ideal} imagens (3 s cada), espalhadas entre os ambientes, ao menos uma por ambiente quando couber.\n${textoDaRecomendacao(recomendacao)}`} onClick={selecionarAutomaticamente}>
               Escolher pela duração
             </button>
             <button
@@ -206,6 +208,12 @@ export function ConferirImagens() {
           <p className="resumo-cartao" data-testid="resumo-plano">
             {plano.itens.length} de {e.imagens.length} imagens no vídeo{plano.foraDoVideo ? ` (${marcadas} marcadas)` : ""} · {ambientes.filter((a) => a.titulo).length} ambientes{plano.porImagemS > 0 ? ` · ${seg(Math.round(plano.porImagemS * 10) / 10)} cada` : ""}
           </p>
+          <DicaQuantidade
+            testId="dica-conferir"
+            situacao={plano.itens.length >= recomendacao.min && plano.itens.length <= recomendacao.max && !plano.foraDoVideo ? "ok" : "alerta"}
+            rotulo={`Ideal para ${seg(segundos)}: ${recomendacao.ideal} imagens (de ${recomendacao.min} a ${recomendacao.max})`}
+            texto={`${textoDaRecomendacao(recomendacao)}\nMenos imagens: cada uma fica mais tempo (acima de 6 s cansa). Mais imagens: o vídeo fica mais rápido; abaixo de 2,5 s por imagem, as que sobram ficam de fora.${e.narracao ? `\nA narração tem ${seg(e.narracao.duracaoS)}: com a duração "Narração", as imagens acompanham a fala.` : "\nSem narração: escolha a duração e grave a fala depois, seguindo o roteiro."}`}
+          />
           {plano.aviso && (
             <p className="aviso-plano" role="alert" data-testid="aviso-plano">
               {plano.aviso}

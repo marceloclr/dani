@@ -52,7 +52,11 @@ test("PDF → imagens com títulos → MP4 com trilha, roteiro e trabalho guarda
   await page.getByTestId("entrada-trilhas-img").setInputFiles({ name: "trilha.wav", mimeType: "audio/wav", buffer: wavDeTom(20) });
   await expect(page.getByTestId("lista-trilhas-img")).toContainText("início");
 
+  // dica da quantidade: 30 s (padrão) pedem 12 imagens, de 8 a 15
+  await expect(page.getByTestId("dica-imagens")).toContainText("Para 30 s, o ideal são 12 imagens (de 8 a 15)");
   await page.getByTestId("img-avancar").click();
+  await expect(page.getByTestId("dica-conferir")).toContainText("Ideal para 30 s: 12 imagens (de 8 a 15)");
+  await expect(page.getByTestId("duracao-img-15")).toHaveAttribute("data-tip", /o ideal são 6 imagens/);
   // o texto da capa vira o título do vídeo; o maior texto da página, o título do ambiente
   await expect(page.getByTestId("titulo-video")).toHaveValue("Apresentação de projeto — Casa teste");
   await expect(page.getByTestId("marcar-img-0")).not.toBeChecked(); // a capa entra desmarcada
