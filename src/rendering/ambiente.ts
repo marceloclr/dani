@@ -519,16 +519,20 @@ export function montarEntorno(f: Map<Foto, MapasFoto>, lote: { x0: number; x1: n
   return g;
 }
 
+/** Até esta distância da câmera (m), um vizinho ou uma árvore só entraria no quadro como um pedaço cortado na borda. */
+export const PERTO_DA_CAMERA = 6;
+
 /**
- * O que do entorno tampa a obra vista de `camera` (ADR-31): grupos ocultáveis com a câmera dentro (com folga)
- * ou cortando algum dos raios da câmera ao centro, ao topo e às laterais da obra. Puro sobre caixas: testado no Node.
+ * O que do entorno tampa a obra vista de `camera` (ADR-31): grupos ocultáveis com a câmera dentro (com folga),
+ * colados à câmera (a menos de `perto`: o telhado do vizinho entrava cortado na borda do quadro) ou cortando algum
+ * dos raios da câmera ao centro, ao topo e às laterais da obra. Puro sobre caixas: testado no Node.
  */
-export function tampamAVista(camera: THREE.Vector3, alvos: THREE.Vector3[], caixas: THREE.Box3[], folga = 0.6): boolean[] {
+export function tampamAVista(camera: THREE.Vector3, alvos: THREE.Vector3[], caixas: THREE.Box3[], folga = 0.6, perto = PERTO_DA_CAMERA): boolean[] {
   const raio = new THREE.Ray();
   const dir = new THREE.Vector3(), ponto = new THREE.Vector3();
   return caixas.map((c) => {
     const b = c.clone().expandByScalar(folga);
-    if (b.containsPoint(camera)) return true;
+    if (b.containsPoint(camera) || c.distanceToPoint(camera) < perto) return true;
     return alvos.some((alvo) => {
       dir.subVectors(alvo, camera);
       const dist = dir.length();

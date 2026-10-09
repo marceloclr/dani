@@ -105,6 +105,12 @@ describe("entorno não tampa a obra (ADR-31)", async () => {
   it("vizinho atrás da casa não some", () => {
     expect(tampamAVista(new THREE.Vector3(0, 4, 40), [casa], [caixa(-4, -26, 4, -18)])).toEqual([false]);
   });
+  it("vizinho colado à câmera, fora do caminho até a casa, some (o telhado entrava cortado na borda do quadro)", () => {
+    // câmera 3 m acima do telhado de uma casa do outro lado da rua, olhando a obra por cima dela
+    const cam = new THREE.Vector3(0, 9, 30);
+    expect(tampamAVista(cam, [casa], [caixa(3, 26, 11, 36)])).toEqual([true]); // 3 m ao lado e 3 m acima: 4,2 m
+    expect(tampamAVista(cam, [casa], [caixa(12, 26, 20, 36)])).toEqual([false]); // a 12,4 m: entra inteira no quadro
+  });
 });
 
 describe("divisas do lote: mureta com gradil na frente (ADR-33)", async () => {
