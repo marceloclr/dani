@@ -1,6 +1,6 @@
 # INC-20 — Voo do drone pela casa 3D no vídeo de imagens
 
-**Status:** aprovado em 2026-10-09.
+**Status:** aprovado e implementado em 2026-10-09 (ADR-38).
 
 ## Pedido
 

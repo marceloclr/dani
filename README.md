@@ -84,7 +84,9 @@ e publique a pasta `dist/` (GitHub Pages, Cloudflare Pages, Netlify ou Vercel).
    - dissolução entre as imagens, títulos dos ambientes, assinatura e encerramento;
    - com narração, as imagens dividem o tempo da fala e a trilha baixa sob a voz.
 
-O trabalho (imagens, títulos, seleção, ordem, narração e formato) fica guardado neste navegador.
+Com um **Projeto IFC** da mesma obra (cartão opcional), o vídeo pode abrir e/ou fechar com o **voo do drone** pela casa pronta (6 a 12 s, volta por fora ou com entrada pela porta; ADR-38). Sem cronograma, a casa pronta vem da estimativa automática.
+
+O trabalho (imagens, títulos, seleção, ordem, narração e formato) fica guardado neste navegador. Cada arquivo enviado por engano sai pelo ×: o PDF inteiro, as imagens soltas, cada imagem, a narração, as trilhas e o IFC.
 
 Os arquivos exportados (vídeo, planilha, `.4dstudio`, cronograma, mapeamento e relatório) levam a data e a hora no nome: `<nome>-AAAAMMDD-HHMM`. Os modelos para download têm nome fixo.
 

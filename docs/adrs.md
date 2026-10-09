@@ -1013,3 +1013,40 @@ O sobrado de exemplo passou a ter Fortaleza e a frente para 70° (lés-nordeste)
   - roteiro, e o MP4 para WhatsApp com 15 s, 1280 × 720 e áudio;
   - o trabalho volta depois de recarregar a página.
 - **Edge com o PDF de referência** (fora do git): 91 renders em 5 a 8 s, 89 logos descartadas; vídeo vertical de 41,4 s com narração e duas trilhas, conferido quadro a quadro e pelo nível do áudio.
+
+## ADR-38 — Voo do drone pela casa 3D no vídeo de imagens
+
+**Status:** aceito em 2026-10-09 (INC-20, plano em `docs/planos/inc-20-voo-no-video-de-imagens.md`).
+
+**Pedido.** "Quando seleciona Vídeo de imagens não vi a possibilidade do voo automático nem drone." O usuário escolheu juntar o voo 3D às imagens: com o IFC da mesma obra, o vídeo abre e/ou fecha com o voo pela casa pronta.
+
+**Decisão.**
+1. **Cartão "Projeto IFC (opcional)"** no modo imagens (`app/vooNasImagens.ts`):
+   - abrir um IFC sem planilha limpa os anexos, então as trilhas são guardadas antes e devolvidas (`restaurarTrilhas`);
+   - sem cronograma, entra a estimativa automática (§13), e a cena vai para o último dia: a casa aparece pronta, mobiliada e com pessoas;
+   - o × tira o modelo da tela (o projeto continua salvo em Projetos) e mantém as trilhas.
+2. **Conferir:**
+   - voo em Nenhum, Abertura (padrão com IFC), Encerramento ou Os dois;
+   - duração de 6 a 12 s (padrão 8 s), no máximo 40 % de um vídeo curto;
+   - percurso: volta por fora, ou volta e entrada pela porta.
+3. **Tempo** (`planoDoVideo` com `voo`, `vooNoTempo`):
+   - as imagens dividem o tempo que sobra e dissolvem 0,6 s com os voos;
+   - a abertura vai por baixo da primeira imagem; o encerramento entra por cima da última;
+   - vinheta e capa ficam sobre o voo de abertura; o primeiro título espera a primeira imagem;
+   - o roteiro lista os voos.
+4. **Desenho:**
+   - o trecho 3D usa a mesma cena, luz (sol de lado, ADR-36) e acabamento do vídeo da obra, num renderizador dedicado do tamanho do vídeo, copiado quadro a quadro para o canvas 2D;
+   - no encerramento, a volta anda no sentido contrário;
+   - a cena 3D fica fora da vista no passo Gerar.
+5. **Prévia:** um quadro grafite, "Voo do drone pela casa 3D", marca o lugar do voo; a cena 3D na prévia pesaria demais.
+
+**Consequências.**
+- Fica mais fácil: o vídeo de imagens ganha a casa inteira por fora, que os renders internos não mostram.
+- Fica mais difícil:
+  - gerar fica mais lento: 30 s com dois voos de 8 s levaram 50 s no Edge com GPU Intel, contra cerca de 12 s só com imagens;
+  - o 3D sai mais simples que os renders, e a passagem entre os dois é perceptível; por isso o voo fica nas pontas.
+
+**Verificação.**
+- **Vitest:** janelas, limites, camadas, opacidades, título depois do voo e roteiro.
+- **Playwright:** o IFC preserva a trilha, o bloco do voo aparece só com o modelo, o roteiro lista os voos e o × tira o IFC.
+- **Edge com GPU:** vídeo vertical de 30 s com 6 renders do JP&M e o sobrado de exemplo, conferido quadro a quadro: vinheta, voo com a capa, dissolução, títulos, voo final e vinheta.
