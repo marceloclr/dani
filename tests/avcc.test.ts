@@ -1,6 +1,6 @@
 // avcC do H.264: o registro estragado do Firefox no Windows (cabeçalho da NAL repetido) é refeito.
 import { describe, expect, it } from "vitest";
-import { avcCValido, consertarAvcC, lerAvcC, montarAvcC, parametrosNoQuadro } from "../src/rendering/avcc";
+import { avcCValido, comoBytes, consertarAvcC, lerAvcC, montarAvcC, parametrosNoQuadro } from "../src/rendering/avcc";
 
 const hex = (s: string) => Uint8Array.from(s.match(/../g)!.map((x) => parseInt(x, 16)));
 const comTamanho = (...nals: Uint8Array[]) => {
@@ -41,5 +41,21 @@ describe("avcC", () => {
   it("sem SPS no quadro, tira o cabeçalho repetido", () => {
     const novo = consertarAvcC(AVCC_FIREFOX, comTamanho(hex("65888400")))!;
     expect(lerAvcC(novo)).toEqual({ sps: [SPS], pps: [PPS], tamanhoNal: 4 });
+  });
+});
+
+describe("bytes do registro no navegador", () => {
+  it("funciona sem SharedArrayBuffer (só existe em páginas isoladas; a falta dele deixava o vídeo do Firefox sem conserto)", () => {
+    const g = globalThis as { SharedArrayBuffer?: unknown };
+    const guardado = g.SharedArrayBuffer;
+    delete g.SharedArrayBuffer;
+    try {
+      const buf = new Uint8Array([9, 1, 2, 3, 9]);
+      expect([...comoBytes(buf.buffer)]).toEqual([9, 1, 2, 3, 9]);
+      expect([...comoBytes(buf.subarray(1, 4))]).toEqual([1, 2, 3]);
+      expect([...comoBytes(new DataView(buf.buffer, 2, 2))]).toEqual([2, 3]);
+    } finally {
+      g.SharedArrayBuffer = guardado;
+    }
   });
 });

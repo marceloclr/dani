@@ -411,7 +411,11 @@ async function comoWebCodecs(p: Codificacao, canvas: HTMLCanvasElement, total: n
   const bruto = (output.target as BufferTarget).buffer;
   if (!bruto || bruto.byteLength === 0) throw new Error("O codificador terminou sem produzir dados.");
   // o Firefox no Windows entrega o avcC com o cabeçalho da NAL repetido e o vídeo não abre: refaz sem recodificar
-  const buffer = mp4 ? await mp4ComAvcCConsertado(new Uint8Array(bruto), p.fps).catch(() => new Uint8Array(bruto)) : bruto;
+  const buffer = mp4 ? await mp4ComAvcCConsertado(new Uint8Array(bruto), p.fps).catch((e) => {
+        // sem o conserto, o MP4 do Firefox não abre: o aviso fica no console para não passar despercebido
+        console.warn("MP4: não foi possível refazer o avcC; o arquivo segue como o codificador entregou.", e);
+        return new Uint8Array(bruto);
+      }) : bruto;
   const mime = mp4 ? "video/mp4" : "video/webm";
   return { blob: new Blob([buffer as BlobPart], { type: mime }), nome: `${p.nomeBase}.${mp4 ? "mp4" : "webm"}`, tipo: "video", descricao: NOME_SAIDA[p.saida], comAudio: !!trilha };
 }

@@ -943,6 +943,8 @@ O sobrado de exemplo passou a ter Fortaleza e a frente para 70° (lés-nordeste)
 - O arquivo do Firefox de 09/10 (30 s, 900 quadros) saiu consertado, com o mesmo número de quadros.
 - MP4 gerado no Edge depois da mudança: registro igual ao de antes.
 
+**Correção (2026-10-09, tarde).** No navegador, o conserto não rodava: a conversão do registro em bytes testava `SharedArrayBuffer`, que só existe em páginas isoladas (COOP/COEP); a referência quebrava e o erro era engolido. O teste em Node não pegou, porque lá a variável existe. Agora a conversão usa `ArrayBuffer.isView`, a falha vira aviso no console, e há um teste que remove `SharedArrayBuffer`. Conferido no Edge refazendo o vídeo de imagens com voo gerado no Firefox, que antes só tinha áudio.
+
 ## ADR-36 — Sol do vídeo de lado: fachada ao sol com sombras visíveis
 
 **Status:** aceito em 2026-10-09. Revê a regra do sol do vídeo do ADR-33.

@@ -98,7 +98,8 @@ export function consertarAvcC(d: Uint8Array, quadroChave?: Uint8Array): Uint8Arr
   return avcCValido(novo) ? novo : null;
 }
 
-const comoBytes = (b: AllowSharedBufferSource): Uint8Array => (b instanceof ArrayBuffer || b instanceof SharedArrayBuffer ? new Uint8Array(b) : new Uint8Array(b.buffer, b.byteOffset, b.byteLength));
+// sem `SharedArrayBuffer`: no navegador ele só existe em páginas isoladas (COOP/COEP) e a referência quebrava
+export const comoBytes = (b: AllowSharedBufferSource): Uint8Array => (ArrayBuffer.isView(b) ? new Uint8Array(b.buffer, b.byteOffset, b.byteLength) : new Uint8Array(b));
 
 /**
  * MP4 com o avcC refeito, sem recodificar: os pacotes de vídeo e de áudio são copiados na ordem do tempo e
