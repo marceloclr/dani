@@ -81,7 +81,7 @@ e publique a pasta `dist/` (GitHub Pages, Cloudflare Pages, Netlify ou Vercel).
    - A prévia toca o vídeo sem som.
 3. **Gerar.** MP4 na resolução escolhida:
    - vinheta, capa com o título e cada imagem com movimento lento (no 9:16, o render 16:9 é percorrido de lado a lado);
-   - dissolução entre as imagens, títulos dos ambientes, assinatura e encerramento;
+   - transições variadas (dissolver, aproximar, empurrar, varrer e círculo; ou "Só dissolver"), títulos dos ambientes, assinatura e encerramento;
    - com narração, as imagens dividem o tempo da fala e a trilha baixa sob a voz.
 
 Com um **Projeto IFC** da mesma obra (cartão opcional), o vídeo pode abrir e/ou fechar com o **voo do drone** pela casa pronta (6 a 12 s, volta por fora ou com entrada pela porta; ADR-38). Sem cronograma, a casa pronta vem da estimativa automática.

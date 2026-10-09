@@ -85,6 +85,7 @@ export function GerarImagens() {
         nomeBase: `${nomeSeguro(e.tituloDoVideo || "apresentacao")}-${carimboArquivo()}`,
         imagens: e.imagens,
         tituloDoVideo: e.tituloDoVideo,
+        transicoes: e.transicoes,
         narracao: e.duracao === "narracao" && e.narracao ? { blob: e.narracao.blob, duracaoS: e.narracao.duracaoS } : null,
         trilhas: lista.flatMap((t, k) => (inicios[k] === null ? [] : [{ blob: t.blob, iniS: inicios[k]!, volume: 1 }])),
         assinatura: { nome: CLIENTE.nome, slogan: CLIENTE.slogan },

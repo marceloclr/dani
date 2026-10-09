@@ -135,9 +135,43 @@ export function recorteNoTempo(m: Movimento, u: number): Recorte {
   return { x: l(m.de.x, m.para.x), y: l(m.de.y, m.para.y), w: l(m.de.w, m.para.w), h: l(m.de.h, m.para.h) };
 }
 
+/**
+ * Transição de entrada de uma imagem (0,6 s): dissolver, aproximar (entra com zoom leve), empurrar (a nova
+ * empurra a anterior para o lado), varrer (faixa suave na diagonal) ou círculo (abre do centro).
+ */
+export type Transicao = "dissolver" | "aproximar" | "empurrar" | "varrer" | "circulo";
+export type ModoTransicoes = "variadas" | "dissolver";
+/** Rodízio: as suaves dentro de um ambiente (a cada três, uma marcante) e as marcantes na troca de ambiente. */
+const SUAVES: Transicao[] = ["dissolver", "aproximar"], MARCANTES: Transicao[] = ["empurrar", "varrer", "circulo"];
+
+/**
+ * Transições de entrada das imagens, na ordem (a primeira não tem). Na troca de ambiente, as marcantes em
+ * rodízio; dentro do ambiente, dissolver e aproximar, com uma marcante a cada três (vídeos sem títulos também
+ * variam). O sentido de empurrar e varrer alterna.
+ */
+export function transicoesDoPlano(mudaAmbiente: boolean[], modo: ModoTransicoes = "variadas"): { transicao: Transicao; sentido: 1 | -1 }[] {
+  let forte = 0, suave = 0, lado: 1 | -1 = 1;
+  return mudaAmbiente.map((muda) => {
+    if (modo === "dissolver") return { transicao: "dissolver" as const, sentido: 1 as const };
+    let tr: Transicao;
+    if (muda) tr = MARCANTES[forte++ % MARCANTES.length];
+    else {
+      const pos = suave++ % 3;
+      tr = pos < 2 ? SUAVES[pos] : MARCANTES[forte++ % MARCANTES.length];
+    }
+    const sentido = lado;
+    if (tr === "empurrar" || tr === "varrer") lado = (lado === 1 ? -1 : 1) as 1 | -1;
+    return { transicao: tr, sentido };
+  });
+}
+
 export interface ItemDoPlano {
   /** Índice na lista de imagens. */
   indice: number;
+  /** Como a imagem entra (dissolver na primeira, que entra sobre a vinheta ou o voo). */
+  transicao: Transicao;
+  /** Sentido de empurrar e varrer: 1 = da direita para a esquerda; −1 = o contrário. */
+  sentido: 1 | -1;
   ini: number;
   fim: number;
   /** Título que abre um ambiente nesta imagem (null = mesmo ambiente). */
@@ -171,7 +205,7 @@ export interface PlanoDoVideo {
  * dissolução. O título de ambiente vai na primeira imagem marcada de cada ambiente. Com voo (INC-20), o voo de
  * abertura ocupa o começo e o de encerramento o fim; as imagens dividem o que sobra, dissolvendo com eles.
  */
-export function planoDoVideo(imgs: ImagemDoVideo[], duracaoS: number, quadroW: number, quadroH: number, voo: { aberturaS?: number; encerramentoS?: number } = {}): PlanoDoVideo {
+export function planoDoVideo(imgs: ImagemDoVideo[], duracaoS: number, quadroW: number, quadroH: number, voo: { aberturaS?: number; encerramentoS?: number } = {}, transicoes: ModoTransicoes = "variadas"): PlanoDoVideo {
   const lim = (s?: number) => (s && s > 0 ? Math.min(VOO_MAX_S, Math.max(VOO_MIN_S, s)) : 0);
   let ab = lim(voo.aberturaS), en = lim(voo.encerramentoS);
   // vídeo curto: os voos não passam de 40 % do tempo cada
@@ -196,29 +230,33 @@ export function planoDoVideo(imgs: ImagemDoVideo[], duracaoS: number, quadroW: n
   else if (bruto > IMAGEM_MAX_S) aviso = `Com ${n} imagens, cada uma fica ${bruto.toFixed(1).replace(".", ",")} s na tela: marque mais imagens para o vídeo ficar mais dinâmico.`;
   const d = Math.max(bruto, IMAGEM_MIN_S * 0.5);
   let ambAnterior = -1;
+  // a primeira entra dissolvendo (sobre a vinheta ou o voo); as outras seguem o rodízio
+  const muda = marcadas.slice(1).map((indice, k) => ambienteDe[indice] !== ambienteDe[marcadas[k]]);
+  const entradas = [{ transicao: "dissolver" as Transicao, sentido: 1 as const }, ...transicoesDoPlano(muda, transicoes)];
   const itens = marcadas.map((indice, k) => {
     const a = ambienteDe[indice];
     const titulo = a !== ambAnterior ? titulos[a] : null;
     ambAnterior = a;
     const ini = ini0 + k * (d - DISSOLVE_S);
-    return { indice, ini, fim: Math.min(fimImagens, ini + d), titulo, movimento: movimentoDa(k, imgs[indice].largura, imgs[indice].altura, quadroW, quadroH) };
+    return { indice, ...entradas[k], ini, fim: Math.min(fimImagens, ini + d), titulo, movimento: movimentoDa(k, imgs[indice].largura, imgs[indice].altura, quadroW, quadroH) };
   });
   return { duracaoS, itens, voos, porImagemS: d, aviso };
 }
 
 /** O que desenhar no segundo `t`: a imagem de baixo e, durante a dissolução, a de cima com sua opacidade. */
-export function camadasNoTempo(p: PlanoDoVideo, t: number): { item: ItemDoPlano; u: number; opacidade: number }[] {
-  const out: { item: ItemDoPlano; u: number; opacidade: number }[] = [];
+export function camadasNoTempo(p: PlanoDoVideo, t: number): { item: ItemDoPlano; u: number; opacidade: number; entrada: number }[] {
+  const out: { item: ItemDoPlano; u: number; opacidade: number; entrada: number }[] = [];
   p.itens.forEach((it, k) => {
     if (t < it.ini || t > it.fim + 1e-9) return;
     const u = (t - it.ini) / (it.fim - it.ini || 1);
     // a primeira entra inteira, a não ser que dissolva sobre o voo de abertura
     const opacidade = k === 0 && !p.voos.some((v) => v.parte === "abertura") ? 1 : Math.min(1, (t - it.ini) / DISSOLVE_S);
-    out.push({ item: it, u, opacidade });
+    // entrada: quanto da transição já andou (1 = imagem inteira na tela)
+    out.push({ item: it, u, opacidade, entrada: opacidade });
   });
   // a última imagem segura o quadro até o fim (arredondamentos), quando não há voo de encerramento
   const ult = p.itens[p.itens.length - 1];
-  if (!out.length && ult && t >= ult.fim && !p.voos.some((v) => v.parte === "encerramento")) out.push({ item: ult, u: 1, opacidade: 1 });
+  if (!out.length && ult && t >= ult.fim && !p.voos.some((v) => v.parte === "encerramento")) out.push({ item: ult, u: 1, opacidade: 1, entrada: 1 });
   return out;
 }
 

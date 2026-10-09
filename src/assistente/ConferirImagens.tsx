@@ -31,14 +31,14 @@ const seg = (s: number) => `${s.toLocaleString("pt-BR", { maximumFractionDigits:
 const ROTULO_FORMATO: Record<FormatoImagens, string> = { vertical: "9:16", horizontal: "16:9", quadrado: "1:1", retrato: "4:5", personalizado: "Outro" };
 
 /** Prévia: o vídeo desenhado em tempo real num canvas pequeno, sem som. */
-function Previa({ imagens, segundos, largura, altura, titulo, voo }: { imagens: ImagemRecebida[]; segundos: number; largura: number; altura: number; titulo: string; voo: { aberturaS?: number; encerramentoS?: number } }) {
+function Previa({ imagens, segundos, largura, altura, titulo, voo, transicoes }: { imagens: ImagemRecebida[]; segundos: number; largura: number; altura: number; titulo: string; voo: { aberturaS?: number; encerramentoS?: number }; transicoes: "variadas" | "dissolver" }) {
   const ref = useRef<HTMLCanvasElement>(null);
   const [tocando, setTocando] = useState(false);
   const [t, setT] = useState(0);
   // a prévia usa um quadro pequeno com a mesma proporção (o movimento só depende da proporção)
   const esc = Math.min(1, 540 / Math.max(largura, altura));
   const W = Math.round(largura * esc), H = Math.round(altura * esc);
-  const plano = useMemo(() => planoDoVideo(imagens, segundos, W, H, voo), [imagens, segundos, W, H, voo]);
+  const plano = useMemo(() => planoDoVideo(imagens, segundos, W, H, voo, transicoes), [imagens, segundos, W, H, voo, transicoes]);
   const extras = useMemo(() => ({ voo: plano.voos.length ? VOO_NA_PREVIA : null, capa: titulo, assinatura: desenharAssinatura(W, H, { nome: CLIENTE.nome, slogan: CLIENTE.slogan }), vinheta: segundos >= 6 ? desenharVinheta(W, H, { nome: CLIENTE.nome, slogan: CLIENTE.slogan, secundario: CLIENTE.instagram }) : null }), [W, H, titulo, segundos, plano]);
   const cache = useRef(new Map<string, Promise<ImageBitmap>>());
   useEffect(
@@ -118,7 +118,7 @@ export function ConferirImagens() {
   const segundos = duracaoEfetiva(e);
   const temModelo = useProjeto((s) => !!s.tipoModelo);
   const voo = useMemo(() => opcoesDoVoo(e.voo, temModelo), [e.voo, temModelo]);
-  const plano = useMemo(() => planoDoVideo(e.imagens, segundos, largura, altura, voo), [e.imagens, segundos, largura, altura, voo]);
+  const plano = useMemo(() => planoDoVideo(e.imagens, segundos, largura, altura, voo, e.transicoes), [e.imagens, segundos, largura, altura, voo, e.transicoes]);
   const marcadas = e.imagens.filter((i) => i.marcada).length;
   const ambientes = ambientesDe(e.imagens);
   // título que vale para cada imagem (o digitado ou o do ambiente anterior), para a dica do campo
@@ -172,6 +172,17 @@ export function ConferirImagens() {
                   {d} s
                 </button>
               ))}
+            </div>
+          </div>
+          <div className="campo">
+            <span>Transições</span>
+            <div className="segmentos" role="radiogroup" aria-label="Transições">
+              <button type="button" className="seg" role="radio" aria-selected={e.transicoes === "variadas"} aria-checked={e.transicoes === "variadas"} data-testid="transicoes-variadas" data-tip="Dentro do ambiente: dissolver e aproximar, com uma marcante a cada três. Na troca de ambiente: empurrar, varrer e abrir em círculo, em rodízio." onClick={() => definirConfig({ transicoes: "variadas" })}>
+                Variadas
+              </button>
+              <button type="button" className="seg" role="radio" aria-selected={e.transicoes === "dissolver"} aria-checked={e.transicoes === "dissolver"} data-testid="transicoes-dissolver" data-tip="Todas as imagens entram dissolvendo, mais sóbrio." onClick={() => definirConfig({ transicoes: "dissolver" })}>
+                Só dissolver
+              </button>
             </div>
           </div>
           <div className="botoes">
@@ -282,7 +293,7 @@ export function ConferirImagens() {
         </section>
       </div>
       <div className="conferir-previa">
-        {plano.itens.length > 0 && <Previa imagens={e.imagens} segundos={segundos} largura={largura} altura={altura} titulo={e.tituloDoVideo} voo={voo} />}
+        {plano.itens.length > 0 && <Previa imagens={e.imagens} segundos={segundos} largura={largura} altura={altura} titulo={e.tituloDoVideo} voo={voo} transicoes={e.transicoes} />}
       </div>
     </div>
   );

@@ -994,7 +994,11 @@ O sobrado de exemplo passou a ter Fortaleza e a frente para 70° (lés-nordeste)
    - cada imagem cobre o quadro e se move devagar: aproxima ou afasta 8 %, alternando o ponto;
    - quando é bem mais larga (ou alta) que o quadro, é percorrida de lado a lado;
    - capa com o título do vídeo, títulos de ambiente (faixa grafite com filete dourado, 2,4 s), assinatura e vinheta da marca;
-   - o título do primeiro ambiente que acaba antes da capa sair é pulado, para não rotular outro ambiente.
+   - o título do primeiro ambiente que acaba antes da capa sair é pulado, para não rotular outro ambiente;
+   - **transições variadas** (revisão de 09/10, a pedido: "a transição entre as imagens está apenas de uma forma, está tedioso"), todas de 0,6 s, então os tempos não mudam:
+     - dentro do ambiente: *dissolver* e *aproximar* (entra com zoom leve), com uma marcante a cada três, para variar também sem títulos;
+     - na troca de ambiente: *empurrar* (a nova empurra a anterior), *varrer* (faixa suave na diagonal) e *círculo* (abre do centro, com filete dourado), em rodízio; o sentido de empurrar e varrer alterna;
+     - "Só dissolver" no Conferir mantém o estilo sóbrio.
 6. **Áudio e saída:**
    - os mesmos codificadores e a mesma mixagem do vídeo da obra (`codificar` e `mixagemDoVideo`, separados do `VideoRenderer`), com as dimensões da saída (o MP4 para WhatsApp sai em 720p);
    - 1ª trilha no início e a 2ª 8 s antes do fim.

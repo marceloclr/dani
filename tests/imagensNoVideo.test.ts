@@ -17,6 +17,7 @@ import {
   roteiroDeTempos,
   tempoDoRoteiro,
   vooNoTempo,
+  transicoesDoPlano,
   selecionarPelaDuracao,
   tituloNoTempo,
   type ImagemDoVideo,
@@ -197,5 +198,25 @@ describe("voo do drone no vídeo de imagens (INC-20)", () => {
     const r = roteiroDeTempos(planoDoVideo(imgs, 30, 1080, 1920, { aberturaS: 8, encerramentoS: 8 }), ["a", "b", "c", "d"], "", { largura: 1080, altura: 1920 });
     expect(r).toMatch(/0:00,0 – 0:08,0 {2}Voo do drone pela casa \(abertura\)/);
     expect(r).toMatch(/0:22,0 – 0:30,0 {2}Voo do drone pela casa \(encerramento\)/);
+  });
+});
+describe("transições variadas", () => {
+  it("troca de ambiente: empurrar, varrer e círculo em rodízio; dentro: dissolver, aproximar e uma marcante a cada três", () => {
+    const muda = [true, false, false, false, true, true];
+    expect(transicoesDoPlano(muda).map((x) => x.transicao)).toEqual(["empurrar", "dissolver", "aproximar", "varrer", "circulo", "empurrar"]);
+  });
+  it("vídeo sem títulos (nenhuma troca de ambiente) também varia", () => {
+    const tr = transicoesDoPlano(Array(6).fill(false)).map((x) => x.transicao);
+    expect(new Set(tr).size).toBeGreaterThanOrEqual(3);
+    expect(tr).toEqual(["dissolver", "aproximar", "empurrar", "dissolver", "aproximar", "varrer"]);
+  });
+  it("o sentido de empurrar e varrer alterna", () => {
+    const s = transicoesDoPlano([true, true, true, true]).filter((x) => x.transicao !== "circulo").map((x) => x.sentido);
+    expect(s).toEqual([1, -1, 1]);
+  });
+  it("só dissolver: todas dissolvem; no plano, a primeira imagem sempre dissolve", () => {
+    expect(new Set(transicoesDoPlano([true, false, true], "dissolver").map((x) => x.transicao))).toEqual(new Set(["dissolver"]));
+    const p = planoDoVideo([img("Sala"), img("Cozinha"), img()], 12, 1920, 1080);
+    expect(p.itens.map((x) => x.transicao)).toEqual(["dissolver", "empurrar", "dissolver"]);
   });
 });

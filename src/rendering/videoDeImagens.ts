@@ -3,7 +3,7 @@
 // mixagem do vídeo da obra. Sem cena 3D: gerar leva segundos.
 import { COR_DOURADO, COR_DOURADO_CLARO } from "../app/marca";
 import { totalDeQuadros } from "./cameras";
-import { CAPA, VOZ_INICIO_S, camadasNoTempo, planoDoVideo, recorteNoTempo, recorteQueCobre, tituloNoTempo, vooNoTempo, ZOOM_MOVIMENTO, type ImagemDoVideo, type ParteDoVoo, type PlanoDoVideo } from "./imagensNoVideo";
+import { CAPA, VOZ_INICIO_S, camadasNoTempo, type ModoTransicoes, type Transicao, planoDoVideo, recorteNoTempo, recorteQueCobre, tituloNoTempo, vooNoTempo, ZOOM_MOVIMENTO, type ImagemDoVideo, type ParteDoVoo, type PlanoDoVideo } from "./imagensNoVideo";
 import { TOPO_RESERVADO_REELS, desenharAssinatura, desenharVinheta, opacidadeVinheta, type TextoMarca } from "./marcaVideo";
 import { Cancelado, codificar, dimensoesDaSaida, mixagemDoVideo, type ArquivoGerado, type Saida } from "./VideoRenderer";
 import type { TrechoDeFala } from "./apresentadora";
@@ -24,6 +24,8 @@ export interface PedidoImagens {
   trilhas?: { blob: Blob; iniS: number; volume: number }[];
   assinatura?: TextoMarca;
   vinheta?: TextoMarca;
+  /** Transições entre as imagens (padrão: variadas). */
+  transicoes?: ModoTransicoes;
   /** Voo do drone pela casa 3D (INC-20): os tempos e quem prepara o trecho 3D no tamanho do vídeo. */
   voo?: { aberturaS?: number; encerramentoS?: number; criar(largura: number, altura: number): Promise<DesenhoDoVoo & { dispose(): void }> };
   sinal: AbortSignal;
@@ -143,6 +145,73 @@ function desenharCapa(ctx: CanvasRenderingContext2D, W: number, H: number, texto
   ctx.restore();
 }
 
+/** Suavização das transições (começa e termina devagar). */
+const suave = (x: number) => {
+  const t = Math.min(1, Math.max(0, x));
+  return t * t * (3 - 2 * t);
+};
+
+let telaVarrer: HTMLCanvasElement | null = null;
+
+/**
+ * Desenha a imagem que entra, pela transição dela (`e`: andamento suavizado; `bruto`: sem suavizar):
+ * dissolver e aproximar pela opacidade; empurrar pelo deslocamento; varrer por uma faixa suave na diagonal;
+ * círculo abrindo do centro, com um filete dourado na borda.
+ */
+function desenharEntrada(ctx: CanvasRenderingContext2D, W: number, H: number, tr: Transicao, sentido: 1 | -1, e: number, bruto: number, desenhar: (alvo: CanvasRenderingContext2D, x?: number, y?: number, w?: number, h?: number) => void): void {
+  ctx.save();
+  if (tr === "dissolver") {
+    ctx.globalAlpha = bruto;
+    desenhar(ctx);
+  } else if (tr === "aproximar") {
+    const s = 1 + 0.12 * (1 - e);
+    ctx.globalAlpha = bruto;
+    desenhar(ctx, (W - W * s) / 2, (H - H * s) / 2, W * s, H * s);
+  } else if (tr === "empurrar") {
+    desenhar(ctx, sentido * W * (1 - e));
+  } else if (tr === "varrer") {
+    // a nova imagem num canvas à parte, apagada fora da faixa que avança (borda de 25 % do lado maior)
+    telaVarrer ??= document.createElement("canvas");
+    if (telaVarrer.width !== W || telaVarrer.height !== H) {
+      telaVarrer.width = W;
+      telaVarrer.height = H;
+    }
+    const t = telaVarrer.getContext("2d")!;
+    t.globalCompositeOperation = "source-over";
+    t.clearRect(0, 0, W, H);
+    desenhar(t);
+    // borda inclinada (x anda `inc` por unidade de y) que atravessa o quadro; a faixa suave tem `b` de largura
+    const b = Math.max(W, H) * 0.25, inc = 0.35, extra = H * inc * 0.5;
+    const curso = W + b + 2 * extra;
+    const f = sentido === 1 ? W + b / 2 + extra - e * curso : -b / 2 - extra + e * curso;
+    const n = Math.hypot(1, inc), nx = 1 / n, ny = -inc / n;
+    const g = t.createLinearGradient(f - (nx * b) / 2, H / 2 - (ny * b) / 2, f + (nx * b) / 2, H / 2 + (ny * b) / 2);
+    // a nova imagem fica do lado de onde a faixa veio
+    g.addColorStop(0, sentido === 1 ? "rgba(0,0,0,0)" : "rgba(0,0,0,1)");
+    g.addColorStop(1, sentido === 1 ? "rgba(0,0,0,1)" : "rgba(0,0,0,0)");    t.globalCompositeOperation = "destination-in";
+    t.fillStyle = g;
+    t.fillRect(0, 0, W, H);
+    t.globalCompositeOperation = "source-over";
+    ctx.drawImage(telaVarrer, 0, 0);
+  } else {
+    // círculo: abre do centro até cobrir os cantos
+    const raio = e * Math.hypot(W, H) * 0.52;
+    ctx.beginPath();
+    ctx.arc(W / 2, H / 2, Math.max(raio, 0.5), 0, Math.PI * 2);
+    ctx.save();
+    ctx.clip();
+    desenhar(ctx);
+    ctx.restore();
+    if (bruto < 1) {
+      ctx.globalAlpha = 1 - bruto;
+      ctx.strokeStyle = COR_DOURADO;
+      ctx.lineWidth = Math.max(2, Math.min(W, H) * 0.006);
+      ctx.stroke();
+    }
+  }
+  ctx.restore();
+}
+
 /** Opacidade da capa no segundo `t` (entra e sai em 0,5 s). */
 const opacidadeCapa = (t: number) => {
   const dt = t - CAPA.ini;
@@ -171,14 +240,24 @@ export async function desenharQuadroDeImagens(
   if (voo && !voo.porCima) extras.voo!.desenhar(ctx, voo.parte, voo.u, durVoo(voo.parte).fim - durVoo(voo.parte).ini, extras.quadro ?? 0, 1);
   const camadas = camadasNoTempo(plano, t);
   const bmps = new Map((await imagens(camadas.map((c) => c.item.indice))).map((x) => [x.i, x]));
+  // a imagem que entra (em transição) define também como a de baixo se move (empurrar)
+  const entrando = camadas.find((c, i) => i > 0 && c.entrada < 1) ?? (camadas.length === 1 && camadas[0].entrada < 1 ? camadas[0] : null);
+  const e = entrando ? suave(entrando.entrada) : 1;
   for (const c of camadas) {
     const aberta = bmps.get(c.item.indice);
     if (!aberta) continue;
     // o movimento é calculado em pixels da imagem original; a imagem aberta pode estar reduzida (k)
     const { bmp, k } = aberta;
     const r = recorteNoTempo(c.item.movimento, c.u);
-    ctx.globalAlpha = c.opacidade;
-    ctx.drawImage(bmp, r.x * k, r.y * k, r.w * k, r.h * k, 0, 0, W, H);
+    const desenhar = (alvo: CanvasRenderingContext2D, x = 0, y = 0, w = W, h = H) => alvo.drawImage(bmp, r.x * k, r.y * k, r.w * k, r.h * k, x, y, w, h);
+    if (c !== entrando) {
+      // a de baixo; no empurrar, sai para o lado enquanto a nova entra
+      const dx = entrando?.item.transicao === "empurrar" && camadas.length > 1 ? -entrando.item.sentido * W * e : 0;
+      ctx.globalAlpha = 1;
+      desenhar(ctx, dx);
+      continue;
+    }
+    desenharEntrada(ctx, W, H, c.item.transicao, c.item.sentido, e, c.entrada, desenhar);
   }
   ctx.globalAlpha = 1;
   // voo de encerramento por cima da última imagem
@@ -213,7 +292,7 @@ export async function gerarVideoDeImagens(pedido: PedidoImagens): Promise<Arquiv
   const d = dimensoesDaSaida(pedido.saida, pedido.largura, pedido.altura, pedido.fps);
   const p = { ...pedido, largura: d.largura, altura: d.altura, fps: d.fps };
   const W = p.largura, H = p.altura;
-  const plano = planoDoVideo(p.imagens, p.segundos, W, H, p.voo ?? {});
+  const plano = planoDoVideo(p.imagens, p.segundos, W, H, p.voo ?? {}, p.transicoes ?? "variadas");
   if (!plano.itens.length) throw new Error(plano.aviso ?? "Nenhuma imagem marcada.");
   const canvas = document.createElement("canvas");
   canvas.width = W;
