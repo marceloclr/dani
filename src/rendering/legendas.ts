@@ -27,10 +27,8 @@ export interface GrupoDaLegenda {
   fim: number;
 }
 
-/** Janela da energia (s), pausa mínima entre trechos de fala (s) e trecho mínimo (s). */
-export const JANELA_S = 0.02, PAUSA_MIN_S = 0.25, TRECHO_MIN_S = 0.08;
-/** Até quanto o fim de uma frase "gruda" numa pausa da voz (s). */
-export const GRUDE_S = 0.6;
+/** Janela da energia (s), pausa mínima entre trechos de fala (s) e trecho mínimo (s; menos que isso é estalo). */
+export const JANELA_S = 0.02, PAUSA_MIN_S = 0.25, TRECHO_MIN_S = 0.2;
 /** Pop da palavra que entra (s), sobra do grupo depois da última palavra (s) e palavras por grupo. */
 export const POP_S = 0.12, SOBRA_S = 0.4, GRUPO_MIN = 2, GRUPO_MAX = 4, GRUPO_CARACTERES = 22;
 /** Atraso manual (s): de −1 a +1. */
@@ -145,9 +143,65 @@ function relogioDaFala(trechos: [number, number][]) {
 }
 
 /**
- * Tempos das palavras na voz (s, a partir do começo do áudio). As palavras dividem o tempo de fala pelas
- * sílabas (as pausas do texto pesam um pouco); o fim de cada frase gruda na pausa da voz mais próxima, até
- * 0,6 s. Sem trechos, a fala ocupa a voz inteira.
+ * Custos do casamento das pausas (ajustados no Reels da Daniella, 09/10/2026: erro médio de 0,82 s para 0,5 s):
+ * pausa da voz sem par no texto; pausa casada depois de vírgula, antes de conjunção ("que", "e"...) ou no meio
+ * da frase; e o peso do ritmo (o quanto as sílabas por segundo podem variar entre duas pausas).
+ */
+const CUSTO_PAUSA_SOLTA = 1, CUSTO_VIRGULA = 0.15, CUSTO_CONJUNCAO = 0.4, CUSTO_SEM_PONTUACAO = 0.8, PESO_RITMO = 0.4;
+/** Palavras antes das quais a fala costuma parar. */
+const CONJUNCOES = new Set("que e mas então porque pra para onde como quando ou nem".split(" "));
+
+/**
+ * Casa as pausas da voz (fronteiras entre trechos de fala) com intervalos entre palavras, por programação
+ * dinâmica, em ordem. Entre duas âncoras seguidas, o ritmo (sílabas por segundo de fala) deve ficar perto do
+ * ritmo médio; pausas casadas depois de ponto custam nada, de vírgula pouco, e no meio da frase mais. Pausas
+ * da voz podem ficar sem par (respiração). Devolve [fronteira, palavra antes da pausa], em ordem.
+ */
+function casarPausas(palavras: PalavraDoTexto[], fala: number[], fim: number[], acum: number[]): [number, number][] {
+  const N = palavras.length, J = acum.length - 1;
+  if (J < 2 || N < 2) return [];
+  const total = acum[J], peso = fim[N - 1];
+  const r0 = peso / total;
+  const pen = (g: number) => (palavras[g].pausa === 2 ? 0 : palavras[g].pausa === 1 ? CUSTO_VIRGULA : CONJUNCOES.has(semPontuacao(palavras[g + 1].texto)) ? CUSTO_CONJUNCAO : CUSTO_SEM_PONTUACAO);
+  // trecho entre a âncora (b1, g1) e a (b2, g2); g = −1 é o começo, b = 0 o começo e b = J o fim
+  const trecho = (b1: number, g1: number, b2: number, g2: number) => {
+    const w = (g2 === N - 1 ? peso : fala[g2]) - (g1 < 0 ? 0 : fim[g1]), d = acum[b2] - acum[b1];
+    if (w <= 0 || d <= 0) return Infinity;
+    const l = Math.log(w / d / r0);
+    return PESO_RITMO * l * l * Math.sqrt(w);
+  };
+  // custo[b][g + 1]: melhor caminho que termina casando a fronteira b com o intervalo depois da palavra g
+  const custo = Array.from({ length: J + 1 }, () => new Float64Array(N + 1).fill(Infinity));
+  const veio = Array.from({ length: J + 1 }, () => new Int32Array(N + 1).fill(-1));
+  custo[0][0] = 0;
+  const ligar = (b: number, g: number, extra: number) => {
+    let melhor = Infinity, de = -1;
+    for (let b1 = 0; b1 < b; b1++)
+      for (let g1 = -1; g1 < g; g1++) {
+        const c0 = custo[b1][g1 + 1];
+        if (c0 === Infinity) continue;
+        const c = c0 + (b - b1 - 1) * CUSTO_PAUSA_SOLTA + trecho(b1, g1, b, g);
+        if (c < melhor) (melhor = c), (de = b1 * (N + 1) + g1 + 1);
+      }
+    custo[b][g + 1] = melhor + extra;
+    veio[b][g + 1] = de;
+  };
+  for (let b = 1; b < J; b++) for (let g = 0; g < N - 1; g++) ligar(b, g, pen(g));
+  ligar(J, N - 1, 0);
+  const out: [number, number][] = [];
+  let at = veio[J][N];
+  while (at > 0) {
+    const b = Math.floor(at / (N + 1)), g = (at % (N + 1)) - 1;
+    out.unshift([b, g]);
+    at = veio[b][g + 1];
+  }
+  return out;
+}
+
+/**
+ * Tempos das palavras na voz (s, a partir do começo do áudio). As pausas da voz são casadas com intervalos
+ * entre palavras (de preferência na pontuação), e entre elas as palavras dividem o tempo de fala pelas sílabas
+ * (as pausas do texto pesam um pouco). Sem trechos, a fala ocupa a voz inteira.
  */
 export function sincronizar(palavras: PalavraDoTexto[], trechos: [number, number][], duracaoVozS: number): { ini: number; fim: number }[] {
   if (!palavras.length) return [];
@@ -164,18 +218,10 @@ export function sincronizar(palavras: PalavraDoTexto[], trechos: [number, number
     fim.push(acc);
   });
   const peso = acc;
-  // âncoras (peso → tempo de fala): o começo, o fim e os fins de frase que caem perto de uma pausa da voz
+  // âncoras (peso → tempo de fala): o começo, o fim e cada pausa da voz casada com um intervalo entre palavras
+  // A palavra antes da pausa termina nela e a seguinte começa depois: o peso da pausa do texto ali some.
   const ancoras: [number, number][] = [[0, 0]];
-  const fronteiras = rel.acum.slice(1, -1);
-  palavras.forEach((p, k) => {
-    if (!p.pausa || k === palavras.length - 1 || !fronteiras.length) return;
-    const s = (fala[k] / peso) * rel.total;
-    let melhor = -1, dist = Infinity;
-    for (const f of fronteiras) if (Math.abs(f - s) < dist) (dist = Math.abs(f - s), (melhor = f));
-    const ult = ancoras[ancoras.length - 1];
-    // a fala da palavra termina na pausa e a seguinte começa depois dela: o peso da pausa do texto some
-    if (dist <= GRUDE_S && melhor > ult[1] + 1e-6 && fala[k] > ult[0]) ancoras.push([fala[k], melhor], [fim[k], melhor]);
-  });
+  for (const [b, g] of casarPausas(palavras, fala, fim, rel.acum)) ancoras.push([fala[g], rel.acum[b]], [fim[g], rel.acum[b]]);
   ancoras.push([peso, rel.total]);
   // peso → tempo de fala, linear entre as âncoras
   const naFala = (w: number): number => {

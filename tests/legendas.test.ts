@@ -79,7 +79,14 @@ describe("sincronizar", () => {
     // nenhuma palavra cai dentro da pausa
     for (const x of t) expect(x.ini >= 2 && x.ini < 3).toBe(false);
   });
-  it("frase longe de qualquer pausa não gruda: segue as sílabas", () => {
+  it("pausa da voz sem pontuação no texto: casa antes da conjunção", () => {
+    const p = palavrasDoTexto("Uma área de serviço que atende a casa toda.");
+    const t = sincronizar(p, [[0, 2], [3, 4.5]], 4.5);
+    const que = p.findIndex((x) => x.texto === "que");
+    expect(t[que - 1].fim).toBeCloseTo(2, 2);
+    expect(t[que].ini).toBeCloseTo(3, 2);
+  });
+  it("frase longe de qualquer pausa não é puxada por ela: segue as sílabas", () => {
     const p = palavrasDoTexto("um dois três, quatro cinco seis sete oito nove dez onze doze treze");
     const t = sincronizar(p, [[0, 9], [9.3, 10]], 10);
     // a vírgula cai perto de 2,5 s de fala: a pausa de 9 s está longe e não puxa

@@ -25,7 +25,7 @@ A Daniella mandou um Reels (vertical, 54 s): ela narra uma obra entregue, mostra
 
    Os trechos são calculados uma vez, ao receber a narração, e guardados com ela.
 3. **Sincronização.** As palavras dividem o tempo de fala (somados os trechos, sem as pausas) pelo peso de cada uma. Depois, o tempo é levado de volta ao relógio do vídeo, pulando as pausas e somando `VOZ_INICIO_S`.
-   - O fim de uma frase "gruda" na pausa mais próxima, se ela estiver a até 0,6 s.
+   - As pausas da voz são casadas com os intervalos entre palavras por programação dinâmica: casar depois de ponto não custa nada, depois de vírgula custa pouco, antes de conjunção ("que", "e"...) um pouco mais e no meio da frase mais. O ritmo entre duas pausas deve ficar perto do ritmo médio. Isso substituiu o "grude" na pausa mais próxima (até 0,6 s), que no Reels da Daniella errava em média 0,82 s; com o casamento, o erro caiu para 0,45 s (medido contra as legendas originais do Reels).
    - Se o áudio tiver poucas pausas (música por baixo da voz), a divisão fica uniforme ao longo da fala.
    - Um controle de **atraso** (−1 a +1 s) corrige a sincronização à mão.
 4. **Grupos.** Cada grupo tem 2 a 4 palavras, no máximo 2 linhas, e quebra na pontuação.
