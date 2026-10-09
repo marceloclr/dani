@@ -188,26 +188,7 @@ export async function gerarVideo(cena: Cena, pedido: PedidoVideo): Promise<Arqui
     camada = await criarCamadaApresentadora(lr, ar, p.apresentadora.cfg, fala.largura, fala.altura, telaCheia);
   }
   // áudio (ADR-34): a voz (linha do tempo ou a da apresentadora), normalizada, e as trilhas, mixadas no tamanho do vídeo
-  const fonteVoz: FonteFala | null = p.voz?.length ? p.voz : p.apresentadora?.arquivo ?? null;
-  if (p.saida !== "gif" && p.saida !== "png-zip" && (fonteVoz || p.trilhas?.length)) {
-    const voz = fonteVoz ? await audioDaFala(fonteVoz) : null;
-    // volume das redes: voz em −18 dBFS de média, pico até −1 dBFS (ADR-31)
-    const canaisVoz = voz ? Array.from({ length: voz.numberOfChannels }, (_, c) => voz.getChannelData(c)) : null;
-    if (canaisVoz && voz) {
-      const { ganho } = ganhoDeNormalizacao(canaisVoz, voz.sampleRate);
-      if (Math.abs(ganho - 1) > 0.01) for (const c of canaisVoz) for (let i = 0; i < c.length; i++) c[i] *= ganho;
-    }
-    const taxa = voz?.sampleRate ?? 48000;
-    const trilhas = [];
-    for (const t of p.trilhas ?? []) {
-      const b = await audioDaFala(t.blob);
-      if (b) trilhas.push({ canais: Array.from({ length: b.numberOfChannels }, (_, c) => b.getChannelData(c)), iniS: t.iniS, volume: t.volume });
-    }
-    // voz e trilhas no tamanho do vídeo: trilha sob a voz, fade-out no fim e o último 0,3 s em silêncio
-    const mix = mixar(canaisVoz, trilhas, total / p.fps, taxa);
-    audio = new AudioBuffer({ length: mix[0].length, numberOfChannels: 2, sampleRate: taxa });
-    mix.forEach((c, k) => audio!.copyToChannel(c as Float32Array<ArrayBuffer>, k));
-  }
+  audio = await mixagemDoVideo(p.saida, total / p.fps, p.voz?.length ? p.voz : p.apresentadora?.arquivo ?? null, p.trilhas);
   // fotos das cenas de foto (ADR-34): emolduradas num canvas do tamanho do vídeo, redesenhado a cada quadro
   const fotos = p.fotos?.length && p.montagem?.cenas.some((c) => c.tipo === "foto") ? await abrirFotos(p.fotos.map((f) => f.blob)) : [];
   const telaFoto = fotos.length ? document.createElement("canvas") : null;
@@ -319,11 +300,7 @@ export async function gerarVideo(cena: Cena, pedido: PedidoVideo): Promise<Arqui
 
   cena.silencioso = true;
   try {
-    if (p.saida === "png-zip") return await comoZip(p, canvas, total, desenhar, progredir, conferir);
-    if (p.saida === "mp4-whatsapp") return await comoMp4Compativel(p, canvas, total, desenhar, progredir, conferir, audio);
-    if (p.saida === "gif") return await comoGif(p, canvas, total, desenhar, progredir, conferir);
-    if (p.saida === "webm-tempo-real") return await comoMediaRecorder(p, canvas, total, desenhar, progredir, conferir, audio);
-    return await comoWebCodecs(p, canvas, total, desenhar, progredir, conferir, audio);
+    return await codificar(p, canvas, total, desenhar, progredir, conferir, audio);
   } finally {
     cena.silencioso = false;
     cena.sombraMaxima(false);
@@ -341,8 +318,44 @@ export async function gerarVideo(cena: Cena, pedido: PedidoVideo): Promise<Arqui
   }
 }
 
-type Desenhar = (i: number) => Promise<void>;
-type Progredir = (i: number) => void;
+export type Desenhar = (i: number) => Promise<void>;
+export type Progredir = (i: number) => void;
+/** O que os codificadores usam do pedido (o vídeo da obra e o vídeo de imagens, INC-19). */
+export type Codificacao = Pick<PedidoVideo, "saida" | "largura" | "altura" | "fps" | "segundos" | "nomeBase">;
+
+/** Codifica o canvas quadro a quadro na saída pedida, com o áudio intercalado quando houver. */
+export async function codificar(p: Codificacao, canvas: HTMLCanvasElement, total: number, desenhar: Desenhar, progredir: Progredir, conferir: () => void, audio: AudioBuffer | null): Promise<ArquivoGerado> {
+  if (p.saida === "png-zip") return comoZip(p, canvas, total, desenhar, progredir, conferir);
+  if (p.saida === "mp4-whatsapp") return comoMp4Compativel(p, canvas, total, desenhar, progredir, conferir, audio);
+  if (p.saida === "gif") return comoGif(p, canvas, total, desenhar, progredir, conferir);
+  if (p.saida === "webm-tempo-real") return comoMediaRecorder(p, canvas, total, desenhar, progredir, conferir, audio);
+  return comoWebCodecs(p, canvas, total, desenhar, progredir, conferir, audio);
+}
+
+/**
+ * Áudio do vídeo (ADR-34): a voz normalizada (−18 dBFS de média, pico até −1 dBFS, ADR-31) e as trilhas,
+ * mixadas no tamanho do vídeo (trilha sob a voz, fade-out no fim, o último 0,3 s em silêncio).
+ * null quando a saída não leva som ou não há voz nem trilha.
+ */
+export async function mixagemDoVideo(saida: Saida, segundos: number, fonteVoz: FonteFala | null, trilhasPedidas?: { blob: Blob; iniS: number; volume: number }[]): Promise<AudioBuffer | null> {
+  if (saida === "gif" || saida === "png-zip" || (!fonteVoz && !trilhasPedidas?.length)) return null;
+  const voz = fonteVoz ? await audioDaFala(fonteVoz) : null;
+  const canaisVoz = voz ? Array.from({ length: voz.numberOfChannels }, (_, c) => voz.getChannelData(c)) : null;
+  if (canaisVoz && voz) {
+    const { ganho } = ganhoDeNormalizacao(canaisVoz, voz.sampleRate);
+    if (Math.abs(ganho - 1) > 0.01) for (const c of canaisVoz) for (let i = 0; i < c.length; i++) c[i] *= ganho;
+  }
+  const taxa = voz?.sampleRate ?? 48000;
+  const trilhas = [];
+  for (const t of trilhasPedidas ?? []) {
+    const b = await audioDaFala(t.blob);
+    if (b) trilhas.push({ canais: Array.from({ length: b.numberOfChannels }, (_, c) => b.getChannelData(c)), iniS: t.iniS, volume: t.volume });
+  }
+  const mix = mixar(canaisVoz, trilhas, segundos, taxa);
+  const audio = new AudioBuffer({ length: mix[0].length, numberOfChannels: 2, sampleRate: taxa });
+  mix.forEach((c, k) => audio.copyToChannel(c as Float32Array<ArrayBuffer>, k));
+  return audio;
+}
 
 let aacRegistrado = false;
 /** AAC: o do navegador ou, sem ele (Chromium no Linux), o codificador em WebAssembly do mediabunny. */
@@ -369,7 +382,7 @@ function trilhaDeAudio(audio: AudioBuffer, segundos: number, codec: "aac" | "opu
   };
 }
 
-async function comoWebCodecs(p: PedidoVideo, canvas: HTMLCanvasElement, total: number, desenhar: Desenhar, progredir: Progredir, conferir: () => void, audio: AudioBuffer | null): Promise<ArquivoGerado> {
+async function comoWebCodecs(p: Codificacao, canvas: HTMLCanvasElement, total: number, desenhar: Desenhar, progredir: Progredir, conferir: () => void, audio: AudioBuffer | null): Promise<ArquivoGerado> {
   const mp4 = p.saida === "mp4-alta";
   const codec = mp4 ? "avc" : p.saida === "webm-vp9" ? "vp9" : "vp8";
   const output = new Output({ format: mp4 ? new Mp4OutputFormat({ fastStart: "in-memory" }) : new WebMOutputFormat(), target: new BufferTarget() });
@@ -403,7 +416,7 @@ async function comoWebCodecs(p: PedidoVideo, canvas: HTMLCanvasElement, total: n
   return { blob: new Blob([buffer as BlobPart], { type: mime }), nome: `${p.nomeBase}.${mp4 ? "mp4" : "webm"}`, tipo: "video", descricao: NOME_SAIDA[p.saida], comAudio: !!trilha };
 }
 
-async function comoMediaRecorder(p: PedidoVideo, canvas: HTMLCanvasElement, total: number, desenhar: Desenhar, progredir: Progredir, conferir: () => void, audio: AudioBuffer | null): Promise<ArquivoGerado> {
+async function comoMediaRecorder(p: Codificacao, canvas: HTMLCanvasElement, total: number, desenhar: Desenhar, progredir: Progredir, conferir: () => void, audio: AudioBuffer | null): Promise<ArquivoGerado> {
   const mime = mimeMediaRecorder();
   if (!mime) throw new Error("MediaRecorder indisponível.");
   const stream = canvas.captureStream(0);
@@ -457,7 +470,7 @@ async function comoMediaRecorder(p: PedidoVideo, canvas: HTMLCanvasElement, tota
   return { blob, nome: `${p.nomeBase}.webm`, tipo: "video", descricao: NOME_SAIDA["webm-tempo-real"], comAudio: !!som };
 }
 
-async function comoZip(p: PedidoVideo, canvas: HTMLCanvasElement, total: number, desenhar: Desenhar, progredir: Progredir, conferir: () => void): Promise<ArquivoGerado> {
+async function comoZip(p: Codificacao, canvas: HTMLCanvasElement, total: number, desenhar: Desenhar, progredir: Progredir, conferir: () => void): Promise<ArquivoGerado> {
   const partes: Uint8Array[] = [];
   let erro: Error | null = null;
   let concluir: () => void = () => {};
@@ -522,7 +535,7 @@ function carregarCodificadorH264(): Promise<void> {
 }
 
 /** MP4 H.264 Baseline em WebAssembly (minih264 + libmp4v2): aceito por WhatsApp e celulares (ADR-16). */
-async function comoMp4Compativel(p: PedidoVideo, canvas: HTMLCanvasElement, total: number, desenhar: Desenhar, progredir: Progredir, conferir: () => void, audio: AudioBuffer | null): Promise<ArquivoGerado> {
+async function comoMp4Compativel(p: Codificacao, canvas: HTMLCanvasElement, total: number, desenhar: Desenhar, progredir: Progredir, conferir: () => void, audio: AudioBuffer | null): Promise<ArquivoGerado> {
   await carregarCodificadorH264();
   const enc = await window.HME!.createH264MP4Encoder();
   const leitura = document.createElement("canvas");
@@ -626,7 +639,7 @@ async function remontarComAudio(mp4: Uint8Array, audio: AudioBuffer, segundos: n
 }
 
 /** GIF animado com paleta por quadro (gifenc). */
-async function comoGif(p: PedidoVideo, canvas: HTMLCanvasElement, total: number, desenhar: Desenhar, progredir: Progredir, conferir: () => void): Promise<ArquivoGerado> {
+async function comoGif(p: Codificacao, canvas: HTMLCanvasElement, total: number, desenhar: Desenhar, progredir: Progredir, conferir: () => void): Promise<ArquivoGerado> {
   const gif = GIFEncoder();
   const leitura = document.createElement("canvas");
   leitura.width = p.largura;

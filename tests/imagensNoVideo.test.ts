@@ -96,6 +96,11 @@ describe("camadas e títulos no tempo", () => {
     expect(tituloNoTempo(p, ini + 1)?.opacidade).toBe(1);
     expect(tituloNoTempo(p, ini + TITULO_S + 0.1)).toBeNull();
   });
+  it("com capa longa, o primeiro ambiente que já acabou fica sem título (não rotula o seguinte)", () => {
+    const curto = planoDoVideo([img("Sala"), img("Lavabo"), img("Cozinha")], 9, 1920, 1080); // 3,4 s cada
+    expect(tituloNoTempo(curto, 4.8, 4.6)?.texto).not.toBe("Sala");
+    expect(tituloNoTempo(curto, 2.5)?.texto).toBe("Sala"); // sem capa, entra a tempo
+  });
 });
 
 describe("movimento", () => {

@@ -200,11 +200,20 @@ export function camadasNoTempo(p: PlanoDoVideo, t: number): { item: ItemDoPlano;
   return out;
 }
 
-/** Título de ambiente no segundo `t`: entra e sai em 0,4 s; o da primeira imagem espera a vinheta clarear. */
-export function tituloNoTempo(p: PlanoDoVideo, t: number): { texto: string; opacidade: number; u: number } | null {
-  for (const it of p.itens) {
+/** Capa: o título do vídeo sobre a primeira imagem, depois da vinheta (s). */
+export const CAPA = { ini: VOZ_INICIO_S + 0.2, dur: 3 };
+
+/**
+ * Título de ambiente no segundo `t`: entra e sai em 0,4 s. O da primeira imagem espera a vinheta clarear
+ * (ou a capa terminar, com `inicioPrimeiroS`).
+ */
+export function tituloNoTempo(p: PlanoDoVideo, t: number, inicioPrimeiroS = VOZ_INICIO_S + 0.4): { texto: string; opacidade: number; u: number } | null {
+  for (const [k, it] of p.itens.entries()) {
     if (!it.titulo) continue;
-    const ini = it.ini === 0 ? VOZ_INICIO_S + 0.4 : it.ini + DISSOLVE_S * 0.5;
+    const ini = k === 0 ? inicioPrimeiroS : it.ini + DISSOLVE_S * 0.5;
+    // o primeiro ambiente que acaba antes do seu título entrar (capa longa) fica sem título: não rotula outro
+    const proximo = p.itens.slice(k + 1).find((x) => x.titulo);
+    if (k === 0 && proximo && ini + 0.8 > proximo.ini) continue;
     if (t < ini || t > ini + TITULO_S) continue;
     const dt = t - ini, borda = 0.4;
     const opacidade = Math.min(1, dt / borda, (TITULO_S - dt) / borda);
