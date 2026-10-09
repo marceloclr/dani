@@ -124,17 +124,29 @@ async function abrirQuadrosDoArquivo(arquivo: Blob, tempos: number[]): Promise<Q
     const ultimo = Math.max(0, duracaoS - 0.001);
     const iter = sink.canvasesAtTimestamps(tempos.map((t) => Math.min(t, ultimo)));
     let anterior: WrappedCanvas | null = null;
+    // o decodificador do navegador pode não ler o arquivo (Firefox no Windows com H.264 High, 09/10): sem
+    // quadro, a leitura passa para o <video>, quadro a quadro, até o fim
+    let reserva: QuadrosDaFala | null = null;
     return {
       largura: vt.displayWidth,
       altura: vt.displayHeight,
       duracaoS,
-      async proximo() {
-        const r = await iter.next();
-        if (!r.done && r.value) anterior = r.value;
-        if (!anterior) throw new Error("Não foi possível ler o quadro da apresentadora.");
-        return anterior.canvas as CanvasImageSource;
+      async proximo(t: number) {
+        if (!reserva) {
+          try {
+            const r = await iter.next();
+            if (!r.done && r.value) anterior = r.value;
+          } catch {
+            /* falha do decodificador: vai para o <video> */
+          }
+          if (anterior) return anterior.canvas as CanvasImageSource;
+          console.warn("Apresentadora: o decodificador não entregou o quadro; lendo pelo <video>.");
+          reserva = await quadrosPorElemento(arquivo);
+        }
+        return reserva.proximo(t);
       },
       dispose: () => {
+        reserva?.dispose();
         // encerra o iterador antes de descartar a entrada (senão a decodificação pendente falha)
         void iter
           .return(undefined)
@@ -143,7 +155,11 @@ async function abrirQuadrosDoArquivo(arquivo: Blob, tempos: number[]): Promise<Q
       },
     };
   }
-  // sem WebCodecs: busca quadro a quadro num <video> (mais lento)
+  return quadrosPorElemento(arquivo);
+}
+
+/** Sem WebCodecs (ou se o decodificador falha): busca quadro a quadro num <video> (mais lento). */
+async function quadrosPorElemento(arquivo: Blob): Promise<QuadrosDaFala> {
   const v = await elementoDeVideo(arquivo);
   return {
     largura: v.videoWidth,
