@@ -60,6 +60,17 @@ function trocarTrilhas(m: Map<string, ArquivoDeTrilha>): void {
   ouvintesTrilhas.forEach((f) => f());
 }
 
+/**
+ * Devolve trilhas guardadas antes de uma troca de modelo (o IFC aberto sem planilha limpa os anexos; no vídeo de
+ * imagens, as trilhas continuam, INC-20) e as grava no projeto aberto.
+ */
+export async function restaurarTrilhas(m: Map<string, ArquivoDeTrilha>): Promise<void> {
+  if (!m.size) return;
+  trocarTrilhas(new Map([...trilhas, ...m]));
+  const pid = useProjeto.getState().projetoId;
+  if (pid) for (const t of m.values()) await gravarAnexo(pid, chaveTrilha(pid, t.nome), t.blob);
+}
+
 /** O painel do vídeo se inscreve para saber quando o arquivo da apresentadora chega ou sai. */
 export function aoMudarApresentadora(f: () => void): () => void {
   ouvintesApresentadora.add(f);

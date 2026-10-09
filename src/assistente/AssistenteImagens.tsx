@@ -3,6 +3,7 @@
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { adicionarTrilhas, aoMudarTrilhas, arquivosDeTrilha, removerTrilha } from "../app/anexos";
 import { iniciarGuardaDeImagens } from "../app/guardaImagens";
+import { abrirIfcParaImagens, tirarIfcDasImagens } from "../app/vooNasImagens";
 import { adicionarArquivos, adicionarNarracao, aoMudarImagens, estadoImagens, origemDa, removerNarracao, removerPdf, removerSoltas, removerTodas } from "../app/imagensDoVideo";
 import { useProjeto } from "../state/projectStore";
 import { CartaoArquivo, Remover } from "./PassoCarregar";
@@ -20,6 +21,9 @@ function CarregarImagens() {
   const [avisos, setAvisosDe] = useState<Record<string, string[]>>({});
   const setAvisos = (id: string, a: string[]) => setAvisosDe((x) => ({ ...x, [id]: a }));
   const [lendo, setLendo] = useState<string | null>(null);
+  const tipoModelo = useProjeto((s) => s.tipoModelo);
+  const arquivoModelo = useProjeto((s) => s.arquivoModelo);
+  const nElementos = useProjeto((s) => s.elementos.length);
   const marcadas = e.imagens.filter((i) => i.marcada).length;
   const soltas = e.imagens.filter((i) => !origemDa(i)).length;
 
@@ -72,6 +76,28 @@ function CarregarImagens() {
               </button>
             </div>
           </>
+        )}
+      </CartaoArquivo>
+
+      <CartaoArquivo
+        id="ifc-img"
+        titulo="Projeto IFC (opcional)"
+        situacao={tipoModelo ? "ok" : "opcional"}
+        estado={tipoModelo ? `${arquivoModelo ?? "modelo"} · ${nElementos} elementos` : "opcional: voo do drone"}
+        aceitar=".ifc"
+        rotulo={tipoModelo ? "Trocar IFC" : "Enviar IFC"}
+        dica="O modelo 3D da mesma obra (IFC2x3, IFC4 ou IFC4x3). Com ele, o vídeo pode abrir e/ou fechar com o voo do drone pela casa pronta, mobiliada e com pessoas; sem cronograma, a casa pronta vem de uma estimativa automática. Sem IFC, o vídeo fica só com as imagens."
+        aoEscolher={async ([f]) => setAvisos("ifc-img", (await abrirIfcParaImagens(f)) ? [] : [`"${f.name}" não abriu como IFC.`])}
+        avisos={avisos["ifc-img"]}
+      >
+        {tipoModelo && (
+          <ol className="lista-arquivos">
+            <li data-ok>
+              <span className="mono">{arquivoModelo ?? "modelo"}</span>
+              <span className="tenue">voo do drone no Conferir</span>
+              <Remover nome={arquivoModelo ?? "modelo"} aoRemover={() => void tirarIfcDasImagens()} />
+            </li>
+          </ol>
         )}
       </CartaoArquivo>
 

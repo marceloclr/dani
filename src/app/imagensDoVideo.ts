@@ -1,6 +1,6 @@
 // Vídeo de imagens (INC-19): as imagens recebidas (de um PDF ou soltas), os títulos, a marcação e a ordem,
 // a narração e a configuração do vídeo (formato e duração). Os arquivos ficam aqui; a tela se inscreve.
-import { duracaoPelaNarracao, selecionarPelaDuracao, type ImagemDoVideo } from "../rendering/imagensNoVideo";
+import { VOO_PADRAO_S, duracaoPelaNarracao, selecionarPelaDuracao, type ImagemDoVideo } from "../rendering/imagensNoVideo";
 
 export type FormatoImagens = "horizontal" | "vertical" | "quadrado" | "retrato" | "personalizado";
 export const FORMATOS_IMAGENS: Record<Exclude<FormatoImagens, "personalizado">, { largura: number; altura: number; rotulo: string }> = {
@@ -56,9 +56,25 @@ export interface EstadoImagens {
   duracao: number | "narracao";
   /** PDFs lidos (nome), para o cartão. */
   pdfs: string[];
+  /** Voo do drone pela casa 3D (INC-20): só vale com um modelo aberto. */
+  voo: ConfigVooImagens;
 }
 
-const INICIAL: EstadoImagens = { imagens: [], tituloDoVideo: "", narracao: null, formato: "vertical", personalizado: { largura: 1080, altura: 1350 }, duracao: 30, pdfs: [] };
+export interface ConfigVooImagens {
+  onde: "nenhum" | "abertura" | "encerramento" | "ambos";
+  duracaoS: number;
+  /** "volta": por fora; "porta": a volta e a entrada pela porta. */
+  percurso: "volta" | "porta";
+}
+export const VOO_IMAGENS_PADRAO: ConfigVooImagens = { onde: "abertura", duracaoS: VOO_PADRAO_S, percurso: "volta" };
+
+/** Tempos dos voos para o plano (nenhum sem modelo 3D). */
+export function opcoesDoVoo(v: ConfigVooImagens | undefined, temModelo: boolean): { aberturaS?: number; encerramentoS?: number } {
+  if (!temModelo || !v || v.onde === "nenhum") return {};
+  return { ...(v.onde !== "encerramento" ? { aberturaS: v.duracaoS } : {}), ...(v.onde !== "abertura" ? { encerramentoS: v.duracaoS } : {}) };
+}
+
+const INICIAL: EstadoImagens = { imagens: [], tituloDoVideo: "", narracao: null, formato: "vertical", personalizado: { largura: 1080, altura: 1350 }, duracao: 30, pdfs: [], voo: VOO_IMAGENS_PADRAO };
 let estado: EstadoImagens = INICIAL;
 const ouvintes = new Set<() => void>();
 /** Quem guarda o estado (IndexedDB) é avisado de cada mudança. */
@@ -97,9 +113,9 @@ function nova(blob: Blob, nome: string, largura: number, altura: number, pagina:
 export const origemDa = (i: Pick<ImagemRecebida, "origem" | "nome" | "pagina">): string | null => i.origem ?? (i.pagina !== null ? i.nome.split(" · p. ")[0] : null);
 
 /** Restaura imagens guardadas (sem gravar de novo). */
-export function restaurarImagens(e: Omit<EstadoImagens, "imagens"> & { imagens: Omit<ImagemRecebida, "url">[] }): void {
+export function restaurarImagens(e: Omit<EstadoImagens, "imagens" | "voo"> & { voo?: ConfigVooImagens; imagens: Omit<ImagemRecebida, "url">[] }): void {
   estado.imagens.forEach((i) => URL.revokeObjectURL(i.url));
-  mudar({ ...e, imagens: e.imagens.map((i) => ({ ...i, url: URL.createObjectURL(i.blob) })) }, false);
+  mudar({ ...e, voo: { ...VOO_IMAGENS_PADRAO, ...(e.voo ?? {}) }, imagens: e.imagens.map((i) => ({ ...i, url: URL.createObjectURL(i.blob) })) }, false);
 }
 
 /**
@@ -204,7 +220,7 @@ export function selecionarAutomaticamente(): void {
   mudar({ imagens: estado.imagens.map((i) => ({ ...i, marcada: porId.get(i.id) ?? false })) });
 }
 
-export function definirConfig(p: Partial<Pick<EstadoImagens, "tituloDoVideo" | "formato" | "personalizado" | "duracao">>): void {
+export function definirConfig(p: Partial<Pick<EstadoImagens, "tituloDoVideo" | "formato" | "personalizado" | "duracao" | "voo">>): void {
   mudar(p);
 }
 

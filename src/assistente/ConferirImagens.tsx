@@ -13,31 +13,33 @@ import {
   duracaoEfetiva,
   marcarTodas,
   moverImagem,
+  opcoesDoVoo,
   removerImagem,
   selecionarAutomaticamente,
   type FormatoImagens,
   type ImagemRecebida,
 } from "../app/imagensDoVideo";
-import { DURACOES_IMAGENS, ambientesDe, planoDoVideo, roteiroDeTempos } from "../rendering/imagensNoVideo";
+import { DURACOES_IMAGENS, VOO_MAX_S, VOO_MIN_S, ambientesDe, planoDoVideo, roteiroDeTempos } from "../rendering/imagensNoVideo";
+import { useProjeto } from "../state/projectStore";
 import { nomeSeguro } from "../app/projetos";
 import { baixar, carimboArquivo } from "../utils/baixar";
 import { desenharAssinatura, desenharVinheta } from "../rendering/marcaVideo";
-import { desenharQuadroDeImagens } from "../rendering/videoDeImagens";
+import { VOO_NA_PREVIA, desenharQuadroDeImagens } from "../rendering/videoDeImagens";
 import { usarImagens } from "./AssistenteImagens";
 
 const seg = (s: number) => `${s.toLocaleString("pt-BR", { maximumFractionDigits: 1 })} s`;
 const ROTULO_FORMATO: Record<FormatoImagens, string> = { vertical: "9:16", horizontal: "16:9", quadrado: "1:1", retrato: "4:5", personalizado: "Outro" };
 
 /** Prévia: o vídeo desenhado em tempo real num canvas pequeno, sem som. */
-function Previa({ imagens, segundos, largura, altura, titulo }: { imagens: ImagemRecebida[]; segundos: number; largura: number; altura: number; titulo: string }) {
+function Previa({ imagens, segundos, largura, altura, titulo, voo }: { imagens: ImagemRecebida[]; segundos: number; largura: number; altura: number; titulo: string; voo: { aberturaS?: number; encerramentoS?: number } }) {
   const ref = useRef<HTMLCanvasElement>(null);
   const [tocando, setTocando] = useState(false);
   const [t, setT] = useState(0);
   // a prévia usa um quadro pequeno com a mesma proporção (o movimento só depende da proporção)
   const esc = Math.min(1, 540 / Math.max(largura, altura));
   const W = Math.round(largura * esc), H = Math.round(altura * esc);
-  const plano = useMemo(() => planoDoVideo(imagens, segundos, W, H), [imagens, segundos, W, H]);
-  const extras = useMemo(() => ({ capa: titulo, assinatura: desenharAssinatura(W, H, { nome: CLIENTE.nome, slogan: CLIENTE.slogan }), vinheta: segundos >= 6 ? desenharVinheta(W, H, { nome: CLIENTE.nome, slogan: CLIENTE.slogan, secundario: CLIENTE.instagram }) : null }), [W, H, titulo, segundos]);
+  const plano = useMemo(() => planoDoVideo(imagens, segundos, W, H, voo), [imagens, segundos, W, H, voo]);
+  const extras = useMemo(() => ({ voo: plano.voos.length ? VOO_NA_PREVIA : null, capa: titulo, assinatura: desenharAssinatura(W, H, { nome: CLIENTE.nome, slogan: CLIENTE.slogan }), vinheta: segundos >= 6 ? desenharVinheta(W, H, { nome: CLIENTE.nome, slogan: CLIENTE.slogan, secundario: CLIENTE.instagram }) : null }), [W, H, titulo, segundos, plano]);
   const cache = useRef(new Map<string, Promise<ImageBitmap>>());
   useEffect(
     () => () => {
@@ -114,7 +116,9 @@ export function ConferirImagens() {
   const e = usarImagens();
   const { largura, altura } = dimensoesDoFormato(e);
   const segundos = duracaoEfetiva(e);
-  const plano = useMemo(() => planoDoVideo(e.imagens, segundos, largura, altura), [e.imagens, segundos, largura, altura]);
+  const temModelo = useProjeto((s) => !!s.tipoModelo);
+  const voo = useMemo(() => opcoesDoVoo(e.voo, temModelo), [e.voo, temModelo]);
+  const plano = useMemo(() => planoDoVideo(e.imagens, segundos, largura, altura, voo), [e.imagens, segundos, largura, altura, voo]);
   const marcadas = e.imagens.filter((i) => i.marcada).length;
   const ambientes = ambientesDe(e.imagens);
   // título que vale para cada imagem (o digitado ou o do ambiente anterior), para a dica do campo
@@ -197,6 +201,46 @@ export function ConferirImagens() {
             </p>
           )}
         </section>
+        {temModelo && (
+          <section className="bloco" data-testid="bloco-voo">
+            <header>
+              <h3>Voo do drone</h3>
+              <span className="legenda">casa 3D pronta</span>
+            </header>
+            <div className="campo">
+              <span>Onde</span>
+              <div className="segmentos" role="radiogroup" aria-label="Voo do drone">
+                {(["nenhum", "abertura", "encerramento", "ambos"] as const).map((o) => (
+                  <button key={o} type="button" className="seg" role="radio" aria-selected={e.voo.onde === o} aria-checked={e.voo.onde === o} data-testid={`voo-${o}`} onClick={() => definirConfig({ voo: { ...e.voo, onde: o } })}>
+                    {{ nenhum: "Nenhum", abertura: "Abertura", encerramento: "Encerramento", ambos: "Os dois" }[o]}
+                  </button>
+                ))}
+              </div>
+            </div>
+            {e.voo.onde !== "nenhum" && (
+              <div className="linha-dimensoes">
+                <label className="campo">
+                  <span>Duração de cada voo</span>
+                  <select value={e.voo.duracaoS} data-testid="voo-duracao" onChange={(ev) => definirConfig({ voo: { ...e.voo, duracaoS: Number(ev.target.value) } })}>
+                    {Array.from({ length: VOO_MAX_S - VOO_MIN_S + 1 }, (_, k) => VOO_MIN_S + k).map((s) => (
+                      <option key={s} value={s}>
+                        {s} s
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="campo">
+                  <span>Percurso</span>
+                  <select value={e.voo.percurso} data-testid="voo-percurso" onChange={(ev) => definirConfig({ voo: { ...e.voo, percurso: ev.target.value as "volta" | "porta" } })}>
+                    <option value="volta">Volta por fora</option>
+                    <option value="porta">Volta e entrada pela porta</option>
+                  </select>
+                </label>
+              </div>
+            )}
+            <p className="nota-cartao">O voo aparece no vídeo gerado; na prévia, um quadro marca o lugar dele. Gerar fica mais lento: o trecho 3D é desenhado quadro a quadro.</p>
+          </section>
+        )}
         <section className="bloco">
           <header>
             <h3>Imagens</h3>
@@ -238,7 +282,7 @@ export function ConferirImagens() {
         </section>
       </div>
       <div className="conferir-previa">
-        {plano.itens.length > 0 && <Previa imagens={e.imagens} segundos={segundos} largura={largura} altura={altura} titulo={e.tituloDoVideo} />}
+        {plano.itens.length > 0 && <Previa imagens={e.imagens} segundos={segundos} largura={largura} altura={altura} titulo={e.tituloDoVideo} voo={voo} />}
       </div>
     </div>
   );
