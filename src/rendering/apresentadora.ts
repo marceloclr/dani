@@ -277,7 +277,7 @@ const FRAG = /* glsl */ `
   }
   float alfa(vec2 uv) {
     if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) return 0.0;
-    if (modo == 0) return smoothstep(0.42, 0.78, texture2D(tMascara, uv).r); // erosão leve: a borda não leva o fundo (ADR-33)
+    if (modo == 0) return smoothstep(0.5, 0.82, texture2D(tMascara, uv).r); // erosão: a borda não leva o fundo (ADR-33; mais forte no INC-22, contra o halo)
     float d = distance(croma(paraSrgb(texture2D(tVideo, uv).rgb)), chave);
     float t = clamp((d - tolerancia) / max(suavidade, 1e-4), 0.0, 1.0);
     return t * t * (3.0 - 2.0 * t);
@@ -292,13 +292,30 @@ const FRAG = /* glsl */ `
     // descontaminação da borda (ADR-33): onde a pessoa é semitransparente, a cor vem dos vizinhos mais
     // opacos (média ponderada pelo alfa, raio de 2 texels), sem o tom claro do fundo que vazava no contorno
     if (a > 0.01 && a < 0.99) {
-      vec3 soma = vec3(0.0);
-      float peso = 0.0;
+      vec3 soma = vec3(0.0), somaFundo = vec3(0.0);
+      float peso = 0.0, pesoFundo = 0.0;
       for (int i = -2; i <= 2; i++) for (int j = -2; j <= 2; j++) {
         vec2 q = uv + vec2(float(i), float(j)) * texel;
-        float w = pow(alfa(q), 4.0);
-        soma += texture2D(tVideo, q).rgb * w;
+        float aq = alfa(q);
+        vec3 cq = texture2D(tVideo, q).rgb;
+        float w = pow(aq, 4.0);
+        soma += cq * w;
         peso += w;
+        float wf = pow(1.0 - aq, 4.0);
+        somaFundo += cq * wf;
+        pesoFundo += wf;
+      }
+      // IA (INC-22): a máscara vem de um modelo de 256 px e chega borrada; na borda, a transparência passa a
+      // seguir a cor da imagem em resolução cheia, pela posição do pixel entre a cor da pessoa e a do fundo ao
+      // lado (matting local): o contorno fica no lugar certo e o halo da cor do fundo some
+      if (modo == 0 && peso > 0.05 && pesoFundo > 0.05) {
+        vec3 d = soma / peso - somaFundo / pesoFundo;
+        float d2 = dot(d, d);
+        // só onde pessoa e fundo têm cores distintas; senão, fica a máscara
+        float distinto = smoothstep(0.004, 0.03, d2);
+        float am = clamp(dot(original - somaFundo / pesoFundo, d) / max(d2, 1e-5), 0.0, 1.0);
+        // só tira opacidade (quase não acrescenta): um ponto do fundo com a cor da roupa não vira mancha solta
+        a = mix(a, min(am, a + 0.1), 0.8 * distinto);
       }
       if (peso > 0.05) cor = mix(soma / peso, cor, a * a);
     }

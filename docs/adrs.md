@@ -1151,3 +1151,24 @@ O sobrado de exemplo passou a ter Fortaleza e a frente para 70° (lés-nordeste)
 **Verificação.**
 - **Vitest** (`tests/falas.test.ts`): uma cena por fala na contínua; mesma pose no fim de uma fala e no começo da seguinte; 60° no mesmo sentido; volta começando em −15°.
 - **Ensaio:** quadros do vídeo gerado no Edge, conferidos a cada 0,5 s.
+
+## ADR-42 — Borda da apresentadora refinada pela cor (recorte por IA)
+
+**Status:** aceito em 2026-10-09 (INC-22).
+
+**Pedido.** No vídeo de 09/10, o usuário achou "as bordas feias" da apresentadora recortada por IA.
+
+**Causa.** O modelo de segmentação do MediaPipe trabalha em 256×256: a máscara chega borrada e é ampliada no shader. O contorno fica mole e leva um pouco da cor da parede. Aumentar a entrada (`LADO_SEGMENTACAO`) só interpolaria mais a mesma máscara.
+
+**Decisão** (shader da camada, só no recorte por IA):
+1. **Matting local:** na faixa da borda, o laço da descontaminação (ADR-33) passa a somar também a cor média do fundo ao lado. A transparência do pixel vem da posição da cor dele entre a cor da pessoa e a do fundo, na imagem em resolução cheia: `α = clamp(((c − F)·(P − F)) / |P − F|², 0, 1)`, misturada a 80 % com a da máscara, só onde pessoa e fundo têm cores distintas.
+2. Esse α **só tira opacidade** (no máximo +0,1 sobre a máscara): um ponto do fundo com a cor da roupa não vira mancha solta.
+3. **Erosão um pouco maior** da máscara: `smoothstep(0,5; 0,82)` no lugar de `(0,42; 0,78)`, contra a faixa larga de baixa confiança que formava o halo.
+
+**Consequências.**
+- Fica mais fácil: contorno mais nítido e colado ao corpo, com menos halo da parede.
+- Fica mais difícil: objetos que a IA marca como parte da pessoa (a cadeira ao lado do pé, as legendas gravadas no vídeo) continuam. A luz colorida real sobre ela também continua.
+
+**Verificação.**
+- **Ensaio:** prévias de antes e depois nos mesmos quadros da fala real (36,5, 38, 40 e 53 s), ampliadas 2×, no Edge.
+- **Playwright:** `recorte por IA` (GIF gerado com o shader novo).
