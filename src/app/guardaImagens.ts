@@ -1,7 +1,7 @@
 // Vídeo de imagens (INC-19): guarda no navegador (IndexedDB) as imagens, os títulos, a seleção, a ordem, a
 // narração e a configuração, para o trabalho continuar ao reabrir a página. Cada imagem é gravada uma vez;
 // o estado (sem os arquivos) é regravado meio segundo depois da última mudança.
-import { GRUPO_IMAGENS, chaveEstadoImagens, chaveImagem, chaveNarracaoImagens, excluirAnexo, gravarAnexo, lerAnexosDe } from "../storage/IndexedDb";
+import { GRUPO_IMAGENS, chaveEstadoImagens, chaveImagem, chaveNarracaoImagens, excluirAnexo, excluirAnexosDe, gravarAnexo, lerAnexosDe } from "../storage/IndexedDb";
 import { definirGuarda, restaurarImagens, type EstadoImagens, type ImagemRecebida } from "./imagensDoVideo";
 
 type ImagemGuardada = Omit<ImagemRecebida, "blob" | "url">;
@@ -71,4 +71,14 @@ export function iniciarGuardaDeImagens(): Promise<void> {
     });
   })();
   return iniciada;
+}
+
+/** Recomeçar (apagar tudo): para de guardar e apaga o que estava guardado do vídeo de imagens. */
+export async function apagarGuardadoDasImagens(): Promise<void> {
+  clearTimeout(espera);
+  definirGuarda(null);
+  await fila.catch(() => {});
+  gravadas.clear();
+  narracaoGravada = null;
+  await excluirAnexosDe(GRUPO_IMAGENS);
 }

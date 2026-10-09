@@ -1,5 +1,6 @@
 // Vídeo de imagens (INC-19): as imagens recebidas (de um PDF ou soltas), os títulos, a marcação e a ordem,
 // a narração e a configuração do vídeo (formato e duração). Os arquivos ficam aqui; a tela se inscreve.
+import { LIMIAR_REPETIDA, distancia } from "../rendering/impressao";
 import { VOO_PADRAO_S, duracaoPelaNarracao, selecionarPelaDuracao, type ImagemDoVideo, type ModoTransicoes } from "../rendering/imagensNoVideo";
 
 export type FormatoImagens = "horizontal" | "vertical" | "quadrado" | "retrato" | "personalizado";
@@ -107,6 +108,18 @@ const ehPdf = (f: File) => f.type === "application/pdf" || /\.pdf$/i.test(f.name
 const ehImagem = (f: File) => TIPOS_IMAGEM.includes(f.type) || /\.(jpe?g|png|webp)$/i.test(f.name);
 const ehAudio = (f: File) => /^audio\//.test(f.type) || /\.(mp3|m4a|aac|wav|ogg|oga|opus|flac)$/i.test(f.name);
 
+/** Impressões visuais das imagens da lista (calculadas uma vez), para recusar repetidas em novos envios. */
+const impressoes = new Map<string, Uint32Array>();
+async function impressaoDe(i: Pick<ImagemRecebida, "id" | "blob">): Promise<Uint32Array> {
+  let imp = impressoes.get(i.id);
+  if (!imp) {
+    const { impressaoDaImagem } = await import("./pdfImagens");
+    imp = await impressaoDaImagem(i.blob);
+    impressoes.set(i.id, imp);
+  }
+  return imp;
+}
+
 function nova(blob: Blob, nome: string, largura: number, altura: number, pagina: number | null, titulo: string, capa = false, origem?: string): ImagemRecebida {
   return { id: novoId(), nome, blob, url: URL.createObjectURL(blob), largura, altura, pagina, titulo, marcada: !capa, ...(capa ? { capa } : {}), ...(origem ? { origem } : {}) };
 }
@@ -156,10 +169,26 @@ export async function adicionarArquivos(arquivos: File[], aoProgredir?: (texto: 
       }
     } else avisos.push(`"${f.name}" não é PDF nem imagem (use PDF, JPEG, PNG ou WebP).`);
   }
-  const imagens = [...estado.imagens, ...novas];
-  mudar({ imagens, pdfs, tituloDoVideo: titulo });
-  if (novas.length) selecionarAutomaticamente();
-  return { adicionadas: novas.length, avisos };
+  // repetidas entre envios (o mesmo PDF duas vezes, a mesma foto de novo): ficam de fora
+  const conhecidas = await Promise.all(estado.imagens.map((i) => impressaoDe(i).catch(() => null)));
+  const aceitas: ImagemRecebida[] = [];
+  let repetidas = 0;
+  for (const n of novas) {
+    const imp = await impressaoDe(n).catch(() => null);
+    if (imp && [...conhecidas, ...aceitas.map((a) => impressoes.get(a.id) ?? null)].some((x) => x && distancia(x, imp) <= LIMIAR_REPETIDA)) {
+      repetidas++;
+      URL.revokeObjectURL(n.url);
+      impressoes.delete(n.id);
+      continue;
+    }
+    aceitas.push(n);
+  }
+  if (repetidas) avisos.push(repetidas === novas.length ? "Estas imagens já estavam na lista: nada foi acrescentado." : `${repetidas} imagem(ns) já estava(m) na lista e ficou(aram) de fora.`);
+  const imagens = [...estado.imagens, ...aceitas];
+  // um PDF que só trouxe repetidas não entra na lista de PDFs de novo
+  mudar({ imagens, pdfs: pdfs.filter((p) => p !== "" && (estado.pdfs.includes(p) || imagens.some((i) => origemDa(i) === p))), tituloDoVideo: titulo });
+  if (aceitas.length) selecionarAutomaticamente();
+  return { adicionadas: aceitas.length, avisos };
 }
 
 export function removerImagem(id: string): void {
@@ -182,6 +211,13 @@ export function removerSoltas(): void {
   mudar({ imagens: estado.imagens.filter((i) => origemDa(i)) });
 }
 
+/** Recomeçar: o vídeo de imagens volta ao estado inicial (sem gravar: quem apaga o guardado é a guarda). */
+export function zerarImagens(): void {
+  estado.imagens.forEach((i) => URL.revokeObjectURL(i.url));
+  impressoes.clear();
+  mudar(INICIAL, false);
+}
+
 export function removerTodas(): void {
   estado.imagens.forEach((i) => URL.revokeObjectURL(i.url));
   mudar({ imagens: [], pdfs: [], tituloDoVideo: "" });
@@ -195,8 +231,9 @@ export function alternarMarcada(id: string): void {
   mudar({ imagens: estado.imagens.map((i) => (i.id === id ? { ...i, marcada: !i.marcada } : i)) });
 }
 
+/** Todas (menos a capa do PDF, que se marca à mão) ou nenhuma. */
 export function marcarTodas(marcada: boolean): void {
-  mudar({ imagens: estado.imagens.map((i) => ({ ...i, marcada })) });
+  mudar({ imagens: estado.imagens.map((i) => ({ ...i, marcada: marcada && !i.capa })) });
 }
 
 /** Move a imagem `delta` posições (−1 sobe, +1 desce). */

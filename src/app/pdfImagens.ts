@@ -101,6 +101,20 @@ function impressaoDoCanvas(c: HTMLCanvasElement): Uint32Array {
   return impressaoDe(ctx.getImageData(0, 0, IMPRESSAO_W, IMPRESSAO_H).data);
 }
 
+/** Impressão visual de uma imagem qualquer (Blob), para achar as repetidas entre envios. */
+export async function impressaoDaImagem(blob: Blob): Promise<Uint32Array> {
+  const b = await createImageBitmap(blob);
+  try {
+    const c = document.createElement("canvas");
+    c.width = b.width;
+    c.height = b.height;
+    c.getContext("2d")!.drawImage(b, 0, 0);
+    return impressaoDoCanvas(c);
+  } finally {
+    b.close();
+  }
+}
+
 async function comoJpeg(c: HTMLCanvasElement): Promise<{ blob: Blob; largura: number; altura: number }> {
   let fonte = c;
   const lado = Math.max(c.width, c.height);

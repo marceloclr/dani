@@ -458,3 +458,7 @@ a.btn[aria-disabled="true"] { opacity: .5; cursor: not-allowed; }
   .conferir-imagens { grid-template-columns: minmax(0, 1fr); }
   .lista-imagens { max-height: none; }
 }.lista-imagens .remover-imagem:hover:not(:disabled) { border-color: var(--risco); color: var(--risco); }
+.conteudo-recomecar { padding: 16px 20px 18px; display: flex; flex-direction: column; gap: 10px; font-size: 13.5px; }
+.conteudo-recomecar p, .conteudo-recomecar ul { margin: 0; }
+.conteudo-recomecar .botoes { display: flex; justify-content: flex-end; gap: 8px; margin-top: 6px; }
+.btn.primario.perigo { background: var(--risco); border-color: var(--risco); }

@@ -45,6 +45,10 @@ test("PDF → imagens com títulos → MP4 com trilha, roteiro e trabalho guarda
   // capa + 2 renders: a logo (pequena) e a página repetida ficam de fora
   await expect(page.getByTestId("estado-imagens")).toHaveText(/^3 imagens · \d no vídeo$/, { timeout: 60_000 });
   await expect(page.getByTestId("avisos-imagens")).toContainText("1 imagem(ns) repetida(s)");
+  // o mesmo PDF de novo (aconteceu em 09/10 e as imagens apareciam duas vezes no vídeo): nada entra
+  await page.getByTestId("entrada-imagens").setInputFiles({ name: "apresentacao.pdf", mimeType: "application/pdf", buffer: pdfDeApresentacao() });
+  await expect(page.getByTestId("avisos-imagens")).toContainText("já estavam na lista", { timeout: 60_000 });
+  await expect(page.getByTestId("estado-imagens")).toHaveText(/^3 imagens · \d no vídeo$/);
   await page.getByTestId("entrada-trilhas-img").setInputFiles({ name: "trilha.wav", mimeType: "audio/wav", buffer: wavDeTom(20) });
   await expect(page.getByTestId("lista-trilhas-img")).toContainText("início");
 
@@ -135,6 +139,34 @@ test("IFC no vídeo de imagens: trilha preservada, voo no Conferir e no roteiro,
   await page.getByTestId("img-avancar").click();
   await expect(page.getByTestId("bloco-voo")).toHaveCount(0);
   expect(erros).toEqual([]);
+});
+
+test("Recomeçar apaga a sessão e o trabalho guardado; os projetos salvos ficam se não pedir", async ({ page }) => {
+  await page.goto("/#/imagens");
+  await page.getByTestId("entrada-imagens").setInputFiles({ name: "apresentacao.pdf", mimeType: "application/pdf", buffer: pdfDeApresentacao() });
+  await expect(page.getByTestId("estado-imagens")).toHaveText(/^3 imagens/, { timeout: 60_000 });
+  await page.getByTestId("entrada-trilhas-img").setInputFiles({ name: "trilha.wav", mimeType: "audio/wav", buffer: wavDeTom(5) });
+  await page.getByTestId("entrada-ifc-img").setInputFiles("public/modelos/sobrado-exemplo.ifc"); // cria um projeto salvo
+  await expect(page.getByTestId("estado-ifc-img")).toContainText("157 elementos", { timeout: 90_000 });
+  await page.waitForTimeout(800); // a guarda grava meio segundo depois
+  await page.getByTestId("recomecar").click();
+  await expect(page.getByTestId("recomecar-projetos")).not.toBeChecked();
+  await page.getByTestId("confirmar-recomecar").click();
+  // a página recarrega no vídeo da obra, sem nada carregado
+  await expect(page.getByTestId("modo-obra")).toHaveAttribute("aria-selected", "true", { timeout: 30_000 });
+  await expect(page.getByTestId("estado-planilha")).toHaveText("obrigatória");
+  await page.getByTestId("modo-imagens").click();
+  await expect(page.getByTestId("estado-imagens")).toHaveText("obrigatório");
+  await expect(page.getByTestId("estado-ifc-img")).toHaveText("opcional: voo do drone");
+  await expect(page.getByTestId("estado-trilhas-img")).toHaveText("opcional");
+  // o projeto do IFC continua salvo; com a caixa marcada, sai também
+  await page.getByTestId("recomecar").click();
+  await expect(page.getByTestId("recomecar-projetos")).toBeVisible();
+  await page.getByTestId("recomecar-projetos").check();
+  await page.getByTestId("confirmar-recomecar").click();
+  await expect(page.getByTestId("modo-obra")).toHaveAttribute("aria-selected", "true", { timeout: 30_000 });
+  await page.getByTestId("recomecar").click();
+  await expect(page.getByTestId("recomecar-projetos")).toHaveCount(0); // nenhum projeto salvo
 });
 
 /** WAV mono 48 kHz com um tom de 330 Hz (trilha de teste). */

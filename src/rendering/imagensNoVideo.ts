@@ -11,7 +11,7 @@ export interface ImagemDoVideo {
 }
 
 /** Tempo de cada imagem na tela (s): padrão, mínimo e máximo; dissolução entre imagens e título de ambiente. */
-export const IMAGEM_PADRAO_S = 3, IMAGEM_MIN_S = 2, IMAGEM_MAX_S = 6, DISSOLVE_S = 0.6, TITULO_S = 2.4;
+export const IMAGEM_PADRAO_S = 3, IMAGEM_MIN_S = 2.5, IMAGEM_MAX_S = 6, DISSOLVE_S = 0.6, TITULO_S = 2.4;
 /** Durações prontas do vídeo (s). */
 export const DURACOES_IMAGENS = [15, 20, 30, 40, 50, 60] as const;
 /** Com narração: a voz entra depois da vinheta cheia; depois dela, respiro e a vinheta de encerramento (s). */
@@ -54,7 +54,11 @@ function espalhar(total: number, n: number): number[] {
  * com ao menos uma por ambiente quando couber. Devolve a nova marcação, na ordem das imagens.
  */
 export function selecionarPelaDuracao(imgs: Pick<ImagemDoVideo, "titulo">[], duracaoS: number): boolean[] {
-  const n = Math.min(imgs.length, imagensQueCabem(duracaoS));
+  return selecionarN(imgs, Math.min(imgs.length, imagensQueCabem(duracaoS)));
+}
+
+/** Marca `n` imagens espalhadas entre os ambientes (ao menos uma por ambiente quando couber). */
+export function selecionarN(imgs: Pick<ImagemDoVideo, "titulo">[], n: number): boolean[] {
   const amb = ambientesDe(imgs);
   const cotas = amb.map(() => 0);
   if (n >= amb.length) {
@@ -198,6 +202,8 @@ export interface PlanoDoVideo {
   porImagemS: number;
   /** Aviso quando as marcadas não cabem (ou sobram) na duração. */
   aviso: string | null;
+  /** Marcadas que ficaram fora do vídeo por não caberem no tempo mínimo de cada imagem. */
+  foraDoVideo: number;
 }
 
 /**
@@ -219,16 +225,25 @@ export function planoDoVideo(imgs: ImagemDoVideo[], duracaoS: number, quadroW: n
   const ambienteDe: number[] = [];
   ambientesDe(imgs).forEach((a, i) => a.indices.forEach((k) => (ambienteDe[k] = i)));
   const titulos = ambientesDe(imgs).map((a) => a.titulo);
-  const marcadas = imgs.map((im, i) => (im.marcada ? i : -1)).filter((i) => i >= 0);
-  if (!marcadas.length) return { duracaoS, itens: [], voos, porImagemS: 0, aviso: "Marque ao menos uma imagem." };
+  let marcadas = imgs.map((im, i) => (im.marcada ? i : -1)).filter((i) => i >= 0);
+  if (!marcadas.length) return { duracaoS, itens: [], voos, porImagemS: 0, aviso: "Marque ao menos uma imagem.", foraDoVideo: 0 };
+  const onde = voos.length ? `nos ${fmt(tempo)} s que sobram dos voos` : `em ${fmt(duracaoS)} s`;
+  let aviso: string | null = null;
+  // nunca abaixo do mínimo: imagens demais passariam rápido demais; entram as que cabem, espalhadas entre os ambientes
+  const cabem = imagensQueCabem(tempo, IMAGEM_MIN_S);
+  let foraDoVideo = 0;
+  if (marcadas.length > cabem) {
+    const sub = marcadas.map((i, k) => ({ titulo: k === 0 || ambienteDe[i] !== ambienteDe[marcadas[k - 1]] ? `a${ambienteDe[i]}` : "" }));
+    const fica = selecionarN(sub, cabem);
+    foraDoVideo = marcadas.length - cabem;
+    aviso = `${marcadas.length} imagens marcadas não cabem ${onde} sem passar rápido demais: entram ${cabem} (${fmt(IMAGEM_MIN_S)} s cada, espalhadas entre os ambientes) e ${foraDoVideo} ficam de fora. Desmarque algumas, use "Escolher pela duração" ou aumente a duração.`;
+    marcadas = marcadas.filter((_, k) => fica[k]);
+  }
   const n = marcadas.length;
   // n·d − (n−1)·dissolução = tempo das imagens
   const bruto = (tempo + (n - 1) * DISSOLVE_S) / n;
-  let aviso: string | null = null;
-  const onde = voos.length ? `nos ${fmt(tempo)} s que sobram dos voos` : `em ${fmt(duracaoS)} s`;
-  if (bruto < IMAGEM_MIN_S) aviso = `${n} imagens não cabem ${onde}: cabem até ${imagensQueCabem(tempo, IMAGEM_MIN_S)}. Desmarque algumas, encurte o voo ou aumente a duração.`;
-  else if (bruto > IMAGEM_MAX_S) aviso = `Com ${n} imagens, cada uma fica ${bruto.toFixed(1).replace(".", ",")} s na tela: marque mais imagens para o vídeo ficar mais dinâmico.`;
-  const d = Math.max(bruto, IMAGEM_MIN_S * 0.5);
+  if (!aviso && bruto > IMAGEM_MAX_S) aviso = `Com ${n} imagens, cada uma fica ${bruto.toFixed(1).replace(".", ",")} s na tela: marque mais imagens para o vídeo ficar mais dinâmico.`;
+  const d = Math.max(bruto, IMAGEM_MIN_S);
   let ambAnterior = -1;
   // a primeira entra dissolvendo (sobre a vinheta ou o voo); as outras seguem o rodízio
   const muda = marcadas.slice(1).map((indice, k) => ambienteDe[indice] !== ambienteDe[marcadas[k]]);
@@ -240,7 +255,7 @@ export function planoDoVideo(imgs: ImagemDoVideo[], duracaoS: number, quadroW: n
     const ini = ini0 + k * (d - DISSOLVE_S);
     return { indice, ...entradas[k], ini, fim: Math.min(fimImagens, ini + d), titulo, movimento: movimentoDa(k, imgs[indice].largura, imgs[indice].altura, quadroW, quadroH) };
   });
-  return { duracaoS, itens, voos, porImagemS: d, aviso };
+  return { duracaoS, itens, voos, porImagemS: d, aviso, foraDoVideo };
 }
 
 /** O que desenhar no segundo `t`: a imagem de baixo e, durante a dissolução, a de cima com sua opacidade. */
@@ -288,10 +303,13 @@ export function tituloNoTempo(p: PlanoDoVideo, t: number, inicioPrimeiroS = VOZ_
     // o primeiro ambiente que acaba antes do seu título entrar (capa longa) fica sem título: não rotula outro
     const proximo = p.itens.slice(k + 1).find((x) => x.titulo);
     if (k === 0 && proximo && ini + 0.8 > proximo.ini) continue;
-    if (t < ini || t > ini + TITULO_S) continue;
+    // o título sai antes da imagem seguinte entrar: não rotula outro ambiente (imagens curtas, de 2,5 s)
+    const seguinte = p.itens[k + 1];
+    const dur = Math.max(0.8, Math.min(TITULO_S, (seguinte ? seguinte.ini + 0.15 : Infinity) - ini));
+    if (t < ini || t > ini + dur) continue;
     const dt = t - ini, borda = 0.4;
-    const opacidade = Math.min(1, dt / borda, (TITULO_S - dt) / borda);
-    return { texto: it.titulo, opacidade: Math.max(0, opacidade), u: dt / TITULO_S };
+    const opacidade = Math.min(1, dt / borda, (dur - dt) / borda);
+    return { texto: it.titulo, opacidade: Math.max(0, opacidade), u: dt / dur };
   }
   return null;
 }

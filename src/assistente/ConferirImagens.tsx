@@ -204,7 +204,7 @@ export function ConferirImagens() {
             </button>
           </div>
           <p className="resumo-cartao" data-testid="resumo-plano">
-            {marcadas} de {e.imagens.length} imagens no vídeo · {ambientes.filter((a) => a.titulo).length} ambientes{plano.porImagemS > 0 ? ` · ${seg(Math.round(plano.porImagemS * 10) / 10)} cada` : ""}
+            {plano.itens.length} de {e.imagens.length} imagens no vídeo{plano.foraDoVideo ? ` (${marcadas} marcadas)` : ""} · {ambientes.filter((a) => a.titulo).length} ambientes{plano.porImagemS > 0 ? ` · ${seg(Math.round(plano.porImagemS * 10) / 10)} cada` : ""}
           </p>
           {plano.aviso && (
             <p className="aviso-plano" role="alert" data-testid="aviso-plano">

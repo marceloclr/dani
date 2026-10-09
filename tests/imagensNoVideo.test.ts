@@ -38,7 +38,7 @@ describe("seleção pela duração", () => {
   it("quantas cabem: 3 s cada, com a dissolução sobrepondo", () => {
     expect(imagensQueCabem(15)).toBe(6); // (15 − 0,6) ÷ 2,4
     expect(imagensQueCabem(60)).toBe(24);
-    expect(imagensQueCabem(15, IMAGEM_MIN_S)).toBe(10);
+    expect(imagensQueCabem(15, IMAGEM_MIN_S)).toBe(7); // 2,5 s no mínimo
   });
   it("15 s: 6 imagens, ao menos uma por ambiente, proporcional ao tamanho, a primeira de cada ambiente", () => {
     const m = selecionarPelaDuracao(PROJETO, 15);
@@ -73,12 +73,34 @@ describe("plano de tempos", () => {
     expect(planoDoVideo(imgs, 10, 1920, 1080).itens.map((x) => x.titulo)).toEqual(["Sala", "Suíte"]);
   });
   it("avisa quando as marcadas não cabem e quando ficam tempo demais", () => {
-    expect(planoDoVideo(PROJETO, 15, 1920, 1080).aviso).toMatch(/12 imagens não cabem em 15 s: cabem até 10/);
+    expect(planoDoVideo(PROJETO, 15, 1920, 1080).aviso).toMatch(/12 imagens marcadas não cabem em 15 s sem passar rápido demais: entram 7 \(2,5 s cada/);
     expect(planoDoVideo([img("Sala")], 15, 1920, 1080).aviso).toMatch(/fica 15,0 s/);
     expect(planoDoVideo([img("", false)], 15, 1920, 1080).aviso).toMatch(/Marque/);
   });
   it("duração pela narração: vinheta + voz + respiro + encerramento", () => {
     expect(duracaoPelaNarracao(37.2)).toBeCloseTo(41.4, 6);
+  });
+});
+
+describe("imagens nunca passam rápido demais", () => {
+  it("40 imagens marcadas em 41,4 s (o vídeo de 09/10 trocava a cada 1 s): entram as que cabem a 2,5 s, espalhadas", () => {
+    const muitas = Array.from({ length: 40 }, (_, i) => img(i % 5 ? "" : `Ambiente ${i / 5}`));
+    const p = planoDoVideo(muitas, 41.4, 1080, 1920);
+    expect(p.porImagemS).toBeGreaterThanOrEqual(IMAGEM_MIN_S);
+    expect(p.itens).toHaveLength(21);
+    expect(p.foraDoVideo).toBe(19);
+    expect(p.aviso).toMatch(/entram 21 .* 19 ficam de fora/);
+    // os 8 ambientes continuam no vídeo, cada um com o seu título
+    expect(p.itens.filter((x) => x.titulo).map((x) => x.titulo)).toEqual(Array.from({ length: 8 }, (_, k) => `Ambiente ${k}`));
+    expect(p.itens.at(-1)!.fim).toBeCloseTo(41.4, 6);
+  });
+});
+
+describe("título não passa para a imagem seguinte", () => {
+  it("imagens de 2,5 s: o título sai até a imagem seguinte entrar", () => {
+    const p = planoDoVideo([img("Lavabo"), img("Suíte"), img()], 6.2, 1080, 1920); // 2,5 s cada
+    const seguinte = p.itens[1].ini;
+    expect(tituloNoTempo(p, seguinte + 0.3)?.texto).not.toBe("Lavabo");
   });
 });
 

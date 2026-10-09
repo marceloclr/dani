@@ -1004,6 +1004,15 @@ O sobrado de exemplo passou a ter Fortaleza e a frente para 70° (lés-nordeste)
    - 1ª trilha no início e a 2ª 8 s antes do fim.
 7. **Narração depois:** o **roteiro de tempos** (TXT) dá a janela da voz, o tempo de cada ambiente e de cada imagem. Com a narração enviada, o vídeo é refeito pela fala.
 8. **Guarda:** imagens, títulos, seleção, ordem, narração e formato ficam no IndexedDB (grupo `__imagens__`). As trilhas são as do assistente.
+
+**Revisão (2026-10-09, vídeo do usuário das 11h48).** As imagens trocavam a cada 1 s e algumas apareciam duas vezes.
+- **Causa da pressa:** o plano avisava que as marcadas não cabiam, mas gerava assim mesmo, encurtando cada imagem até 1 s.
+  - Agora o mínimo é **2,5 s** e nunca é encurtado: com imagens demais, entram as que cabem, espalhadas entre os ambientes, e o aviso diz quantas ficaram de fora (no Conferir e no Gerar).
+  - O título do ambiente sai antes de a imagem seguinte entrar.
+- **Causa das repetidas:** o mesmo PDF foi enviado duas vezes, e a impressão visual só comparava as imagens de um mesmo envio.
+  - Agora cada imagem nova é comparada com as que já estão na lista.
+  - "Todas" deixa a capa de fora.
+- **Recomeçar** (botão no topo): apaga a sessão inteira e o que o vídeo de imagens guardou, e recarrega a página limpa. Os projetos salvos só saem se pedido.
 9. **pdf.js:** os decodificadores (JPEG 2000, JBIG2, cor ICC) passam a ser servidos pelo app (`public/pdfjs/wasm` e `iccs`), também para a planta em PDF.
 
 **Consequências.**

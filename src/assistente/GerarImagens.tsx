@@ -9,6 +9,7 @@ import { CLIENTE } from "../app/marca";
 import { nomeSeguro } from "../app/projetos";
 import { totalDeQuadros } from "../rendering/cameras";
 import { gerarVideoDeImagens } from "../rendering/videoDeImagens";
+import { planoDoVideo } from "../rendering/imagensNoVideo";
 import { Cancelado, NOME_SAIDA, capacidades, dimensoesDaSaida, type ArquivoGerado, type Saida } from "../rendering/VideoRenderer";
 import { useProjeto } from "../state/projectStore";
 import { baixar, carimboArquivo } from "../utils/baixar";
@@ -125,7 +126,9 @@ export function GerarImagens() {
 
   const d = saida ? dimensoesDaSaida(saida, largura, altura, FPS) : { largura, altura, fps: FPS };
   const pct = progresso ? Math.round((progresso.quadro / progresso.total) * 100) : 0;
-  const marcadas = e.imagens.filter((i) => i.marcada).length;
+  // o que entra de fato (imagens demais ficam de fora para nenhuma passar rápido demais)
+  const plano = planoDoVideo(e.imagens, segundos, largura, altura, voo, e.transicoes);
+  const marcadas = plano.itens.length;
   const semVoz = e.duracao !== "narracao" || !e.narracao;
 
   return (
@@ -140,6 +143,11 @@ export function GerarImagens() {
         <p className="config-gerar" data-testid="config-img">
           {marcadas} imagens{comVoo ? ` · voo do drone (${{ abertura: "abertura", encerramento: "encerramento", ambos: "abertura e encerramento", nenhum: "" }[e.voo.onde]}, ${e.voo.duracaoS} s)` : ""} · {semVoz ? "sem narração" : `narração ${e.narracao!.nome}`} · {trilhas.size ? `${Math.min(2, trilhas.size)} trilha${trilhas.size > 1 ? "s" : ""}` : "sem trilha"}
         </p>
+        {plano.aviso && (
+          <p className="aviso-plano" role="alert" data-testid="aviso-gerar">
+            {plano.aviso}
+          </p>
+        )}
         <div className="linha-gerar">
           <label className="campo campo-linha">
             <span>Saída</span>

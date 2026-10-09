@@ -57,6 +57,14 @@ export async function lerAnexosDe(projetoId: string): Promise<Map<string, Blob>>
   return new Map((await (await abrir()).getAllFromIndex("anexos", "projetoId", projetoId)).map((a) => [a.chave, a.blob]));
 }
 
+/** Apaga todos os anexos de um grupo (o vídeo de imagens ao recomeçar). */
+export async function excluirAnexosDe(projetoId: string): Promise<void> {
+  const db = await abrir();
+  const tx = db.transaction("anexos", "readwrite");
+  for (const chave of await tx.store.index("projetoId").getAllKeys(projetoId)) await tx.store.delete(chave);
+  await tx.done;
+}
+
 export async function listarProjetos(): Promise<RegistroProjeto[]> {
   const todos = await (await abrir()).getAll("projetos");
   return todos.sort((a, b) => b.atualizadoEm.localeCompare(a.atualizadoEm));

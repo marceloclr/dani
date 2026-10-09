@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { ErroAmigavel } from "../components/ErroAmigavel";
 import { ModalParametrico } from "../components/ModalParametrico";
 import { ModalProjetos } from "../components/ModalProjetos";
+import { ModalRecomecar } from "../components/ModalRecomecar";
 import { ModalTarefa } from "../components/ModalTarefa";
 import { ModalFoto } from "../components/ModalFoto";
 import { ModalModelos } from "../components/ModalModelos";
@@ -50,6 +51,7 @@ const rotaAtual = (): Rota => (location.hash.startsWith("#/gestao") ? "gestao" :
 
 export function App() {
   const [rota, setRota] = useState<Rota>(rotaAtual);
+  const [recomecar, setRecomecar] = useState(false);
   const temModelo = useProjeto((s) => s.elementos.length > 0);
   const carga = useProjeto((s) => s.carga);
   const nomeProjeto = useProjeto((s) => s.nomeProjeto);
@@ -143,6 +145,9 @@ export function App() {
             <button type="button" className="btn" data-testid="abrir-projetos" data-tip="Projetos salvos neste navegador: abrir, duplicar, exportar, importar e excluir." onClick={() => ui.abrir({ projetos: true })}>
               Projetos
             </button>
+            <button type="button" className="btn" data-testid="recomecar" disabled={gerandoVideo} data-tip={gerandoVideo ? "Aguarde o fim da geração do vídeo." : "Apaga tudo o que foi carregado e gerado nesta sessão (imagens, narração, trilhas, planilha, IFC e o último vídeo) para começar um vídeo novo do zero."} onClick={() => setRecomecar(true)}>
+              Recomeçar
+            </button>
             {temModelo && rota === "gestao" && (
               <>
                 <SeletorArquivo aceitar=".ifc" rotulo="Abrir IFC" dica={DICA_IFC} aoEscolher={abrirIfc} />
@@ -179,6 +184,7 @@ export function App() {
       )}
 
       <ModalProjetos aberto={ui.projetos} aoFechar={() => ui.abrir({ projetos: false })} />
+      <ModalRecomecar aberto={recomecar} aoFechar={() => setRecomecar(false)} />
       <ModalParametrico aberto={ui.parametrico} aoFechar={() => ui.abrir({ parametrico: false })} />
       <ModalTarefa tarefaId={ui.tarefa} aoFechar={() => ui.abrir({ tarefa: null })} />
       <ModalFoto />
