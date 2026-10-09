@@ -4,6 +4,7 @@ import { lerData } from "../fourd/tempo";
 import { chaveApresentadora, chaveFala, chaveFoto, chavePlanta, chaveTrilha, excluirAnexo, gravarAnexo } from "../storage/IndexedDb";
 import { APRESENTADORA_PADRAO } from "../rendering/composicao";
 import { useProjeto } from "../state/projectStore";
+import { recursosDoPdfjs } from "./pdfImagens";
 import type { FotoObra, PlantaSobreposta } from "../types";
 
 const fotos = new Map<string, Blob>();
@@ -188,7 +189,7 @@ async function pdfParaPng(dados: Uint8Array): Promise<Blob> {
   const pdfjs = await import("pdfjs-dist");
   const worker = (await import("pdfjs-dist/build/pdf.worker.min.mjs?url")).default;
   pdfjs.GlobalWorkerOptions.workerSrc = worker;
-  const tarefa = pdfjs.getDocument({ data: dados, standardFontDataUrl: new URL("pdfjs/standard_fonts/", document.baseURI).href });
+  const tarefa = pdfjs.getDocument({ data: dados, ...recursosDoPdfjs() });
   const doc = await tarefa.promise;
   const pagina = await doc.getPage(1);
   const base = pagina.getViewport({ scale: 1 });

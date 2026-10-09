@@ -7,7 +7,7 @@ import { formatarBR } from "../fourd/tempo";
 import { useProjeto } from "../state/projectStore";
 import type { FalasDoVideo } from "../app/falas";
 
-type Situacao = "ok" | "falta" | "opcional" | "aviso";
+export type Situacao = "ok" | "falta" | "opcional" | "aviso";
 const COR: Record<Situacao, string> = { ok: "var(--musgo)", falta: "var(--carmim)", opcional: "var(--neutro)", aviso: "var(--ocre)" };
 const seg = (s: number) => `${s.toLocaleString("pt-BR", { maximumFractionDigits: 1 })} s`;
 
@@ -27,7 +27,7 @@ interface PropsCartao {
 }
 
 /** Botão × que tira um arquivo enviado (para o cartão errado, por exemplo). */
-function Remover({ nome, aoRemover }: { nome: string; aoRemover(): void }) {
+export function Remover({ nome, aoRemover }: { nome: string; aoRemover(): void }) {
   return (
     <button type="button" className="btn-icone remover-arquivo" aria-label={`Remover ${nome}`} data-tip="Remover este arquivo" data-testid={`remover-${nome}`} onClick={aoRemover}>
       ×
@@ -36,7 +36,7 @@ function Remover({ nome, aoRemover }: { nome: string; aoRemover(): void }) {
 }
 
 /** Cartão de um tipo de arquivo: zona de soltar, botão e o estado do que chegou. */
-function CartaoArquivo({ id, titulo, situacao, estado, aceitar, multiplos, rotulo, dica, aoEscolher, avisos = [], children }: PropsCartao) {
+export function CartaoArquivo({ id, titulo, situacao, estado, aceitar, multiplos, rotulo, dica, aoEscolher, avisos = [], children }: PropsCartao) {
   const ref = useRef<HTMLInputElement>(null);
   const [sobre, setSobre] = useState(false);
   const [lendo, setLendo] = useState(false);

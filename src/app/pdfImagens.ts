@@ -26,6 +26,12 @@ export const AREA_MINIMA_NA_PAGINA = 0.04, LADO_MINIMO_PX = 300;
 /** Lado maior das imagens guardadas (px) e qualidade do JPEG. */
 export const LADO_MAXIMO_PX = 2560, QUALIDADE_JPEG = 0.92;
 
+/** Fontes, decodificadores e perfis de cor do pdf.js, servidos pelo próprio app (sem CDN, ADR-07). */
+export const recursosDoPdfjs = () => {
+  const base = (p: string) => new URL(`pdfjs/${p}/`, document.baseURI).href;
+  return { standardFontDataUrl: base("standard_fonts"), wasmUrl: base("wasm"), iccUrl: base("iccs") };
+};
+
 type Matriz = [number, number, number, number, number, number];
 const multiplicar = (m: Matriz, n: Matriz): Matriz => [
   m[0] * n[0] + m[2] * n[1], m[1] * n[0] + m[3] * n[1],
@@ -116,7 +122,7 @@ export async function extrairImagensDoPdf(dados: Uint8Array, aoProgredir?: (pagi
   const pdfjs = await import("pdfjs-dist");
   const worker = (await import("pdfjs-dist/build/pdf.worker.min.mjs?url")).default;
   pdfjs.GlobalWorkerOptions.workerSrc = worker;
-  const tarefa = pdfjs.getDocument({ data: dados, standardFontDataUrl: new URL("pdfjs/standard_fonts/", document.baseURI).href });
+  const tarefa = pdfjs.getDocument({ data: dados, ...recursosDoPdfjs() });
   const doc = await tarefa.promise;
   const OPS = pdfjs.OPS;
   const imagens: ImagemExtraida[] = [];

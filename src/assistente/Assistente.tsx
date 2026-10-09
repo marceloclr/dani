@@ -1,6 +1,6 @@
 // Assistente (ADR-30): a tela principal. Três passos — carregar os arquivos, conferir e gerar — sobre a
 // planilha da obra. Tudo o que o estúdio fazia continua na área de Gestão e ajustes (#/gestao).
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Viewport } from "../components/Viewport";
 import { normalizar, roteiroReels } from "../rendering/montagem";
 import { useProjeto } from "../state/projectStore";
@@ -8,10 +8,28 @@ import { PassoCarregar } from "./PassoCarregar";
 import { PassoConferir } from "./PassoConferir";
 import { PassoGerar } from "./PassoGerar";
 import { usarFalas } from "./usarFalas";
+import { AssistenteImagens, ModoDoAssistente } from "./AssistenteImagens";
 
 const PASSOS = ["Carregar", "Conferir", "Gerar"] as const;
 
+/** #/imagens: vídeo de imagens (INC-19); #/: vídeo da obra. */
+const modoImagens = () => location.hash.startsWith("#/imagens");
+
 export function Assistente() {
+  const [imagens, setImagens] = useState(modoImagens);
+  useEffect(() => {
+    const mudou = () => setImagens(modoImagens());
+    window.addEventListener("hashchange", mudou);
+    return () => window.removeEventListener("hashchange", mudou);
+  }, []);
+  return (
+    <main className="assistente" data-testid="assistente">
+      {imagens ? <AssistenteImagens /> : <AssistenteObra />}
+    </main>
+  );
+}
+
+function AssistenteObra() {
   const [passo, setPasso] = useState(0);
   const falas = usarFalas();
   const temPlanilha = useProjeto((s) => !!s.planilha);
@@ -33,7 +51,7 @@ export function Assistente() {
   const pendencia = !temPlanilha ? "Falta a planilha da obra." : !temModelo ? (ifcCitado ? `Falta o IFC ${ifcCitado} (ou use a casa da aba Modelo).` : "Falta a casa: preencha a aba Modelo ou envie um IFC.") : !temCronograma ? "Falta um cronograma válido: veja os erros no cartão da planilha." : null;
 
   return (
-    <main className="assistente" data-testid="assistente">
+    <>
       <nav className="passos-assistente" aria-label="Passos">
         {PASSOS.map((p, i) => (
           <button key={p} type="button" className="aba-passo" aria-current={passo === i ? "step" : undefined} disabled={!liberado(i)} data-testid={`passo-${i + 1}`} onClick={() => setPasso(i)}>
@@ -41,6 +59,7 @@ export function Assistente() {
             {p}
           </button>
         ))}
+        <ModoDoAssistente />
       </nav>
       <div className="assistente-corpo">
         {passo === 0 && <PassoCarregar falas={falas} />}
@@ -70,6 +89,6 @@ export function Assistente() {
           </button>
         )}
       </footer>
-    </main>
+    </>
   );
 }
