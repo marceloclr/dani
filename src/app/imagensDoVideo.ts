@@ -242,8 +242,37 @@ export function definirTitulo(id: string, titulo: string): void {
   mudar({ imagens: estado.imagens.map((i) => (i.id === id ? { ...i, titulo } : i)) });
 }
 
+/** Índices das duas imagens do par de antes e depois de que `k` faz parte (ou só `k`). */
+function doPar(l: Pick<ImagemRecebida, "antes">[], k: number): number[] {
+  if (l[k]?.antes && k + 1 < l.length) return [k, k + 1];
+  if (k > 0 && l[k - 1]?.antes) return [k - 1, k];
+  return [k];
+}
+
+/** Marca ou desmarca a imagem; no par de antes e depois, as duas juntas. */
 export function alternarMarcada(id: string): void {
-  mudar({ imagens: estado.imagens.map((i) => (i.id === id ? { ...i, marcada: !i.marcada } : i)) });
+  const k = estado.imagens.findIndex((i) => i.id === id);
+  if (k < 0) return;
+  const marcada = !estado.imagens[k].marcada, par = doPar(estado.imagens, k);
+  mudar({ imagens: estado.imagens.map((i, j) => (par.includes(j) ? { ...i, marcada } : i)) });
+}
+
+/**
+ * Antes e depois (INC-21): faz desta imagem o antes da seguinte (ou desfaz). A seguinte não pode ser o antes
+ * de outra, e esta não pode ser o depois da anterior; as duas ficam marcadas.
+ */
+export function alternarAntes(id: string): void {
+  const l = estado.imagens, k = l.findIndex((i) => i.id === id);
+  if (k < 0 || k + 1 >= l.length) return;
+  if (l[k].antes) return mudar({ imagens: l.map((i, j) => (j === k ? { ...i, antes: false } : i)) });
+  mudar({
+    imagens: l.map((i, j) => {
+      if (j === k) return { ...i, antes: true, marcada: true };
+      if (j === k + 1) return { ...i, antes: false, marcada: true };
+      if (j === k - 1 && i.antes) return { ...i, antes: false };
+      return i;
+    }),
+  });
 }
 
 /** Todas (menos a capa do PDF, que se marca à mão) ou nenhuma. */
@@ -280,7 +309,12 @@ export function selecionarAutomaticamente(): void {
   const candidatas = estado.imagens.filter((i) => !i.capa);
   const marcadas = selecionarPelaDuracao(candidatas, duracaoEfetiva());
   const porId = new Map(candidatas.map((i, k) => [i.id, marcadas[k]]));
-  mudar({ imagens: estado.imagens.map((i) => ({ ...i, marcada: porId.get(i.id) ?? false })) });
+  const l = estado.imagens.map((i) => ({ ...i, marcada: porId.get(i.id) ?? false }));
+  // o par de antes e depois entra inteiro quando uma das duas foi escolhida
+  l.forEach((i, k) => {
+    if (i.antes && k + 1 < l.length && (i.marcada || l[k + 1].marcada)) i.marcada = l[k + 1].marcada = true;
+  });
+  mudar({ imagens: l });
 }
 
 export function definirConfig(p: Partial<Pick<EstadoImagens, "tituloDoVideo" | "formato" | "personalizado" | "duracao" | "voo" | "transicoes" | "legendas">>): void {

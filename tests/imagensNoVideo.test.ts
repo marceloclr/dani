@@ -24,6 +24,7 @@ import {
   tituloNoTempo,
   type ImagemDoVideo,
 } from "../src/rendering/imagensNoVideo";
+import { CORTINA, antesDepoisNoTempo, imagensDoPlano } from "../src/rendering/imagensNoVideo";
 
 const img = (titulo = "", marcada = true, largura = 2133, altura = 1200): ImagemDoVideo => ({ largura, altura, titulo, marcada });
 // 3 ambientes: sala (4 imagens), cozinha (2), suíte (6)
@@ -254,5 +255,68 @@ describe("recomendação de imagens pela duração", () => {
     const r = recomendacaoDeImagens(30, { aberturaS: 8, encerramentoS: 8 });
     expect(r.tempoS).toBeCloseTo(15.2, 6);
     expect(r.ideal).toBe(6);
+  });
+});
+
+describe("antes e depois (INC-21)", () => {
+  const par = (marcadaDepois = true): ImagemDoVideo[] => [img("Sala"), { ...img("Cozinha"), antes: true }, img("", marcadaDepois), img("Suíte")];
+
+  it("o par vira um item que vale por duas imagens, e o tempo continua fechando", () => {
+    const p = planoDoVideo(par(), 12, 1080, 1920);
+    expect(p.itens.length).toBe(3);
+    expect(imagensDoPlano(p)).toBe(4);
+    const it = p.itens[1];
+    expect(it.indice).toBe(1);
+    expect(it.depois).toBe(2);
+    expect(it.movimentoDepois).toBeDefined();
+    // o par dura 2d − dissolução; o vídeo inteiro fecha em 12 s
+    expect(it.fim - it.ini).toBeCloseTo(2 * p.porImagemS - DISSOLVE_S, 6);
+    expect(p.itens[2].fim).toBeCloseTo(12, 6);
+    expect(p.itens[2].ini).toBeCloseTo(it.fim - DISSOLVE_S, 6);
+    // o título do ambiente vem do antes; o item seguinte abre o próprio ambiente
+    expect(it.titulo).toBe("Cozinha");
+    expect(p.itens[2].titulo).toBe("Suíte");
+    expect(p.aviso).toBeNull();
+  });
+
+  it("par com só uma das imagens marcada: não vira par e avisa", () => {
+    const p = planoDoVideo(par(false), 12, 1080, 1920);
+    expect(p.itens.some((x) => x.depois !== undefined)).toBe(false);
+    expect(p.itens.map((x) => x.indice)).toEqual([0, 1, 3]);
+    expect(p.aviso).toContain("antes e depois");
+  });
+
+  it("o antes na última posição não forma par", () => {
+    const p = planoDoVideo([img("Sala"), { ...img(), antes: true }], 15, 1080, 1920);
+    expect(p.itens.every((x) => x.depois === undefined)).toBe(true);
+  });
+
+  it("imagens demais: o par conta duas vagas e nada passa do mínimo", () => {
+    const muitas: ImagemDoVideo[] = Array.from({ length: 12 }, (_, k) => ({ ...img(k % 3 === 0 ? `A${k}` : ""), antes: k % 4 === 0 }));
+    const p = planoDoVideo(muitas, 15, 1080, 1920);
+    expect(imagensDoPlano(p)).toBeLessThanOrEqual(imagensQueCabem(15, IMAGEM_MIN_S));
+    expect(p.porImagemS).toBeGreaterThanOrEqual(IMAGEM_MIN_S);
+    expect(p.foraDoVideo).toBe(12 - imagensDoPlano(p));
+    expect(p.aviso).toContain("ficam de fora");
+  });
+
+  it("cortina e rótulos ao longo do item", () => {
+    expect(antesDepoisNoTempo(0.2)).toMatchObject({ cortina: 0, depois: 0 });
+    expect(antesDepoisNoTempo(0.2).antes).toBe(1);
+    expect(antesDepoisNoTempo(CORTINA.ini).cortina).toBe(0);
+    expect(antesDepoisNoTempo((CORTINA.ini + CORTINA.fim) / 2).cortina).toBeCloseTo(0.5, 6);
+    const fim = antesDepoisNoTempo(0.8);
+    expect(fim.cortina).toBe(1);
+    expect(fim.antes).toBe(0);
+    expect(fim.depois).toBe(1);
+    expect(antesDepoisNoTempo(0).antes).toBe(0); // entra junto com a imagem
+  });
+
+  it("roteiro: o par aparece como antes e depois e conta duas imagens", () => {
+    const p = planoDoVideo(par(), 12, 1080, 1920);
+    const txt = roteiroDeTempos(p, ["sala.jpg", "velha.jpg", "nova.jpg", "suite.jpg"], "", { largura: 1080, altura: 1920 });
+    expect(txt).toContain("4 imagens");
+    expect(txt).toContain("Antes e depois: velha.jpg → nova.jpg");
+    expect(txt).toMatch(/Cozinha \(2 imagens\)/);
   });
 });

@@ -8,6 +8,8 @@ export interface ImagemDoVideo {
   altura: number;
   titulo: string;
   marcada: boolean;
+  /** Antes e depois (INC-21): esta imagem é o antes e a seguinte, na lista, é o depois. */
+  antes?: boolean;
 }
 
 /** Tempo de cada imagem na tela (s): padrão, mínimo e máximo; dissolução entre imagens e título de ambiente. */
@@ -196,8 +198,11 @@ export function transicoesDoPlano(mudaAmbiente: boolean[], modo: ModoTransicoes 
 }
 
 export interface ItemDoPlano {
-  /** Índice na lista de imagens. */
+  /** Índice na lista de imagens (no par de antes e depois, o antes). */
   indice: number;
+  /** Antes e depois (INC-21): o índice do depois e o movimento dele; o item vale por duas imagens. */
+  depois?: number;
+  movimentoDepois?: Movimento;
   /** Como a imagem entra (dissolver na primeira, que entra sobre a vinheta ou o voo). */
   transicao: Transicao;
   /** Sentido de empurrar e varrer: 1 = da direita para a esquerda; −1 = o contrário. */
@@ -232,6 +237,31 @@ export interface PlanoDoVideo {
   foraDoVideo: number;
 }
 
+/** Imagens que entram no vídeo (o par de antes e depois conta duas). */
+export const imagensDoPlano = (p: Pick<PlanoDoVideo, "itens">) => p.itens.reduce((s, it) => s + (it.depois !== undefined ? 2 : 1), 0);
+
+/** Fases do antes e depois (fração do item): a cortina anda de 35 % a 65 %. */
+export const CORTINA = { ini: 0.35, fim: 0.65 } as const;
+
+/** Movimento das duas imagens do par: o mesmo zoom lento rumo ao centro, cada uma no seu recorte. */
+export function movimentoDoPar(imgW: number, imgH: number, quadroW: number, quadroH: number): Movimento {
+  const cobre = recorteQueCobre(imgW, imgH, quadroW, quadroH);
+  const w = cobre.w / ZOOM_MOVIMENTO, h = cobre.h / ZOOM_MOVIMENTO;
+  return { de: cobre, para: { x: cobre.x + (cobre.w - w) / 2, y: cobre.y + (cobre.h - h) / 2, w, h } };
+}
+
+/**
+ * Antes e depois no instante `u` do item: quanto a cortina já revelou o depois (0 a 1, da esquerda para a
+ * direita) e a opacidade dos rótulos ANTES e DEPOIS.
+ */
+export function antesDepoisNoTempo(u: number): { cortina: number; antes: number; depois: number } {
+  const lim = (x: number) => Math.min(1, Math.max(0, x));
+  const bruto = lim((u - CORTINA.ini) / (CORTINA.fim - CORTINA.ini));
+  const cortina = bruto * bruto * (3 - 2 * bruto);
+  // ANTES entra logo depois da imagem e sai quando a cortina chega perto dele (lado direito); DEPOIS entra com ela
+  return { cortina, antes: lim((u - 0.04) / 0.06) * (1 - lim((cortina - 0.55) / 0.3)), depois: lim((cortina - 0.25) / 0.3) * lim((1 - u) / 0.04) };
+}
+
 /**
  * Plano do vídeo: as imagens marcadas, na ordem, dividem a duração em partes iguais, sobrepostas pela
  * dissolução. O título de ambiente vai na primeira imagem marcada de cada ambiente. Com voo (INC-20), o voo de
@@ -251,35 +281,62 @@ export function planoDoVideo(imgs: ImagemDoVideo[], duracaoS: number, quadroW: n
   const ambienteDe: number[] = [];
   ambientesDe(imgs).forEach((a, i) => a.indices.forEach((k) => (ambienteDe[k] = i)));
   const titulos = ambientesDe(imgs).map((a) => a.titulo);
-  let marcadas = imgs.map((im, i) => (im.marcada ? i : -1)).filter((i) => i >= 0);
-  if (!marcadas.length) return { duracaoS, itens: [], voos, porImagemS: 0, aviso: "Marque ao menos uma imagem.", foraDoVideo: 0 };
+  // unidades do vídeo: uma imagem, ou o par de antes e depois (o antes marcado e a seguinte marcada)
+  let unidades: { indice: number; depois?: number }[] = [];
+  let parIncompleto = false;
+  for (let i = 0; i < imgs.length; i++) {
+    const par = imgs[i].antes && i + 1 < imgs.length;
+    if (par && imgs[i].marcada && imgs[i + 1].marcada) {
+      unidades.push({ indice: i, depois: i + 1 });
+      i++;
+      continue;
+    }
+    if (par && imgs[i].marcada !== imgs[i + 1].marcada) parIncompleto = true;
+    if (imgs[i].marcada) unidades.push({ indice: i });
+  }
+  if (!unidades.length) return { duracaoS, itens: [], voos, porImagemS: 0, aviso: "Marque ao menos uma imagem.", foraDoVideo: 0 };
+  const vagas = (us: typeof unidades) => us.reduce((s, u) => s + (u.depois !== undefined ? 2 : 1), 0);
   const onde = voos.length ? `nos ${fmt(tempo)} s que sobram dos voos` : `em ${fmt(duracaoS)} s`;
   let aviso: string | null = null;
   // nunca abaixo do mínimo: imagens demais passariam rápido demais; entram as que cabem, espalhadas entre os ambientes
   const cabem = imagensQueCabem(tempo, IMAGEM_MIN_S);
   let foraDoVideo = 0;
-  if (marcadas.length > cabem) {
-    const sub = marcadas.map((i, k) => ({ titulo: k === 0 || ambienteDe[i] !== ambienteDe[marcadas[k - 1]] ? `a${ambienteDe[i]}` : "" }));
-    const fica = selecionarN(sub, cabem);
-    foraDoVideo = marcadas.length - cabem;
-    aviso = `${marcadas.length} imagens marcadas não cabem ${onde} sem passar rápido demais: entram ${cabem} (${fmt(IMAGEM_MIN_S)} s cada, espalhadas entre os ambientes) e ${foraDoVideo} ficam de fora. Desmarque algumas, use "Escolher pela duração" ou aumente a duração.`;
-    marcadas = marcadas.filter((_, k) => fica[k]);
+  const totalMarcadas = vagas(unidades);
+  if (totalMarcadas > cabem) {
+    const sub = unidades.map((u, k) => ({ titulo: k === 0 || ambienteDe[u.indice] !== ambienteDe[unidades[k - 1].depois ?? unidades[k - 1].indice] ? `a${ambienteDe[u.indice]}` : "" }));
+    // o par vale duas vagas: tira unidades até caber
+    let n = Math.min(unidades.length, cabem), fica = selecionarN(sub, n);
+    while (n > 1 && vagas(unidades.filter((_, k) => fica[k])) > cabem) fica = selecionarN(sub, --n);
+    unidades = unidades.filter((_, k) => fica[k]);
+    foraDoVideo = totalMarcadas - vagas(unidades);
+    aviso = `${totalMarcadas} imagens marcadas não cabem ${onde} sem passar rápido demais: entram ${vagas(unidades)} (${fmt(IMAGEM_MIN_S)} s cada, espalhadas entre os ambientes) e ${foraDoVideo} ficam de fora. Desmarque algumas, use "Escolher pela duração" ou aumente a duração.`;
   }
-  const n = marcadas.length;
-  // n·d − (n−1)·dissolução = tempo das imagens
-  const bruto = (tempo + (n - 1) * DISSOLVE_S) / n;
+  const U = unidades.length, P = unidades.filter((u) => u.depois !== undefined).length, n = U + P;
+  // cada imagem dura d; o par dura 2d − dissolução (a cortina no lugar da dissolução entre as duas):
+  // (U − P)·d + P·(2d − D) − (U − 1)·D = tempo das imagens
+  const bruto = (tempo + (P + U - 1) * DISSOLVE_S) / n;
   if (!aviso && bruto > IMAGEM_MAX_S) aviso = `Com ${n} imagens, cada uma fica ${bruto.toFixed(1).replace(".", ",")} s na tela: marque mais imagens para o vídeo ficar mais dinâmico.`;
+  if (!aviso && parIncompleto) aviso = "Um par de antes e depois tem só uma das imagens marcada: marque as duas para a cortina entrar, ou desfaça o par.";
   const d = Math.max(bruto, IMAGEM_MIN_S);
   let ambAnterior = -1;
   // a primeira entra dissolvendo (sobre a vinheta ou o voo); as outras seguem o rodízio
-  const muda = marcadas.slice(1).map((indice, k) => ambienteDe[indice] !== ambienteDe[marcadas[k]]);
+  const ultimoAmbiente = (u: (typeof unidades)[number]) => ambienteDe[u.depois ?? u.indice];
+  const muda = unidades.slice(1).map((u, k) => ambienteDe[u.indice] !== ultimoAmbiente(unidades[k]));
   const entradas = [{ transicao: "dissolver" as Transicao, sentido: 1 as const }, ...transicoesDoPlano(muda, transicoes)];
-  const itens = marcadas.map((indice, k) => {
-    const a = ambienteDe[indice];
+  let ini = ini0;
+  const itens = unidades.map((u, k) => {
+    const a = ambienteDe[u.indice];
     const titulo = a !== ambAnterior ? titulos[a] : null;
-    ambAnterior = a;
-    const ini = ini0 + k * (d - DISSOLVE_S);
-    return { indice, ...entradas[k], ini, fim: Math.min(fimImagens, ini + d), titulo, movimento: movimentoDa(k, imgs[indice].largura, imgs[indice].altura, quadroW, quadroH) };
+    ambAnterior = ultimoAmbiente(u);
+    const dur = u.depois !== undefined ? 2 * d - DISSOLVE_S : d;
+    const item: ItemDoPlano = { indice: u.indice, ...entradas[k], ini, fim: Math.min(fimImagens, ini + dur), titulo, movimento: movimentoDa(k, imgs[u.indice].largura, imgs[u.indice].altura, quadroW, quadroH) };
+    if (u.depois !== undefined) {
+      item.depois = u.depois;
+      item.movimento = movimentoDoPar(imgs[u.indice].largura, imgs[u.indice].altura, quadroW, quadroH);
+      item.movimentoDepois = movimentoDoPar(imgs[u.depois].largura, imgs[u.depois].altura, quadroW, quadroH);
+    }
+    ini += dur - DISSOLVE_S;
+    return item;
   });
   return { duracaoS, itens, voos, porImagemS: d, aviso, foraDoVideo };
 }
@@ -356,7 +413,7 @@ export function roteiroDeTempos(p: PlanoDoVideo, nomes: string[], titulo: string
   const linhas = [
     `ROTEIRO DE NARRAÇÃO${titulo.trim() ? ` — ${titulo.trim()}` : ""}`,
     "",
-    `Vídeo: ${tempoDoRoteiro(p.duracaoS)} · ${p.itens.length} imagens · ${dimensoes.largura} × ${dimensoes.altura}`,
+    `Vídeo: ${tempoDoRoteiro(p.duracaoS)} · ${imagensDoPlano(p)} imagens · ${dimensoes.largura} × ${dimensoes.altura}`,
     `Fale entre ${tempoDoRoteiro(VOZ_INICIO_S)} e ${tempoDoRoteiro(vozAte)} (${(vozAte - VOZ_INICIO_S).toFixed(1).replace(".", ",")} s de voz).`,
     "Antes: a vinheta da marca. Depois: um respiro e o encerramento com a marca.",
     "Com a narração enviada, o vídeo passa a durar a fala e as imagens se ajustam a ela.",
@@ -369,13 +426,13 @@ export function roteiroDeTempos(p: PlanoDoVideo, nomes: string[], titulo: string
     if (it.titulo || !grupos.length) grupos.push({ titulo: it.titulo ?? "Abertura", ini: it.ini, fim: it.fim, n: 0 });
     const g = grupos[grupos.length - 1];
     g.fim = it.fim;
-    g.n++;
+    g.n += it.depois !== undefined ? 2 : 1;
   }
   const voo = (parte: ParteDoVoo) => p.voos.filter((v) => v.parte === parte).map((v) => `${tempoDoRoteiro(v.ini)} – ${tempoDoRoteiro(v.fim)}  Voo do drone pela casa (${parte})`);
   linhas.push(...voo("abertura"));
   for (const g of grupos) linhas.push(`${tempoDoRoteiro(g.ini)} – ${tempoDoRoteiro(g.fim)}  ${g.titulo} (${g.n} ${g.n > 1 ? "imagens" : "imagem"})`);
   linhas.push(...voo("encerramento"));
   linhas.push("", "IMAGENS");
-  p.itens.forEach((it, k) => linhas.push(`${String(k + 1).padStart(2, " ")}. ${tempoDoRoteiro(it.ini)} – ${tempoDoRoteiro(it.fim)}  ${nomes[it.indice] ?? ""}`));
+  p.itens.forEach((it, k) => linhas.push(`${String(k + 1).padStart(2, " ")}. ${tempoDoRoteiro(it.ini)} – ${tempoDoRoteiro(it.fim)}  ${it.depois !== undefined ? `Antes e depois: ${nomes[it.indice] ?? ""} → ${nomes[it.depois] ?? ""}` : nomes[it.indice] ?? ""}`));
   return linhas.join("\n") + "\n";
 }
