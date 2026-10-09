@@ -925,3 +925,20 @@ O sobrado de exemplo passou a ter Fortaleza e a frente para 70° (lés-nordeste)
   - títulos dos cartões; narração WAV, foto PNG e trilha WAV; a foto sobe para o começo; prévia da foto;
   - MP4 de 10,5 s com áudio: trilha na foto, narração por cima e o fim em silêncio.
 - **Visual:** quadros da foto emoldurada no vertical e no horizontal.
+
+## ADR-35 — MP4 do Firefox que não abria ("Codificado em AVC1")
+
+**Status:** aceito em 2026-10-09.
+
+**Problema.** O MP4 1080p gerado no Firefox (Windows) era salvo, mas não tocava; o player dizia "Codificado em AVC1". No Brave e no Edge, o mesmo vídeo saía correto.
+
+**Causa.** O codificador H.264 do Firefox entrega ao app o registro de configuração (caixa `avcC`) com o cabeçalho da NAL repetido no SPS e no PPS (`67 67 4d 40 28…`, `68 68 ce…`). O mediabunny grava o registro como recebe. Quem lê o SPS do registro encontra o perfil 103, que não existe, e recusa o vídeo. Dentro dos quadros, o SPS e o PPS estão corretos.
+
+**Decisão** (`src/rendering/avcc.ts`).
+- Depois da geração em MP4 alta, o app confere o `avcC`. Se ele estiver estragado, o app o refaz com o SPS e o PPS do primeiro quadro-chave (ou, sem eles, tirando o byte repetido) e remonta o MP4 **sem recodificar**: os pacotes de vídeo e de áudio são copiados na ordem do tempo.
+- Com o registro bom (Chromium, Edge, Brave), o arquivo sai como está.
+
+**Verificação.**
+- Vitest com os bytes do arquivo real do Firefox: registro válido × estragado, leitura e montagem, conserto pelo quadro-chave e pelo byte repetido.
+- O arquivo do Firefox de 09/10 (30 s, 900 quadros) saiu consertado, com o mesmo número de quadros.
+- MP4 gerado no Edge depois da mudança: registro igual ao de antes.

@@ -12,6 +12,7 @@ import { desenharAssinatura, desenharVinheta, opacidadeVinheta, sobrepor, type S
 import { abrirQuadros, audioDaFala, criarCamadaApresentadora, pedacosDeAudio, type CamadaApresentadora, type FonteFala, type QuadrosDaFala, type TrechoDeFala } from "./apresentadora";
 import { abrirFotos, desenharFotoEmoldurada, type LegendaFoto } from "./fotoNoVideo";
 import { mixar } from "./mixagem";
+import { mp4ComAvcCConsertado } from "./avcc";
 import { cantoDaAssinatura, ganhoDeNormalizacao, type ConfigApresentadora } from "./composicao";
 import { ESMAECER_MARCA_S, cenaNoTempo, obraNaCena, suaveMarca, poseDaCena, quadroDoVooNaCena, type Cena as CenaMontagem } from "./montagem";
 import type { Enquadramento } from "./cameras";
@@ -394,10 +395,12 @@ async function comoWebCodecs(p: PedidoVideo, canvas: HTMLCanvasElement, total: n
     if (output.state !== "finalized" && output.state !== "canceled") await output.cancel().catch(() => {});
     throw e;
   }
-  const buffer = (output.target as BufferTarget).buffer;
-  if (!buffer || buffer.byteLength === 0) throw new Error("O codificador terminou sem produzir dados.");
+  const bruto = (output.target as BufferTarget).buffer;
+  if (!bruto || bruto.byteLength === 0) throw new Error("O codificador terminou sem produzir dados.");
+  // o Firefox no Windows entrega o avcC com o cabeçalho da NAL repetido e o vídeo não abre: refaz sem recodificar
+  const buffer = mp4 ? await mp4ComAvcCConsertado(new Uint8Array(bruto), p.fps).catch(() => new Uint8Array(bruto)) : bruto;
   const mime = mp4 ? "video/mp4" : "video/webm";
-  return { blob: new Blob([buffer], { type: mime }), nome: `${p.nomeBase}.${mp4 ? "mp4" : "webm"}`, tipo: "video", descricao: NOME_SAIDA[p.saida], comAudio: !!trilha };
+  return { blob: new Blob([buffer as BlobPart], { type: mime }), nome: `${p.nomeBase}.${mp4 ? "mp4" : "webm"}`, tipo: "video", descricao: NOME_SAIDA[p.saida], comAudio: !!trilha };
 }
 
 async function comoMediaRecorder(p: PedidoVideo, canvas: HTMLCanvasElement, total: number, desenhar: Desenhar, progredir: Progredir, conferir: () => void, audio: AudioBuffer | null): Promise<ArquivoGerado> {
