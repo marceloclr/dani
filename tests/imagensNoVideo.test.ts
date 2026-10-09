@@ -16,6 +16,7 @@ import {
   recorteQueCobre,
   roteiroDeTempos,
   tempoDoRoteiro,
+  vooNoTempo,
   selecionarPelaDuracao,
   tituloNoTempo,
   type ImagemDoVideo,
@@ -157,5 +158,44 @@ describe("roteiro de tempos", () => {
     expect(r).toMatch(/0:00,0 – 0:0\d,\d {2}Sala \(2 imagens\)/);
     expect(r).toMatch(/Cozinha \(1 imagem\)/);
     expect(r).toMatch(/ 5\. 0:1\d,\d – 0:15,0 {2}p\. 44/);
+  });
+});
+describe("voo do drone no vídeo de imagens (INC-20)", () => {
+  const imgs = [img("Sala"), img(), img("Cozinha"), img()];
+  it("abertura e encerramento de 8 s: as imagens dividem o meio, dissolvendo com os voos", () => {
+    const p = planoDoVideo(imgs, 30, 1080, 1920, { aberturaS: 8, encerramentoS: 8 });
+    expect(p.voos).toEqual([{ parte: "abertura", ini: 0, fim: 8 }, { parte: "encerramento", ini: 22, fim: 30 }]);
+    expect(p.itens[0].ini).toBeCloseTo(8 - DISSOLVE_S, 6);
+    expect(p.itens.at(-1)!.fim).toBeCloseTo(22 + DISSOLVE_S, 6);
+    expect(p.aviso).toBeNull();
+  });
+  it("duração do voo entre 6 e 12 s e no máximo 40 % de um vídeo curto", () => {
+    expect(planoDoVideo(imgs, 60, 1920, 1080, { aberturaS: 20 }).voos[0].fim).toBe(12);
+    expect(planoDoVideo(imgs, 60, 1920, 1080, { aberturaS: 3 }).voos[0].fim).toBe(6);
+    expect(planoDoVideo(imgs, 15, 1920, 1080, { encerramentoS: 8 }).voos[0].ini).toBe(9);
+    expect(planoDoVideo(imgs, 15, 1920, 1080).voos).toEqual([]);
+  });
+  it("no voo puro não há imagem; a primeira dissolve sobre a abertura; o encerramento entra por cima", () => {
+    const p = planoDoVideo(imgs, 30, 1080, 1920, { aberturaS: 8, encerramentoS: 8 });
+    expect(camadasNoTempo(p, 3)).toEqual([]);
+    expect(vooNoTempo(p, 3)).toMatchObject({ parte: "abertura", opacidade: 1, porCima: false });
+    expect(camadasNoTempo(p, 7.7)[0].opacidade).toBeCloseTo(0.5, 6);
+    expect(vooNoTempo(p, 15)).toBeNull();
+    expect(vooNoTempo(p, 22.3)).toMatchObject({ parte: "encerramento", porCima: true });
+    expect(vooNoTempo(p, 22.3)!.opacidade).toBeCloseTo(0.5, 6);
+    expect(camadasNoTempo(p, 29)).toEqual([]);
+    expect(vooNoTempo(p, 30)?.u).toBe(1);
+  });
+  it("o primeiro título entra com a primeira imagem, depois do voo de abertura", () => {
+    const p = planoDoVideo(imgs, 30, 1080, 1920, { aberturaS: 8 });
+    expect(tituloNoTempo(p, 5)).toBeNull();
+    expect(tituloNoTempo(p, 8.5)?.texto).toBe("Sala");
+  });
+  it("aviso fala do tempo que sobra dos voos; o roteiro traz os voos", () => {
+    const muitas = Array.from({ length: 12 }, (_, i) => img(i % 3 ? "" : `A${i}`));
+    expect(planoDoVideo(muitas, 30, 1080, 1920, { aberturaS: 8, encerramentoS: 8 }).aviso).toMatch(/nos 15,2 s que sobram dos voos/);
+    const r = roteiroDeTempos(planoDoVideo(imgs, 30, 1080, 1920, { aberturaS: 8, encerramentoS: 8 }), ["a", "b", "c", "d"], "", { largura: 1080, altura: 1920 });
+    expect(r).toMatch(/0:00,0 – 0:08,0 {2}Voo do drone pela casa \(abertura\)/);
+    expect(r).toMatch(/0:22,0 – 0:30,0 {2}Voo do drone pela casa \(encerramento\)/);
   });
 });

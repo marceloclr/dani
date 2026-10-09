@@ -145,9 +145,21 @@ export interface ItemDoPlano {
   movimento: Movimento;
 }
 
+/** Voo do drone pela casa 3D (INC-20): no começo e/ou no fim do vídeo. */
+export type ParteDoVoo = "abertura" | "encerramento";
+export interface JanelaDoVoo {
+  parte: ParteDoVoo;
+  ini: number;
+  fim: number;
+}
+/** Duração de cada voo (s): padrão, mínima e máxima. */
+export const VOO_PADRAO_S = 8, VOO_MIN_S = 6, VOO_MAX_S = 12;
+
 export interface PlanoDoVideo {
   duracaoS: number;
   itens: ItemDoPlano[];
+  /** Janelas do voo 3D (vazio = só imagens). */
+  voos: JanelaDoVoo[];
   /** Tempo de cada imagem (s), dissolução incluída. */
   porImagemS: number;
   /** Aviso quando as marcadas não cabem (ou sobram) na duração. */
@@ -156,20 +168,31 @@ export interface PlanoDoVideo {
 
 /**
  * Plano do vídeo: as imagens marcadas, na ordem, dividem a duração em partes iguais, sobrepostas pela
- * dissolução. O título de ambiente vai na primeira imagem marcada de cada ambiente.
+ * dissolução. O título de ambiente vai na primeira imagem marcada de cada ambiente. Com voo (INC-20), o voo de
+ * abertura ocupa o começo e o de encerramento o fim; as imagens dividem o que sobra, dissolvendo com eles.
  */
-export function planoDoVideo(imgs: ImagemDoVideo[], duracaoS: number, quadroW: number, quadroH: number): PlanoDoVideo {
+export function planoDoVideo(imgs: ImagemDoVideo[], duracaoS: number, quadroW: number, quadroH: number, voo: { aberturaS?: number; encerramentoS?: number } = {}): PlanoDoVideo {
+  const lim = (s?: number) => (s && s > 0 ? Math.min(VOO_MAX_S, Math.max(VOO_MIN_S, s)) : 0);
+  let ab = lim(voo.aberturaS), en = lim(voo.encerramentoS);
+  // vídeo curto: os voos não passam de 40 % do tempo cada
+  if (ab) ab = Math.min(ab, duracaoS * 0.4);
+  if (en) en = Math.min(en, duracaoS * 0.4);
+  const voos: JanelaDoVoo[] = [...(ab ? [{ parte: "abertura" as const, ini: 0, fim: ab }] : []), ...(en ? [{ parte: "encerramento" as const, ini: duracaoS - en, fim: duracaoS }] : [])];
+  const ini0 = ab ? ab - DISSOLVE_S : 0, fimImagens = en ? duracaoS - en + DISSOLVE_S : duracaoS;
+  const tempo = fimImagens - ini0;
+  const fmt = (s: number) => s.toFixed(1).replace(".", ",").replace(/,0$/, "");
   // ambiente de cada imagem, valendo também para as não marcadas (o título pode estar numa desmarcada)
   const ambienteDe: number[] = [];
   ambientesDe(imgs).forEach((a, i) => a.indices.forEach((k) => (ambienteDe[k] = i)));
   const titulos = ambientesDe(imgs).map((a) => a.titulo);
   const marcadas = imgs.map((im, i) => (im.marcada ? i : -1)).filter((i) => i >= 0);
-  if (!marcadas.length) return { duracaoS, itens: [], porImagemS: 0, aviso: "Marque ao menos uma imagem." };
+  if (!marcadas.length) return { duracaoS, itens: [], voos, porImagemS: 0, aviso: "Marque ao menos uma imagem." };
   const n = marcadas.length;
-  // n·d − (n−1)·dissolução = duração
-  const bruto = (duracaoS + (n - 1) * DISSOLVE_S) / n;
+  // n·d − (n−1)·dissolução = tempo das imagens
+  const bruto = (tempo + (n - 1) * DISSOLVE_S) / n;
   let aviso: string | null = null;
-  if (bruto < IMAGEM_MIN_S) aviso = `${n} imagens não cabem em ${duracaoS} s: cabem até ${imagensQueCabem(duracaoS, IMAGEM_MIN_S)}. Desmarque algumas ou aumente a duração.`;
+  const onde = voos.length ? `nos ${fmt(tempo)} s que sobram dos voos` : `em ${fmt(duracaoS)} s`;
+  if (bruto < IMAGEM_MIN_S) aviso = `${n} imagens não cabem ${onde}: cabem até ${imagensQueCabem(tempo, IMAGEM_MIN_S)}. Desmarque algumas, encurte o voo ou aumente a duração.`;
   else if (bruto > IMAGEM_MAX_S) aviso = `Com ${n} imagens, cada uma fica ${bruto.toFixed(1).replace(".", ",")} s na tela: marque mais imagens para o vídeo ficar mais dinâmico.`;
   const d = Math.max(bruto, IMAGEM_MIN_S * 0.5);
   let ambAnterior = -1;
@@ -177,10 +200,10 @@ export function planoDoVideo(imgs: ImagemDoVideo[], duracaoS: number, quadroW: n
     const a = ambienteDe[indice];
     const titulo = a !== ambAnterior ? titulos[a] : null;
     ambAnterior = a;
-    const ini = k * (d - DISSOLVE_S);
-    return { indice, ini, fim: Math.min(duracaoS, ini + d), titulo, movimento: movimentoDa(k, imgs[indice].largura, imgs[indice].altura, quadroW, quadroH) };
+    const ini = ini0 + k * (d - DISSOLVE_S);
+    return { indice, ini, fim: Math.min(fimImagens, ini + d), titulo, movimento: movimentoDa(k, imgs[indice].largura, imgs[indice].altura, quadroW, quadroH) };
   });
-  return { duracaoS, itens, porImagemS: d, aviso };
+  return { duracaoS, itens, voos, porImagemS: d, aviso };
 }
 
 /** O que desenhar no segundo `t`: a imagem de baixo e, durante a dissolução, a de cima com sua opacidade. */
@@ -189,15 +212,27 @@ export function camadasNoTempo(p: PlanoDoVideo, t: number): { item: ItemDoPlano;
   p.itens.forEach((it, k) => {
     if (t < it.ini || t > it.fim + 1e-9) return;
     const u = (t - it.ini) / (it.fim - it.ini || 1);
-    const opacidade = k === 0 ? 1 : Math.min(1, (t - it.ini) / DISSOLVE_S);
+    // a primeira entra inteira, a não ser que dissolva sobre o voo de abertura
+    const opacidade = k === 0 && !p.voos.some((v) => v.parte === "abertura") ? 1 : Math.min(1, (t - it.ini) / DISSOLVE_S);
     out.push({ item: it, u, opacidade });
   });
-  // a última imagem segura o quadro até o fim (arredondamentos)
-  if (!out.length && p.itens.length) {
-    const ult = p.itens[p.itens.length - 1];
-    out.push({ item: ult, u: 1, opacidade: 1 });
-  }
+  // a última imagem segura o quadro até o fim (arredondamentos), quando não há voo de encerramento
+  const ult = p.itens[p.itens.length - 1];
+  if (!out.length && ult && t >= ult.fim && !p.voos.some((v) => v.parte === "encerramento")) out.push({ item: ult, u: 1, opacidade: 1 });
   return out;
+}
+
+/**
+ * Voo no segundo `t` (INC-20): a abertura vai por baixo das imagens (a primeira dissolve sobre ela); o
+ * encerramento vai por cima, entrando em 0,6 s sobre a última imagem.
+ */
+export function vooNoTempo(p: PlanoDoVideo, t: number): { parte: ParteDoVoo; u: number; opacidade: number; porCima: boolean } | null {
+  for (const v of p.voos) {
+    if (t < v.ini || t > v.fim + 1e-9) continue;
+    const u = Math.min(1, (t - v.ini) / (v.fim - v.ini || 1));
+    return v.parte === "abertura" ? { parte: v.parte, u, opacidade: 1, porCima: false } : { parte: v.parte, u, opacidade: Math.min(1, (t - v.ini) / DISSOLVE_S), porCima: true };
+  }
+  return null;
 }
 
 /** Capa: o título do vídeo sobre a primeira imagem, depois da vinheta (s). */
@@ -210,7 +245,8 @@ export const CAPA = { ini: VOZ_INICIO_S + 0.2, dur: 3 };
 export function tituloNoTempo(p: PlanoDoVideo, t: number, inicioPrimeiroS = VOZ_INICIO_S + 0.4): { texto: string; opacidade: number; u: number } | null {
   for (const [k, it] of p.itens.entries()) {
     if (!it.titulo) continue;
-    const ini = k === 0 ? inicioPrimeiroS : it.ini + DISSOLVE_S * 0.5;
+    // o primeiro título espera a vinheta (ou a capa) e, depois de um voo de abertura, a primeira imagem entrar
+    const ini = k === 0 ? Math.max(inicioPrimeiroS, it.ini + DISSOLVE_S * 0.5) : it.ini + DISSOLVE_S * 0.5;
     // o primeiro ambiente que acaba antes do seu título entrar (capa longa) fica sem título: não rotula outro
     const proximo = p.itens.slice(k + 1).find((x) => x.titulo);
     if (k === 0 && proximo && ini + 0.8 > proximo.ini) continue;
@@ -253,7 +289,10 @@ export function roteiroDeTempos(p: PlanoDoVideo, nomes: string[], titulo: string
     g.fim = it.fim;
     g.n++;
   }
+  const voo = (parte: ParteDoVoo) => p.voos.filter((v) => v.parte === parte).map((v) => `${tempoDoRoteiro(v.ini)} – ${tempoDoRoteiro(v.fim)}  Voo do drone pela casa (${parte})`);
+  linhas.push(...voo("abertura"));
   for (const g of grupos) linhas.push(`${tempoDoRoteiro(g.ini)} – ${tempoDoRoteiro(g.fim)}  ${g.titulo} (${g.n} ${g.n > 1 ? "imagens" : "imagem"})`);
+  linhas.push(...voo("encerramento"));
   linhas.push("", "IMAGENS");
   p.itens.forEach((it, k) => linhas.push(`${String(k + 1).padStart(2, " ")}. ${tempoDoRoteiro(it.ini)} – ${tempoDoRoteiro(it.fim)}  ${nomes[it.indice] ?? ""}`));
   return linhas.join("\n") + "\n";
