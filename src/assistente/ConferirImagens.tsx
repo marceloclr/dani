@@ -6,6 +6,7 @@ import {
   FORMATOS_IMAGENS,
   LADO_MAX,
   LADO_MIN,
+  alternarAntes,
   alternarMarcada,
   definirConfig,
   definirTitulo,
@@ -20,7 +21,7 @@ import {
   type FormatoImagens,
   type ImagemRecebida,
 } from "../app/imagensDoVideo";
-import { DURACOES_IMAGENS, VOO_MAX_S, VOO_MIN_S, ambientesDe, duracaoPelaNarracao, planoDoVideo, recomendacaoDeImagens, roteiroDeTempos, textoDaRecomendacao } from "../rendering/imagensNoVideo";
+import { DURACOES_IMAGENS, VOO_MAX_S, VOO_MIN_S, ambientesDe, duracaoPelaNarracao, imagensDoPlano, planoDoVideo, recomendacaoDeImagens, roteiroDeTempos, textoDaRecomendacao } from "../rendering/imagensNoVideo";
 import { DicaQuantidade } from "../components/DicaQuantidade";
 import { ATRASO_MAX_S, type GrupoDaLegenda } from "../rendering/legendas";
 import { useProjeto } from "../state/projectStore";
@@ -125,6 +126,7 @@ export function ConferirImagens() {
   const recomendacao = recomendacaoDeImagens(segundos, voo);
   const legendas = useMemo(() => legendasDoEstado(e), [e.duracao, e.narracao, e.legendas]);
   const marcadas = e.imagens.filter((i) => i.marcada).length;
+  const noVideo = imagensDoPlano(plano);
   const ambientes = ambientesDe(e.imagens);
   // título que vale para cada imagem (o digitado ou o do ambiente anterior), para a dica do campo
   const doAmbiente: string[] = [];
@@ -209,11 +211,11 @@ export function ConferirImagens() {
             </button>
           </div>
           <p className="resumo-cartao" data-testid="resumo-plano">
-            {plano.itens.length} de {e.imagens.length} imagens no vídeo{plano.foraDoVideo ? ` (${marcadas} marcadas)` : ""} · {ambientes.filter((a) => a.titulo).length} ambientes{plano.porImagemS > 0 ? ` · ${seg(Math.round(plano.porImagemS * 10) / 10)} cada` : ""}
+            {noVideo} de {e.imagens.length} imagens no vídeo{plano.foraDoVideo ? ` (${marcadas} marcadas)` : ""} · {ambientes.filter((a) => a.titulo).length} ambientes{plano.porImagemS > 0 ? ` · ${seg(Math.round(plano.porImagemS * 10) / 10)} cada` : ""}
           </p>
           <DicaQuantidade
             testId="dica-conferir"
-            situacao={plano.itens.length >= recomendacao.min && plano.itens.length <= recomendacao.max && !plano.foraDoVideo ? "ok" : "alerta"}
+            situacao={noVideo >= recomendacao.min && noVideo <= recomendacao.max && !plano.foraDoVideo ? "ok" : "alerta"}
             rotulo={`Ideal para ${seg(segundos)}: ${recomendacao.ideal} imagens (de ${recomendacao.min} a ${recomendacao.max})`}
             texto={`${textoDaRecomendacao(recomendacao)}\nMenos imagens: cada uma fica mais tempo (acima de 6 s cansa). Mais imagens: o vídeo fica mais rápido; abaixo de 2,5 s por imagem, as que sobram ficam de fora.${e.narracao ? `\nA narração tem ${seg(e.narracao.duracaoS)}: com a duração "Narração", as imagens acompanham a fala.` : "\nSem narração: escolha a duração e grave a fala depois, seguindo o roteiro."}`}
           />
@@ -315,17 +317,35 @@ export function ConferirImagens() {
               </button>
             </span>
           </header>
-          <p className="nota-cartao">Digite o título só na primeira imagem de cada ambiente: as seguintes continuam nele até o próximo título.</p>
+          <p className="nota-cartao">Digite o título só na primeira imagem de cada ambiente: as seguintes continuam nele até o próximo título. Para comparar a obra, ponha a foto de antes logo acima da de depois e toque em "Antes e depois".</p>
           <ol className="lista-imagens" data-testid="lista-imagens">
-            {e.imagens.map((im, k) => (
-              <li key={im.id} className={im.marcada ? "" : "fora-do-video"} data-testid={`img-${k}`}>
+            {e.imagens.map((im, k) => {
+              const ehDepois = k > 0 && !!e.imagens[k - 1].antes;
+              return (
+              <li key={im.id} className={[im.marcada ? "" : "fora-do-video", im.antes && k + 1 < e.imagens.length ? "par-antes" : "", ehDepois ? "par-depois" : ""].filter(Boolean).join(" ")} data-testid={`img-${k}`}>
                 <img src={im.url} alt="" loading="lazy" className="miniatura" />
                 <div className="dados-imagem">
                   <label className="marcar-imagem">
                     <input type="checkbox" checked={im.marcada} data-testid={`marcar-img-${k}`} onChange={() => alternarMarcada(im.id)} />
                     <span className="tenue">{im.pagina !== null ? `p. ${im.pagina}` : im.nome}</span>
                   </label>
-                  <input type="text" className="titulo-imagem" value={im.titulo} placeholder={doAmbiente[k] ? `${doAmbiente[k]} (continua)` : "Título do ambiente"} aria-label={`Título do ambiente da imagem ${k + 1}`} data-testid={`titulo-img-${k}`} onChange={(ev) => definirTitulo(im.id, ev.target.value)} />
+                  {ehDepois ? (
+                    <span className="etiqueta-par" data-testid={`depois-img-${k}`}>Depois · entra pela cortina</span>
+                  ) : (
+                    <input type="text" className="titulo-imagem" value={im.titulo} placeholder={doAmbiente[k] ? `${doAmbiente[k]} (continua)` : "Título do ambiente"} aria-label={`Título do ambiente da imagem ${k + 1}`} data-testid={`titulo-img-${k}`} onChange={(ev) => definirTitulo(im.id, ev.target.value)} />
+                  )}
+                  {!ehDepois && k + 1 < e.imagens.length && (
+                    <button
+                      type="button"
+                      className={`btn-par${im.antes ? " ativo" : ""}`}
+                      aria-pressed={!!im.antes}
+                      data-testid={`par-img-${k}`}
+                      data-tip={im.antes ? "Desfazer o antes e depois: as duas voltam a ser imagens comuns." : "Esta é a foto de antes e a de baixo, a de depois: no vídeo, o depois entra por uma cortina sobre o antes, com os rótulos ANTES e DEPOIS. O par vale por duas imagens."}
+                      onClick={() => alternarAntes(im.id)}
+                    >
+                      {im.antes ? "Antes ⇄ depois ✓" : "Antes e depois"}
+                    </button>
+                  )}
                 </div>
                 <div className="mover-item">
                   <button type="button" className="btn-icone" aria-label="Subir" disabled={k === 0} onClick={() => moverImagem(im.id, -1)}>
@@ -339,7 +359,8 @@ export function ConferirImagens() {
                   </button>
                 </div>
               </li>
-            ))}
+              );
+            })}
           </ol>
         </section>
       </div>

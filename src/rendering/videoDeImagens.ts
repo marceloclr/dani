@@ -3,7 +3,7 @@
 // mixagem do vídeo da obra. Sem cena 3D: gerar leva segundos.
 import { COR_DOURADO, COR_DOURADO_CLARO } from "../app/marca";
 import { totalDeQuadros } from "./cameras";
-import { CAPA, VOZ_INICIO_S, camadasNoTempo, type ModoTransicoes, type Transicao, planoDoVideo, recorteNoTempo, recorteQueCobre, tituloNoTempo, vooNoTempo, ZOOM_MOVIMENTO, type ImagemDoVideo, type ParteDoVoo, type PlanoDoVideo } from "./imagensNoVideo";
+import { CAPA, VOZ_INICIO_S, antesDepoisNoTempo, camadasNoTempo, type ModoTransicoes, type Transicao, planoDoVideo, recorteNoTempo, recorteQueCobre, tituloNoTempo, vooNoTempo, ZOOM_MOVIMENTO, type ImagemDoVideo, type ParteDoVoo, type PlanoDoVideo } from "./imagensNoVideo";
 import { TOPO_RESERVADO_REELS, desenharAssinatura, desenharVinheta, opacidadeVinheta, type TextoMarca } from "./marcaVideo";
 import { Cancelado, codificar, dimensoesDaSaida, mixagemDoVideo, type ArquivoGerado, type Saida } from "./VideoRenderer";
 import type { TrechoDeFala } from "./apresentadora";
@@ -198,6 +198,35 @@ function desenharLegenda(ctx: CanvasRenderingContext2D, W: number, H: number, gr
   ctx.restore();
 }
 
+/**
+ * Rótulo do antes e depois: pílula grafite translúcida com filete dourado, em caixa-alta espaçada. `lado`:
+ * "esquerda" (DEPOIS, do lado que a cortina revela) ou "direita" (ANTES). Fica abaixo do título no alto e longe
+ * da legenda.
+ */
+function desenharRotuloDoPar(ctx: CanvasRenderingContext2D, x0: number, y0: number, W: number, H: number, texto: string, lado: "esquerda" | "direita", opacidade: number): void {
+  if (opacidade <= 0) return;
+  const base = Math.min(W, H), vertical = H > W;
+  const f = Math.round(base * (vertical ? 0.036 : 0.03)), pad = Math.round(f * 0.7);
+  ctx.save();
+  ctx.globalAlpha *= opacidade;
+  ctx.font = `600 ${f}px "IBM Plex Sans", "Segoe UI", sans-serif`;
+  ctx.letterSpacing = `${f * 0.22}px`;
+  const w = ctx.measureText(texto).width;
+  const bw = w + pad * 2, bh = f + pad * 1.4, m = Math.round(base * 0.05);
+  const x = x0 + (lado === "esquerda" ? m : W - m - bw);
+  const y = y0 + (vertical ? H * 0.3 : H * 0.2);
+  ctx.fillStyle = "rgba(28, 28, 28, 0.62)";
+  ctx.beginPath();
+  ctx.roundRect(x, y, bw, bh, pad * 0.35);
+  ctx.fill();
+  ctx.fillStyle = COR_DOURADO;
+  ctx.fillRect(x, y + bh - Math.max(2, base * 0.003), bw, Math.max(2, base * 0.003));
+  ctx.fillStyle = "#f4f1ec";
+  ctx.textBaseline = "middle";
+  ctx.fillText(texto, x + pad, y + bh / 2);
+  ctx.restore();
+}
+
 /** Capa: título do vídeo centralizado sobre a primeira imagem, com véu escuro. */
 function desenharCapa(ctx: CanvasRenderingContext2D, W: number, H: number, texto: string, opacidade: number): void {
   const base = Math.min(W, H);
@@ -316,7 +345,8 @@ export async function desenharQuadroDeImagens(
   const durVoo = (parte: ParteDoVoo) => plano.voos.find((v) => v.parte === parte)!;
   if (voo && !voo.porCima) extras.voo!.desenhar(ctx, voo.parte, voo.u, durVoo(voo.parte).fim - durVoo(voo.parte).ini, extras.quadro ?? 0, 1);
   const camadas = camadasNoTempo(plano, t);
-  const bmps = new Map((await imagens(camadas.map((c) => c.item.indice))).map((x) => [x.i, x]));
+  // o par de antes e depois precisa das duas imagens
+  const bmps = new Map((await imagens(camadas.flatMap((c) => (c.item.depois !== undefined ? [c.item.indice, c.item.depois] : [c.item.indice])))).map((x) => [x.i, x]));
   // a imagem que entra (em transição) define também como a de baixo se move (empurrar)
   const entrando = camadas.find((c, i) => i > 0 && c.entrada < 1) ?? (camadas.length === 1 && camadas[0].entrada < 1 ? camadas[0] : null);
   const e = entrando ? suave(entrando.entrada) : 1;
@@ -326,7 +356,35 @@ export async function desenharQuadroDeImagens(
     // o movimento é calculado em pixels da imagem original; a imagem aberta pode estar reduzida (k)
     const { bmp, k } = aberta;
     const r = recorteNoTempo(c.item.movimento, c.u);
-    const desenhar = (alvo: CanvasRenderingContext2D, x = 0, y = 0, w = W, h = H) => alvo.drawImage(bmp, r.x * k, r.y * k, r.w * k, r.h * k, x, y, w, h);
+    const simples = (alvo: CanvasRenderingContext2D, x = 0, y = 0, w = W, h = H) => alvo.drawImage(bmp, r.x * k, r.y * k, r.w * k, r.h * k, x, y, w, h);
+    const depois = c.item.depois !== undefined ? bmps.get(c.item.depois) : undefined;
+    // antes e depois (INC-21): o depois entra pela cortina, da esquerda para a direita, com um filete dourado
+    const desenhar = !depois
+      ? simples
+      : (alvo: CanvasRenderingContext2D, x = 0, y = 0, w = W, h = H) => {
+          simples(alvo, x, y, w, h);
+          const ad = antesDepoisNoTempo(c.u);
+          if (ad.cortina > 0) {
+            const r2 = recorteNoTempo(c.item.movimentoDepois!, c.u);
+            alvo.save();
+            alvo.beginPath();
+            alvo.rect(x, y, w * ad.cortina, h);
+            alvo.clip();
+            alvo.drawImage(depois.bmp, r2.x * depois.k, r2.y * depois.k, r2.w * depois.k, r2.h * depois.k, x, y, w, h);
+            alvo.restore();
+            if (ad.cortina < 1) {
+              alvo.save();
+              alvo.fillStyle = COR_DOURADO;
+              alvo.shadowColor = "rgba(0, 0, 0, 0.45)";
+              alvo.shadowBlur = Math.min(W, H) * 0.012;
+              const lw = Math.max(3, Math.min(W, H) * 0.006);
+              alvo.fillRect(x + w * ad.cortina - lw / 2, y, lw, h);
+              alvo.restore();
+            }
+          }
+          desenharRotuloDoPar(alvo, x, y, w, h, "ANTES", "direita", ad.antes);
+          desenharRotuloDoPar(alvo, x, y, w, h, "DEPOIS", "esquerda", ad.depois);
+        };
     if (c !== entrando) {
       // a de baixo; no empurrar, sai para o lado enquanto a nova entra
       const dx = entrando?.item.transicao === "empurrar" && camadas.length > 1 ? -entrando.item.sentido * W * e : 0;

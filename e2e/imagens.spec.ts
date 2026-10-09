@@ -235,6 +235,57 @@ test("legendas (INC-21): narração em vídeo, texto colado, trechos de fala, pr
   expect(erros).toEqual([]);
 });
 
+test("antes e depois (INC-21): par na lista, marcação junta, roteiro, prévia, MP4 e trabalho guardado", async ({ page }) => {
+  const erros: string[] = [];
+  page.on("pageerror", (e) => erros.push(String(e)));
+  await page.goto("/#/imagens");
+  const fotos = ["coral_stone_wall", "concrete_wall_008", "clay_roof_tiles_02"].map((n) => ({ name: `${n}.jpg`, mimeType: "image/jpeg", buffer: readFileSync(`public/texturas/${n}_cor.jpg`) }));
+  await page.getByTestId("entrada-imagens").setInputFiles(fotos);
+  await expect(page.getByTestId("estado-imagens")).toHaveText(/^3 imagens/, { timeout: 60_000 });
+  await page.getByTestId("img-avancar").click();
+  await page.getByTestId("duracao-img-15").click();
+  await page.getByTestId("titulo-img-0").fill("Cozinha");
+  await page.getByTestId("titulo-img-2").fill("Suíte");
+  // a primeira é o antes; a segunda vira o depois (sem campo de título) e a última não tem o botão
+  await page.getByTestId("par-img-0").click();
+  await expect(page.getByTestId("par-img-0")).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByTestId("depois-img-1")).toBeVisible();
+  await expect(page.getByTestId("titulo-img-1")).toHaveCount(0);
+  await expect(page.getByTestId("par-img-2")).toHaveCount(0);
+  await expect(page.getByTestId("resumo-plano")).toContainText("3 de 3 imagens no vídeo · 2 ambientes");
+  // desmarcar o depois desmarca o par inteiro; marcar de novo traz os dois
+  await page.getByTestId("marcar-img-1").uncheck();
+  await expect(page.getByTestId("marcar-img-0")).not.toBeChecked();
+  await expect(page.getByTestId("resumo-plano")).toContainText("1 de 3 imagens no vídeo");
+  await page.getByTestId("marcar-img-0").check();
+  await expect(page.getByTestId("marcar-img-1")).toBeChecked();
+  const [roteiro] = await Promise.all([page.waitForEvent("download"), page.getByTestId("baixar-roteiro").click()]);
+  const txt = readFileSync(await roteiro.path(), "utf8");
+  expect(txt).toContain("Antes e depois: Cozinha → concrete_wall_008.jpg");
+  expect(txt).toMatch(/Cozinha \(2 imagens\)/);
+  // prévia no meio da cortina: o filete dourado aparece numa coluna do quadro
+  const plano = await page.getByTestId("previa-imagens").evaluate((c: HTMLCanvasElement) => [c.width, c.height]);
+  expect(plano[1]).toBeGreaterThan(plano[0]);
+  await page.getByTestId("img-avancar").click();
+  await expect(page.getByTestId("config-img")).toContainText("3 imagens");
+  await page.getByTestId("img-saida").selectOption("mp4-whatsapp");
+  const baixa = page.waitForEvent("download", { timeout: 240_000 });
+  await page.getByTestId("img-gerar-video").click();
+  const video = await baixa;
+  const input = new Input({ formats: [MP4], source: new BufferSource(readFileSync(await video.path())) });
+  expect(await input.computeDuration()).toBeCloseTo(15, 0);
+
+  // recarregar: o par volta do navegador; desfazer devolve o campo de título
+  await page.waitForTimeout(800);
+  await page.reload();
+  await expect(page.getByTestId("estado-imagens")).toHaveText(/^3 imagens/, { timeout: 30_000 });
+  await page.getByTestId("img-avancar").click();
+  await expect(page.getByTestId("par-img-0")).toHaveAttribute("aria-pressed", "true");
+  await page.getByTestId("par-img-0").click();
+  await expect(page.getByTestId("titulo-img-1")).toBeVisible();
+  expect(erros).toEqual([]);
+});
+
 /** WAV mono 48 kHz com "falas" (tom de 220 Hz) nos trechos dados e silêncio entre eles. */
 function wavDeFala(segundos: number, trechos: [number, number][]): Buffer {
   const taxa = 48000, n = taxa * segundos, b = Buffer.alloc(44 + n * 2);

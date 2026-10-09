@@ -449,6 +449,13 @@ a.btn[aria-disabled="true"] { opacity: .5; cursor: not-allowed; }
 .miniatura { width: 96px; height: 60px; object-fit: cover; border-radius: 4px; background: var(--papel-2); }
 .dados-imagem { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 .marcar-imagem { display: flex; gap: 6px; align-items: center; font-size: 12px; }
+.lista-imagens li.par-antes { border-left-color: var(--ardosia); border-bottom-left-radius: 0; border-bottom-right-radius: 0; margin-bottom: -6px; border-bottom-style: dashed; }
+.lista-imagens li.par-depois { border-left-color: var(--ardosia); border-top-left-radius: 0; border-top-right-radius: 0; }
+.etiqueta-par { font-size: 11.5px; color: var(--tinta-3); padding: 5px 0; }
+.btn-par { appearance: none; align-self: flex-start; border: 1px solid var(--linha); background: var(--carta-2); color: var(--tinta-2); border-radius: var(--raio-p); padding: 2px 8px; font: 500 11.5px var(--fonte-corpo); cursor: pointer; }
+.btn-par:hover { border-color: var(--linha-forte); color: var(--tinta); }
+.btn-par.ativo { border-color: var(--ardosia); color: var(--tinta); background: var(--carta); }
+.btn-par:focus-visible { outline: 2px solid var(--acento-medio); outline-offset: 1px; }
 .marcar-imagem .tenue { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .titulo-imagem { font: 400 13px var(--fonte-corpo); padding: 5px 8px; border: 1px solid var(--linha); border-radius: var(--raio-p); background: var(--carta); color: var(--tinta); min-width: 0; }
 .titulo-imagem::placeholder { color: var(--tinta-3); font-style: italic; }

@@ -9,7 +9,7 @@ import { CLIENTE } from "../app/marca";
 import { nomeSeguro } from "../app/projetos";
 import { totalDeQuadros } from "../rendering/cameras";
 import { gerarVideoDeImagens } from "../rendering/videoDeImagens";
-import { planoDoVideo } from "../rendering/imagensNoVideo";
+import { imagensDoPlano, planoDoVideo } from "../rendering/imagensNoVideo";
 import { Cancelado, NOME_SAIDA, capacidades, dimensoesDaSaida, type ArquivoGerado, type Saida } from "../rendering/VideoRenderer";
 import { useProjeto } from "../state/projectStore";
 import { baixar, carimboArquivo } from "../utils/baixar";
@@ -129,7 +129,7 @@ export function GerarImagens() {
   const pct = progresso ? Math.round((progresso.quadro / progresso.total) * 100) : 0;
   // o que entra de fato (imagens demais ficam de fora para nenhuma passar rápido demais)
   const plano = planoDoVideo(e.imagens, segundos, largura, altura, voo, e.transicoes);
-  const marcadas = plano.itens.length;
+  const marcadas = imagensDoPlano(plano);
   const semVoz = e.duracao !== "narracao" || !e.narracao;
 
   return (
