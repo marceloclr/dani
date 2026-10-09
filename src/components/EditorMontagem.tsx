@@ -77,6 +77,7 @@ export function EditorMontagem({ cenas, segundos, temFala, fundoVerde, atual, ao
               <>
                 <select aria-label="Câmera da cena" value={c.camera} onChange={(e) => mudar(i, { camera: e.target.value as CameraCena })}>
                   <option value="drone">Drone</option>
+                  <option value="continua">Contínua</option>
                   {PRESETS.map((x) => (
                     <option key={x.id} value={x.id as Preset}>
                       {x.rotulo}

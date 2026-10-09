@@ -4,7 +4,8 @@ import { poseDoPreset, type Enquadramento, type Pose, type Preset } from "./came
 import type { QuadroCamera, Voo } from "./drone";
 
 export type TipoCena = "fala" | "revelacao" | "obra" | "foto" | "marca";
-export type CameraCena = "drone" | Preset;
+/** "continua" (ADR-41): uma tomada lenta que acompanha o avanço da obra, sem cortes entre as falas. */
+export type CameraCena = "drone" | "continua" | Preset;
 export type PessoaNaCena = "cheia" | "recortada" | "oculta";
 
 export interface Cena {
@@ -163,15 +164,34 @@ export function cortinaRevelacao(u: number, y: number): number {
 }
 
 /**
- * Câmera de uma cena com vista (não drone): o preset com movimento lento, como num Reels: a órbita
- * anda 15 % da volta; as outras vistas se aproximam 8 % e giram 3,4°.
+ * Câmera contínua (ADR-41): pelo avanço da obra `x` (0 = terreno, 1 = pronta), gira devagar da frente-esquerda
+ * para quase de frente, descendo e se aproximando. Depende só de `x`: não pula entre uma fala e outra.
  */
-export function poseDaCena(camera: Preset, e: Enquadramento, u: number, percurso?: Cena["percurso"]): Pose {
-  // volta por fora (ADR-32): baixa, à altura de quem olha da rua, andando um terço da volta
-  if (percurso === "volta") {
-    const p = poseDoPreset("orbita", e);
-    return { ...p, az: grauRad(-70) + grauRad(120) * u, el: grauRad(9), dist: 0.98 };
-  }
+export const CONTINUA = { azIni: -75, azFim: -15, elIni: 32, elFim: 16, distIni: 1.12, distFim: 0.98 };
+export function poseContinua(e: Enquadramento, x: number): Pose {
+  const t = Math.min(Math.max(x, 0), 1);
+  const l = (a: number, b: number) => a + (b - a) * t;
+  return { az: grauRad(l(CONTINUA.azIni, CONTINUA.azFim)), el: grauRad(l(CONTINUA.elIni, CONTINUA.elFim)), dist: l(CONTINUA.distIni, CONTINUA.distFim), alvo: e.centro };
+}
+
+/**
+ * Volta por fora (ADR-32): baixa, à altura de quem olha da rua, de `inicioGraus`, girando `giroGraus`. Com
+ * `elInicioGraus`, desce dessa altura até a da rua no primeiro terço da volta (sem degrau depois da contínua).
+ */
+export function poseDaVolta(e: Enquadramento, u: number, inicioGraus = -70, giroGraus = 120, elInicioGraus = 9): Pose {
+  const p = poseDoPreset("orbita", e);
+  const desce = suaveMarca(u / 0.3);
+  return { ...p, az: grauRad(inicioGraus) + grauRad(giroGraus) * u, el: grauRad(elInicioGraus + (9 - elInicioGraus) * desce), dist: 0.98 };
+}
+
+/**
+ * Câmera de uma cena com vista (não drone): o preset com movimento lento, como num Reels: a órbita
+ * anda 15 % da volta; as outras vistas se aproximam 8 % e giram 3,4°. A contínua segue o avanço da obra
+ * (`obra`, o da cena) e a volta por fora começa onde ela parou, no mesmo sentido (ADR-41).
+ */
+export function poseDaCena(camera: Preset | "continua", e: Enquadramento, u: number, percurso?: Cena["percurso"], obra?: [number, number]): Pose {
+  if (percurso === "volta") return poseDaVolta(e, u, CONTINUA.azFim, 90, CONTINUA.elFim);
+  if (camera === "continua") return poseContinua(e, obra ? obra[0] + (obra[1] - obra[0]) * u : u);
   if (camera === "orbita") return poseDoPreset("orbita", e, 0.15 * u);
   const p = poseDoPreset(camera, e);
   return { ...p, az: p.az + 0.06 * u, dist: p.dist * (1 - 0.08 * u) };
@@ -223,24 +243,17 @@ export type CenaDaFala = "terreno" | "sobre-obra" | "voz";
 
 /** Duração da cena da marca, que fecha o vídeo depois da última fala. */
 export const MARCA_S = 2.5;
-/** Duração aproximada de cada tomada sobre a obra: cortes a cada 3 a 4 s, como nos Reels. */
-export const TOMADA_S = 3.5;
 /** Respiro depois da última voz (ADR-34): a câmera continua andando antes da marca; o vídeo não acaba de repente. */
 export const RESPIRO_S = 1;
 
 /** Um item do roteiro: uma voz (fala, narração ou obra em silêncio) ou uma foto (ADR-34). */
 export type ItemRoteiro = { cena: CenaDaFala; duracaoS: number } | { cena: "foto"; duracaoS: number; foto: number; obra: number | null };
-/** Câmeras das tomadas sobre a obra, em rodízio. */
-// sem a vista de cima: de cima, por dentro, a obra vira um piso branco sem leitura (ADR-31)
-// começa pela isométrica (mostra o lote inteiro); sem a lateral, que costuma ser parede cega (ADR-32)
-export const CAMERAS_TOMADA: Preset[] = ["isometrica", "externa", "frontal", "orbita"];
-
 /**
  * Roteiro a partir das falas da planilha (ADR-30). As cenas seguem as falas, na ordem e com a duração de cada
  * uma, e a marca fecha o vídeo (`MARCA_S`). Total = soma das falas + `MARCA_S`.
  * - **terreno**: o quadro original dela (45 %) e a revelação, com a obra pronta subindo atrás dela (55 %);
- * - **sobre a obra** / **só a voz**: tomadas de ~3,5 s em rodízio de câmeras, com a obra se formando ao longo de
- *   todas essas falas (do terreno à pronta), com ela recortada no canto ou fora do quadro;
+ * - **sobre a obra** / **só a voz**: uma cena por fala, na câmera contínua (ADR-41), com a obra se formando ao
+ *   longo de todas essas falas (do terreno à pronta), com ela recortada no canto ou fora do quadro;
  * - a última fala sobre a obra, se tiver 6 s ou mais, termina com o passeio do drone pela obra pronta (40 %, até 10 s).
  */
 export function roteiroDasFalas(itens: ItemRoteiro[], opcoes: { passeio?: Passeio } = {}): { cenas: Cena[]; totalS: number } {
@@ -257,7 +270,7 @@ export function roteiroDasFalas(itens: ItemRoteiro[], opcoes: { passeio?: Passei
   falas.forEach((f, i) => (f.cena !== "terreno" && f.cena !== "foto" ? (ultimaObra = i) : undefined));
   const passeioS = ultimaObra >= 0 ? duracaoDoPasseio(passeio, falas[ultimaObra].duracaoS) : 0;
   const tempoObra = falas.reduce((s, f) => (f.cena === "terreno" ? s : s + f.duracaoS), 0) - passeioS;
-  let progresso = 0, rodizio = 0;
+  let progresso = 0;
   itens.forEach((item, i) => {
     // foto (ADR-34): a obra parada no dia da foto (ou onde o vídeo está), vista de cima, com a foto emoldurada
     if (item.cena === "foto") {
@@ -275,11 +288,9 @@ export function roteiroDasFalas(itens: ItemRoteiro[], opcoes: { passeio?: Passei
     }
     const pessoa: PessoaNaCena = f.cena === "voz" ? "oculta" : "recortada";
     const montagemS = i === ultimaObra ? d - passeioS : d;
-    const n = Math.max(1, Math.round(montagemS / TOMADA_S));
-    for (let k = 0; k < n && montagemS > 0; k++) {
-      const s = montagemS / n;
-      const ini = progresso, fim = tempoObra > 0 ? Math.min(1, progresso + s / tempoObra) : 1;
-      brutas.push({ tipo: "obra", s, camera: CAMERAS_TOMADA[rodizio++ % CAMERAS_TOMADA.length], obra: [ini, fim], pessoa });
+    if (montagemS > 0) {
+      const ini = progresso, fim = tempoObra > 0 ? Math.min(1, progresso + montagemS / tempoObra) : 1;
+      brutas.push({ tipo: "obra", s: montagemS, camera: "continua", obra: [ini, fim], pessoa });
       progresso = fim;
     }
     if (i === ultimaObra && passeioS > 0)

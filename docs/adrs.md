@@ -687,7 +687,7 @@ O sobrado de exemplo passou a ter Fortaleza e a frente para 70° (lés-nordeste)
   - **Voz:** as falas em sequência, cada uma no seu corte (`inicio_s`–`fim_s`). `abrirQuadros` e `audioDaFala` aceitam uma `FonteFala` (um arquivo ou a lista de trechos). Cada arquivo é aberto só quando chega a sua vez. Os quadros de outro formato entram cobrindo a tela do primeiro, e o áudio é emendado a 48 kHz.
   - **Roteiro pelas falas:**
     - **terreno:** o quadro original (45 %) e a revelação (55 %);
-    - **sobre a obra / só a voz:** tomadas de cerca de 3,5 s em rodízio de câmeras, com ela recortada ou fora do quadro. A obra se forma do terreno à pronta ao longo dessas falas;
+    - **sobre a obra / só a voz:** tomadas de cerca de 3,5 s em rodízio de câmeras, com ela recortada ou fora do quadro. A obra se forma do terreno à pronta ao longo dessas falas (desde o ADR-41: uma cena por fala, na câmera contínua);
     - **última fala sobre a obra (≥ 6 s):** termina com o passeio do drone (40 %, até 10 s);
     - **marca:** fecha com 2,5 s (`MARCA_S`).
     - Duração = soma das falas + 2,5 s.
@@ -1127,3 +1127,27 @@ O sobrado de exemplo passou a ter Fortaleza e a frente para 70° (lés-nordeste)
 - **Vitest:** item duplo, tempos fechando, par incompleto, antes na última posição, corte com o par, fases da cortina e roteiro.
 - **Playwright:** botão, marcação junta, resumo, roteiro, MP4 e o par guardado.
 - **Ensaio:** cortina, filete e rótulos conferidos nos quadros do vídeo gerado.
+
+## ADR-41 — Câmera contínua na obra do vídeo da obra
+
+**Status:** aceito em 2026-10-09 (INC-22). Substitui o rodízio de tomadas do ADR-30 e o item 5 do ADR-32.
+
+**Pedido.** No vídeo de 09/10 (`sobrado-de-exemplo-20261009-1548.mp4`), o usuário achou as transições cansativas: "fica muito da direita para a esquerda e vice versa". Escolheu o movimento contínuo, uma tomada lenta enquanto a obra sobe.
+
+**Causa.** As falas sobre a obra viravam tomadas de ~3,5 s em rodízio de 4 câmeras (isométrica −45°, externa −28°, frontal 0° e órbita). A cada corte o ponto de vista pulava de lado. A órbita varria 54° em ~4 s e, no corte seguinte, voltava de repente ao outro lado.
+
+**Decisão.**
+1. **Câmera `continua`** (`poseContinua`): a pose depende só do **avanço da obra** `x` (0 = terreno, 1 = pronta), não do tempo da cena. Por isso não há salto entre uma fala e outra: o fim de uma cena e o começo da seguinte têm a mesma obra e a mesma pose.
+   - azimute de −75° (frente-esquerda) a −15° (quase de frente): 60° em toda a obra, sempre no mesmo sentido;
+   - altura de 32° a 16°; distância de 1,12 a 0,98 (aproxima-se aos poucos).
+2. **Uma cena de obra por fala** (`roteiroDasFalas`), sem `TOMADA_S` e sem `CAMERAS_TOMADA`. A faixa de cenas do Conferir mostra uma cena por fala.
+3. **Volta por fora do assistente** (`poseDaVolta`): começa onde a contínua parou (−15°, 16° de altura), gira 90° no mesmo sentido e desce à altura da rua (9°) no primeiro terço, sem o vai e vem nem degrau. O vídeo de imagens (ADR-38) mantém a volta antiga (−70°, 120°).
+4. O editor de montagem da Gestão ganha a câmera **Contínua**.
+
+**Consequências.**
+- Fica mais fácil: um vídeo calmo, sem cortes de câmera durante a obra.
+- Fica mais difícil: menos variedade de ângulos. As cenas de foto, a revelação e o passeio continuam sendo cortes.
+
+**Verificação.**
+- **Vitest** (`tests/falas.test.ts`): uma cena por fala na contínua; mesma pose no fim de uma fala e no começo da seguinte; 60° no mesmo sentido; volta começando em −15°.
+- **Ensaio:** quadros do vídeo gerado no Edge, conferidos a cada 0,5 s.

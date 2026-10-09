@@ -25,16 +25,15 @@ describe("roteiro a partir das falas (ADR-30)", () => {
     expect(seg[cenas.length - 1]).toBeCloseTo(MARCA_S);
   });
 
-  it("a obra se forma de 0 a 1 ao longo das tomadas, sem voltar, e as tomadas têm de 2 a 5 s", () => {
-    const { cenas, totalS } = roteiroDasFalas([{ cena: "sobre-obra", duracaoS: 20 }, { cena: "sobre-obra", duracaoS: 9 }]);
+  it("a obra se forma de 0 a 1 ao longo das falas, sem voltar, uma cena por fala na câmera contínua (ADR-41)", () => {
+    const { cenas } = roteiroDasFalas([{ cena: "sobre-obra", duracaoS: 20 }, { cena: "sobre-obra", duracaoS: 9 }]);
     const tomadas = cenas.filter((c) => c.tipo === "obra" && !c.percurso);
     expect(tomadas[0].obra[0]).toBe(0);
     expect(tomadas[tomadas.length - 1].obra[1]).toBeCloseTo(1);
     tomadas.forEach((c, i) => i && expect(c.obra[0]).toBeCloseTo(tomadas[i - 1].obra[1]));
-    const seg = duracoes(cenas, totalS);
-    cenas.forEach((c, i) => c.tipo === "obra" && !c.percurso && expect(seg[i]).toBeGreaterThanOrEqual(2) && expect(seg[i]).toBeLessThanOrEqual(5));
-    // câmeras em rodízio: duas tomadas seguidas nunca repetem a câmera
-    tomadas.forEach((c, i) => i && expect(c.camera).not.toBe(tomadas[i - 1].camera));
+    // sem cortes dentro da fala: a primeira (20 s) é uma cena só; a segunda (9 s) divide-se com o passeio
+    expect(tomadas).toHaveLength(2);
+    expect(tomadas.every((c) => c.camera === "continua")).toBe(true);
   });
 
   it("fala curta não ganha passeio; sem falas, volta ao roteiro sem pessoa", () => {
@@ -102,7 +101,7 @@ describe("aba Falas vazia", async () => {
 });
 
 describe("passeio externo, interno ou ambos (ADR-32)", async () => {
-  const { roteiroDasFalas, CAMERAS_TOMADA, duracoes, MARCA_S, RESPIRO_S, trechoInterno, ANTES_DA_PORTA_M, PASSEIO_DESDE_PORTA_M, VELOCIDADE_INTERNA } = await import("../src/rendering/montagem");
+  const { roteiroDasFalas, CONTINUA, poseDaCena, duracoes, MARCA_S, RESPIRO_S, trechoInterno, ANTES_DA_PORTA_M, PASSEIO_DESDE_PORTA_M, VELOCIDADE_INTERNA } = await import("../src/rendering/montagem");
   const fala = [{ cena: "sobre-obra" as const, duracaoS: 20 }];
   const fim = (passeio: "externo" | "interno" | "ambos") => {
     const { cenas, totalS } = roteiroDasFalas(fala, { passeio });
@@ -121,10 +120,24 @@ describe("passeio externo, interno ou ambos (ADR-32)", async () => {
     // total sempre = falas + respiro + marca
     for (const p of ["externo", "interno", "ambos"] as const) expect(roteiroDasFalas(fala, { passeio: p }).totalS).toBe(20 + RESPIRO_S + MARCA_S);
   });
-  it("tomadas começam pela isométrica, sem vista de cima nem lateral", () => {
-    expect(CAMERAS_TOMADA[0]).toBe("isometrica");
-    expect(CAMERAS_TOMADA).not.toContain("superior");
-    expect(CAMERAS_TOMADA).not.toContain("lateral");
+  it("câmera contínua: segue a obra, sem salto entre falas, e a volta por fora começa onde ela parou (ADR-41)", () => {
+    const e = { centro: [0, 0, 0] as [number, number, number], raio: 10 };
+    const graus = (r: number) => (r * 180) / Math.PI;
+    // a mesma obra dá a mesma pose, em qualquer cena: fim de uma fala = começo da seguinte
+    const fimA = poseDaCena("continua", e, 1, undefined, [0, 0.4]);
+    const iniB = poseDaCena("continua", e, 0, undefined, [0.4, 1]);
+    expect(iniB).toEqual(fimA);
+    expect(graus(poseDaCena("continua", e, 0, undefined, [0, 1]).az)).toBeCloseTo(CONTINUA.azIni);
+    const fim = poseDaCena("continua", e, 1, undefined, [0, 1]);
+    expect(graus(fim.az)).toBeCloseTo(CONTINUA.azFim);
+    // gira sempre no mesmo sentido, devagar: 60° em toda a obra
+    expect(CONTINUA.azFim - CONTINUA.azIni).toBe(60);
+    const volta0 = poseDaCena("orbita", e, 0, "volta"), volta1 = poseDaCena("orbita", e, 1, "volta");
+    expect(graus(volta0.az)).toBeCloseTo(CONTINUA.azFim);
+    // sem degrau: a volta começa na altura em que a contínua terminou
+    expect(graus(volta0.el)).toBeCloseTo(CONTINUA.elFim);
+    expect(graus(volta0.el)).toBeCloseTo(graus(fim.el));
+    expect(volta1.az).toBeGreaterThan(volta0.az);
   });
   it("por dentro: começa de frente para a porta, a 1,5 m, anda 1 m/s e nunca passa da volta final", () => {
     // voo sintético: 200 m andando em u de 0 a 0,9; passeio a 3,5 m da porta em u = 0,5; volta final em u = 0,6

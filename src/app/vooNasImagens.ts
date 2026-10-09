@@ -9,7 +9,7 @@ import { aplicarSol, diaCivilDaSimulacao } from "./solDaCena";
 import { estimarCronograma, prazoSugerido } from "../fourd/estimativa";
 import { duracaoObra } from "../fourd/simulacao";
 import { lerData } from "../fourd/tempo";
-import { cenasDoPasseio, poseDaCena, quadroDoVooNaCena, type Cena as CenaMontagem } from "../rendering/montagem";
+import { cenasDoPasseio, poseDaVolta, quadroDoVooNaCena, type Cena as CenaMontagem } from "../rendering/montagem";
 import type { Cena } from "../rendering/Cena";
 import type { ParteDoVoo } from "../rendering/imagensNoVideo";
 import { useProjeto } from "../state/projectStore";
@@ -87,7 +87,7 @@ export async function criarTrecho3D(cena: Cena, largura: number, altura: number,
       if (p.percurso === "interno" && voo) cena.posicionarLivre(camera, quadroDoVooNaCena(c, uu, voo, duracaoS * p.parte));
       else {
         cena.atualizarPortas(null);
-        cena.posicionar(camera, poseDaCena("orbita", e, parte === "encerramento" ? 1 - uu : uu, "volta"));
+        cena.posicionar(camera, poseDaVolta(e, parte === "encerramento" ? 1 - uu : uu));
       }
       desenhista.desenhar(camera, quadro);
       ctx.globalAlpha = opacidade;

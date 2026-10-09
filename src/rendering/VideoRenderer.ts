@@ -224,7 +224,7 @@ export async function gerarVideo(cena: Cena, pedido: PedidoVideo): Promise<Arqui
       if (cc.camera === "drone" && m.voo) cena.posicionarLivre(camera, quadroDoVooNaCena(cc, uu, m.voo, duracaoS));
       else {
         cena.atualizarPortas(null);
-        cena.posicionar(camera, poseDaCena(cc.camera === "drone" ? "orbita" : cc.camera, m.enquadramento, uu, cc.percurso));
+        cena.posicionar(camera, poseDaCena(cc.camera === "drone" ? "orbita" : cc.camera, m.enquadramento, uu, cc.percurso, cc.obra));
       }
       desenhista.desenhar(camera, i);
     };

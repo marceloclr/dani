@@ -95,7 +95,7 @@ export function PainelVideo() {
       if (c.tipo === "fala" || c.tipo === "marca") return;
       const voo = c.camera === "drone" ? cena.voo() : null;
       if (voo) cena.posicionarLivre(cena.camera, quadroDoVooNaCena(c, m.u, voo, m.fim - m.inicio));
-      else cena.mostrarPose(poseDaCena(c.camera === "drone" ? "orbita" : c.camera, cena.enquadramento(), m.u, c.percurso));
+      else cena.mostrarPose(poseDaCena(c.camera === "drone" ? "orbita" : c.camera, cena.enquadramento(), m.u, c.percurso, c.obra));
       st().definirDia(obraNaCena(c, m.u) * dias);
       cena.pedirQuadro();
       return;
