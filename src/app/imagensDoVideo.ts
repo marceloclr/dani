@@ -1,7 +1,8 @@
 // Vídeo de imagens (INC-19): as imagens recebidas (de um PDF ou soltas), os títulos, a marcação e a ordem,
 // a narração e a configuração do vídeo (formato e duração). Os arquivos ficam aqui; a tela se inscreve.
 import { LIMIAR_REPETIDA, distancia } from "../rendering/impressao";
-import { VOO_PADRAO_S, duracaoPelaNarracao, selecionarPelaDuracao, type ImagemDoVideo, type ModoTransicoes } from "../rendering/imagensNoVideo";
+import { legendasDoVideo, type GrupoDaLegenda } from "../rendering/legendas";
+import { VOO_PADRAO_S, VOZ_INICIO_S, duracaoPelaNarracao, selecionarPelaDuracao, type ImagemDoVideo, type ModoTransicoes } from "../rendering/imagensNoVideo";
 
 export type FormatoImagens = "horizontal" | "vertical" | "quadrado" | "retrato" | "personalizado";
 export const FORMATOS_IMAGENS: Record<Exclude<FormatoImagens, "personalizado">, { largura: number; altura: number; rotulo: string }> = {
@@ -44,7 +45,18 @@ export interface NarracaoRecebida {
   nome: string;
   blob: Blob;
   duracaoS: number;
+  /** Trechos de fala (s, no relógio do áudio), para sincronizar as legendas (INC-21); vazio = a voz inteira. */
+  falaS: [number, number][];
 }
+
+/** Legendas animadas (INC-21): o texto da narração, sincronizado pela voz. */
+export interface ConfigLegendas {
+  ativas: boolean;
+  texto: string;
+  /** Correção à mão (s): −1 a +1. */
+  atrasoS: number;
+}
+export const LEGENDAS_PADRAO: ConfigLegendas = { ativas: true, texto: "", atrasoS: 0 };
 
 export interface EstadoImagens {
   imagens: ImagemRecebida[];
@@ -61,6 +73,7 @@ export interface EstadoImagens {
   voo: ConfigVooImagens;
   /** Transições entre as imagens: variadas (padrão) ou só dissolver. */
   transicoes: ModoTransicoes;
+  legendas: ConfigLegendas;
 }
 
 export interface ConfigVooImagens {
@@ -77,7 +90,7 @@ export function opcoesDoVoo(v: ConfigVooImagens | undefined, temModelo: boolean)
   return { ...(v.onde !== "encerramento" ? { aberturaS: v.duracaoS } : {}), ...(v.onde !== "abertura" ? { encerramentoS: v.duracaoS } : {}) };
 }
 
-const INICIAL: EstadoImagens = { imagens: [], tituloDoVideo: "", narracao: null, formato: "vertical", personalizado: { largura: 1080, altura: 1350 }, duracao: 30, pdfs: [], voo: VOO_IMAGENS_PADRAO, transicoes: "variadas" };
+const INICIAL: EstadoImagens = { imagens: [], tituloDoVideo: "", narracao: null, formato: "vertical", personalizado: { largura: 1080, altura: 1350 }, duracao: 30, pdfs: [], voo: VOO_IMAGENS_PADRAO, transicoes: "variadas", legendas: LEGENDAS_PADRAO };
 let estado: EstadoImagens = INICIAL;
 const ouvintes = new Set<() => void>();
 /** Quem guarda o estado (IndexedDB) é avisado de cada mudança. */
@@ -107,6 +120,8 @@ const TIPOS_IMAGEM = ["image/jpeg", "image/png", "image/webp"];
 const ehPdf = (f: File) => f.type === "application/pdf" || /\.pdf$/i.test(f.name);
 const ehImagem = (f: File) => TIPOS_IMAGEM.includes(f.type) || /\.(jpe?g|png|webp)$/i.test(f.name);
 const ehAudio = (f: File) => /^audio\//.test(f.type) || /\.(mp3|m4a|aac|wav|ogg|oga|opus|flac)$/i.test(f.name);
+/** Vídeo com a fala (o Reels do celular, o vídeo do WhatsApp): a narração é o som dele. */
+const ehVideo = (f: File) => /^video\//.test(f.type) || /\.(mp4|mov|m4v|webm)$/i.test(f.name);
 
 /** Impressões visuais das imagens da lista (calculadas uma vez), para recusar repetidas em novos envios. */
 const impressoes = new Map<string, Uint32Array>();
@@ -128,9 +143,9 @@ function nova(blob: Blob, nome: string, largura: number, altura: number, pagina:
 export const origemDa = (i: Pick<ImagemRecebida, "origem" | "nome" | "pagina">): string | null => i.origem ?? (i.pagina !== null ? i.nome.split(" · p. ")[0] : null);
 
 /** Restaura imagens guardadas (sem gravar de novo). */
-export function restaurarImagens(e: Omit<EstadoImagens, "imagens" | "voo" | "transicoes"> & { voo?: ConfigVooImagens; transicoes?: ModoTransicoes; imagens: Omit<ImagemRecebida, "url">[] }): void {
+export function restaurarImagens(e: Omit<EstadoImagens, "imagens" | "voo" | "transicoes" | "legendas"> & { voo?: ConfigVooImagens; transicoes?: ModoTransicoes; legendas?: Partial<ConfigLegendas>; imagens: Omit<ImagemRecebida, "url">[] }): void {
   estado.imagens.forEach((i) => URL.revokeObjectURL(i.url));
-  mudar({ ...e, transicoes: e.transicoes ?? "variadas", voo: { ...VOO_IMAGENS_PADRAO, ...(e.voo ?? {}) }, imagens: e.imagens.map((i) => ({ ...i, url: URL.createObjectURL(i.blob) })) }, false);
+  mudar({ ...e, transicoes: e.transicoes ?? "variadas", legendas: { ...LEGENDAS_PADRAO, ...(e.legendas ?? {}) }, voo: { ...VOO_IMAGENS_PADRAO, ...(e.voo ?? {}) }, imagens: e.imagens.map((i) => ({ ...i, url: URL.createObjectURL(i.blob) })) }, false);
 }
 
 /**
@@ -251,6 +266,15 @@ export function duracaoEfetiva(e: Pick<EstadoImagens, "duracao" | "narracao"> = 
   return e.duracao;
 }
 
+/**
+ * Legendas do vídeo (INC-21), no relógio do vídeo: só com a duração pela narração (a voz começa depois da
+ * vinheta), as legendas ligadas e algum texto. Sem isso, nenhuma.
+ */
+export function legendasDoEstado(e: Pick<EstadoImagens, "duracao" | "narracao" | "legendas"> = estado): GrupoDaLegenda[] {
+  if (e.duracao !== "narracao" || !e.narracao || !e.legendas.ativas || !e.legendas.texto.trim()) return [];
+  return legendasDoVideo(e.legendas.texto, e.narracao.falaS, e.narracao.duracaoS, VOZ_INICIO_S, e.legendas.atrasoS);
+}
+
 /** Marca as imagens que cabem na duração, espalhadas entre os ambientes (a capa do PDF fica de fora). */
 export function selecionarAutomaticamente(): void {
   const candidatas = estado.imagens.filter((i) => !i.capa);
@@ -259,18 +283,42 @@ export function selecionarAutomaticamente(): void {
   mudar({ imagens: estado.imagens.map((i) => ({ ...i, marcada: porId.get(i.id) ?? false })) });
 }
 
-export function definirConfig(p: Partial<Pick<EstadoImagens, "tituloDoVideo" | "formato" | "personalizado" | "duracao" | "voo" | "transicoes">>): void {
+export function definirConfig(p: Partial<Pick<EstadoImagens, "tituloDoVideo" | "formato" | "personalizado" | "duracao" | "voo" | "transicoes" | "legendas">>): void {
   mudar(p);
 }
 
-/** Recebe a narração (um áudio): lê a duração e passa a duração do vídeo para "pela narração". */
+/** Trechos de fala do áudio (a média dos canais), para as legendas. */
+function falaDoAudio(b: AudioBuffer, trechosDeFala: (a: Float32Array, taxa: number) => [number, number][]): [number, number][] {
+  const mono = new Float32Array(b.length);
+  for (let c = 0; c < b.numberOfChannels; c++) {
+    const d = b.getChannelData(c);
+    for (let i = 0; i < d.length; i++) mono[i] += d[i] / b.numberOfChannels;
+  }
+  return trechosDeFala(mono, b.sampleRate);
+}
+
+/**
+ * Recebe a narração (um áudio, ou um vídeo com a fala: usa o som dele): lê a duração e os trechos de fala e
+ * passa a duração do vídeo para "pela narração".
+ */
 export async function adicionarNarracao(f: File): Promise<string[]> {
-  if (!ehAudio(f)) return [`"${f.name}" não é um áudio (use MP3, M4A, WAV ou OGG).`];
-  const { audioDaFala } = await import("../rendering/apresentadora");
+  if (!ehAudio(f) && !ehVideo(f)) return [`"${f.name}" não é um áudio nem um vídeo (use MP3, M4A, WAV, OGG ou MP4).`];
+  const [{ audioDaFala }, { trechosDeFala }] = await Promise.all([import("../rendering/apresentadora"), import("../rendering/legendas")]);
   const b = await audioDaFala(f);
-  if (!b || !(b.duration > 0)) return [`"${f.name}" não abriu neste navegador (use MP3, M4A, WAV ou OGG).`];
-  mudar({ narracao: { nome: f.name, blob: f, duracaoS: b.duration }, duracao: "narracao" });
+  if (!b || !(b.duration > 0)) return [ehVideo(f) ? `"${f.name}" não tem som que este navegador consiga ler.` : `"${f.name}" não abriu neste navegador (use MP3, M4A, WAV ou OGG).`];
+  mudar({ narracao: { nome: f.name, blob: f, duracaoS: b.duration, falaS: falaDoAudio(b, trechosDeFala) }, duracao: "narracao" });
   return [];
+}
+
+/** Narração guardada antes das legendas (sem os trechos de fala): calcula-os agora, sem trocar o arquivo. */
+export async function completarFalaDaNarracao(): Promise<void> {
+  const n = estado.narracao;
+  if (!n || n.falaS.length) return;
+  const [{ audioDaFala }, { trechosDeFala }] = await Promise.all([import("../rendering/apresentadora"), import("../rendering/legendas")]);
+  const b = await audioDaFala(n.blob);
+  if (!b || estado.narracao !== n) return;
+  const falaS = falaDoAudio(b, trechosDeFala);
+  if (falaS.length) mudar({ narracao: { ...n, falaS } });
 }
 
 export function removerNarracao(): void {

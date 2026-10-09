@@ -7,6 +7,7 @@ import { CAPA, VOZ_INICIO_S, camadasNoTempo, type ModoTransicoes, type Transicao
 import { TOPO_RESERVADO_REELS, desenharAssinatura, desenharVinheta, opacidadeVinheta, type TextoMarca } from "./marcaVideo";
 import { Cancelado, codificar, dimensoesDaSaida, mixagemDoVideo, type ArquivoGerado, type Saida } from "./VideoRenderer";
 import type { TrechoDeFala } from "./apresentadora";
+import { legendaNoTempo, type GrupoDaLegenda } from "./legendas";
 
 export interface PedidoImagens {
   saida: Saida;
@@ -26,6 +27,8 @@ export interface PedidoImagens {
   vinheta?: TextoMarca;
   /** Transições entre as imagens (padrão: variadas). */
   transicoes?: ModoTransicoes;
+  /** Legendas animadas (INC-21), já no relógio do vídeo. */
+  legendas?: GrupoDaLegenda[] | null;
   /** Voo do drone pela casa 3D (INC-20): os tempos e quem prepara o trecho 3D no tamanho do vídeo. */
   voo?: { aberturaS?: number; encerramentoS?: number; criar(largura: number, altura: number): Promise<DesenhoDoVoo & { dispose(): void }> };
   sinal: AbortSignal;
@@ -95,8 +98,11 @@ function bancoDeImagens(imgs: PedidoImagens["imagens"], quadroW: number, quadroH
   };
 }
 
-/** Título de ambiente: faixa grafite translúcida com filete dourado e caixa-alta espaçada, subindo de leve. */
-function desenharTitulo(ctx: CanvasRenderingContext2D, W: number, H: number, texto: string, opacidade: number, u: number): void {
+/**
+ * Título de ambiente: faixa grafite translúcida com filete dourado e caixa-alta espaçada, subindo de leve.
+ * Com legendas (`noAlto`), sobe para o alto do quadro e deixa o terço de baixo para elas.
+ */
+function desenharTitulo(ctx: CanvasRenderingContext2D, W: number, H: number, texto: string, opacidade: number, u: number, noAlto = false): void {
   const base = Math.min(W, H), vertical = H > W;
   const f = Math.round(base * (vertical ? 0.05 : 0.042)), pad = Math.round(f * 0.7);
   ctx.save();
@@ -107,8 +113,9 @@ function desenharTitulo(ctx: CanvasRenderingContext2D, W: number, H: number, tex
   const w = Math.min(ctx.measureText(t).width, W * 0.8);
   const bw = w + pad * 2, bh = f + pad * 1.6;
   // vertical: no terço de baixo, centralizado, acima da legenda do Reels; horizontal: embaixo, à esquerda
+  // no alto: no vertical, abaixo da faixa do Reels e da assinatura; no horizontal, em cima à esquerda (a assinatura fica à direita)
   const x = vertical ? (W - bw) / 2 : Math.round(base * 0.06);
-  const y = (vertical ? H * 0.7 : H - base * 0.08 - bh) - u * base * 0.01;
+  const y = (noAlto ? (vertical ? H * 0.2 : base * 0.06) : vertical ? H * 0.7 : H - base * 0.08 - bh) - u * base * 0.01;
   ctx.fillStyle = "rgba(28, 28, 28, 0.62)";
   ctx.beginPath();
   ctx.roundRect(x, y, bw, bh, pad * 0.35);
@@ -118,6 +125,76 @@ function desenharTitulo(ctx: CanvasRenderingContext2D, W: number, H: number, tex
   ctx.fillStyle = "#f4f1ec";
   ctx.textBaseline = "middle";
   ctx.fillText(t, x + pad, y + bh / 2, w);
+  ctx.restore();
+}
+
+/**
+ * Legenda animada (INC-21): o grupo de palavras centralizado no terço de baixo (62 % da altura no vertical), em
+ * branco com sombra; cada palavra entra no seu tempo com um pop curto. A destacada é 1,5 vez maior e em negrito.
+ * O lugar de cada palavra vale para o grupo inteiro: as que entram não empurram as que já estão.
+ */
+function desenharLegenda(ctx: CanvasRenderingContext2D, W: number, H: number, grupo: GrupoDaLegenda, entradas: number[]): void {
+  const base = Math.min(W, H), vertical = H > W;
+  const f = Math.round(base * (vertical ? 0.062 : 0.05));
+  const fonte = (destaque: boolean) => `${destaque ? 700 : 500} ${destaque ? Math.round(f * 1.5) : f}px "IBM Plex Sans", "Segoe UI", sans-serif`;
+  ctx.save();
+  ctx.letterSpacing = "0px";
+  ctx.font = fonte(false);
+  const espaco = ctx.measureText(" ").width;
+  const medidas = grupo.palavras.map((p) => {
+    ctx.font = fonte(p.destaque);
+    return ctx.measureText(p.texto).width;
+  });
+  // até duas linhas, quebrando onde passar de 86 % da largura
+  const larguraMax = W * 0.86;
+  const linhas: number[][] = [[]];
+  let usada = 0;
+  medidas.forEach((w, k) => {
+    const atual = linhas[linhas.length - 1];
+    if (atual.length && usada + espaco + w > larguraMax && linhas.length < 2) {
+      linhas.push([k]);
+      usada = w;
+    } else {
+      atual.push(k);
+      usada += (atual.length > 1 ? espaco : 0) + w;
+    }
+  });
+  const alturaDa = (l: number[]) => Math.max(...l.map((k) => (grupo.palavras[k].destaque ? f * 1.5 : f))) * 1.12;
+  const total = linhas.reduce((s, l) => s + alturaDa(l), 0);
+  let y = (vertical ? H * 0.62 : H * 0.8) - total / 2;
+  ctx.textBaseline = "alphabetic";
+  ctx.textAlign = "left";
+  ctx.lineJoin = "round";
+  for (const l of linhas) {
+    const lh = alturaDa(l);
+    const larg = l.reduce((s, k, j) => s + medidas[k] + (j ? espaco : 0), 0);
+    // a linha toda numa base só, com a escala de cada palavra puxada para a base dela
+    let x = (W - Math.min(larg, larguraMax)) / 2;
+    const baseLinha = y + lh * 0.8;
+    for (const k of l) {
+      const p = grupo.palavras[k], e = entradas[k], w = medidas[k];
+      if (e > 0) {
+        const s = 0.85 + 0.15 * (1 - (1 - e) * (1 - e));
+        ctx.save();
+        ctx.globalAlpha = Math.min(1, e * 1.4);
+        ctx.translate(x + w / 2, baseLinha);
+        ctx.scale(s, s);
+        ctx.font = fonte(p.destaque);
+        ctx.shadowColor = "rgba(0, 0, 0, 0.55)";
+        ctx.shadowBlur = base * 0.014;
+        ctx.shadowOffsetY = base * 0.004;
+        ctx.strokeStyle = "rgba(0, 0, 0, 0.35)";
+        ctx.lineWidth = Math.max(1, f * 0.07);
+        ctx.strokeText(p.texto, -w / 2, 0);
+        ctx.shadowColor = "transparent";
+        ctx.fillStyle = "#ffffff";
+        ctx.fillText(p.texto, -w / 2, 0);
+        ctx.restore();
+      }
+      x += w + espaco;
+    }
+    y += lh;
+  }
   ctx.restore();
 }
 
@@ -227,7 +304,7 @@ export async function desenharQuadroDeImagens(
   plano: PlanoDoVideo,
   t: number,
   imagens: (indices: number[]) => Promise<{ i: number; bmp: ImageBitmap; k: number }[]>,
-  extras: { capa?: string; assinatura?: HTMLCanvasElement | null; vinheta?: HTMLCanvasElement | null; voo?: DesenhoDoVoo | null; quadro?: number },
+  extras: { capa?: string; assinatura?: HTMLCanvasElement | null; vinheta?: HTMLCanvasElement | null; voo?: DesenhoDoVoo | null; quadro?: number; legendas?: GrupoDaLegenda[] | null },
 ): Promise<void> {
   ctx.globalAlpha = 1;
   ctx.fillStyle = "#1c1c1c";
@@ -268,7 +345,11 @@ export async function desenharQuadroDeImagens(
     if (o > 0) desenharCapa(ctx, W, H, capa, o);
   }
   const tit = tituloNoTempo(plano, t, capa ? CAPA.ini + CAPA.dur + 0.2 : VOZ_INICIO_S + 0.4);
-  if (tit && tit.opacidade > 0) desenharTitulo(ctx, W, H, tit.texto, tit.opacidade, tit.u);
+  const comLegendas = !!extras.legendas?.length;
+  if (tit && tit.opacidade > 0) desenharTitulo(ctx, W, H, tit.texto, tit.opacidade, tit.u, comLegendas);
+  // legendas por cima das imagens e dos títulos, por baixo da vinheta
+  const leg = comLegendas ? legendaNoTempo(extras.legendas!, t) : null;
+  if (leg) desenharLegenda(ctx, W, H, leg.grupo, leg.entradas);
   if (extras.assinatura) {
     // vertical: logo abaixo da faixa que o Instagram cobre; horizontal: canto de cima, à direita
     const a = extras.assinatura, m = Math.round(Math.min(W, H) * 0.03);
@@ -313,6 +394,7 @@ export async function gerarVideoDeImagens(pedido: PedidoImagens): Promise<Arquiv
     voo: trecho3d,
     quadro: 0,
     capa: p.tituloDoVideo,
+    legendas: p.legendas ?? null,
     assinatura: p.assinatura ? desenharAssinatura(W, H, p.assinatura) : null,
     vinheta: p.vinheta && p.segundos >= 6 ? desenharVinheta(W, H, p.vinheta) : null,
   };

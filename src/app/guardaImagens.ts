@@ -2,12 +2,12 @@
 // narração e a configuração, para o trabalho continuar ao reabrir a página. Cada imagem é gravada uma vez;
 // o estado (sem os arquivos) é regravado meio segundo depois da última mudança.
 import { GRUPO_IMAGENS, chaveEstadoImagens, chaveImagem, chaveNarracaoImagens, excluirAnexo, excluirAnexosDe, gravarAnexo, lerAnexosDe } from "../storage/IndexedDb";
-import { definirGuarda, restaurarImagens, type EstadoImagens, type ImagemRecebida } from "./imagensDoVideo";
+import { completarFalaDaNarracao, definirGuarda, restaurarImagens, type EstadoImagens, type ImagemRecebida } from "./imagensDoVideo";
 
 type ImagemGuardada = Omit<ImagemRecebida, "blob" | "url">;
 interface EstadoGuardado extends Omit<EstadoImagens, "imagens" | "narracao"> {
   imagens: ImagemGuardada[];
-  narracao: { nome: string; duracaoS: number } | null;
+  narracao: { nome: string; duracaoS: number; falaS?: [number, number][] } | null;
 }
 
 let iniciada: Promise<void> | null = null;
@@ -20,7 +20,7 @@ async function guardar(e: EstadoImagens): Promise<void> {
   const meta: EstadoGuardado = {
     ...e,
     imagens: e.imagens.map(({ blob: _b, url: _u, ...resto }) => resto),
-    narracao: e.narracao ? { nome: e.narracao.nome, duracaoS: e.narracao.duracaoS } : null,
+    narracao: e.narracao ? { nome: e.narracao.nome, duracaoS: e.narracao.duracaoS, falaS: e.narracao.falaS } : null,
   };
   await gravarAnexo(GRUPO_IMAGENS, chaveEstadoImagens(), new Blob([JSON.stringify(meta)], { type: "application/json" }));
   for (const im of e.imagens)
@@ -55,7 +55,7 @@ export function iniciarGuardaDeImagens(): Promise<void> {
           return blob ? [{ ...i, blob }] : [];
         });
         const blobNarracao = anexos.get(chaveNarracaoImagens());
-        const narracao = e.narracao && blobNarracao ? { ...e.narracao, blob: blobNarracao } : null;
+        const narracao = e.narracao && blobNarracao ? { ...e.narracao, falaS: e.narracao.falaS ?? [], blob: blobNarracao } : null;
         restaurarImagens({ ...e, imagens, narracao, duracao: e.duracao === "narracao" && !narracao ? 30 : e.duracao });
         imagens.forEach((i) => gravadas.add(i.id));
         narracaoGravada = narracao?.blob ?? null;
@@ -69,6 +69,8 @@ export function iniciarGuardaDeImagens(): Promise<void> {
         fila = fila.then(() => guardar(e)).catch(() => {});
       }, 500);
     });
+    // narração guardada antes das legendas (INC-21): os trechos de fala são calculados agora
+    void completarFalaDaNarracao().catch(() => {});
   })();
   return iniciada;
 }

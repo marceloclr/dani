@@ -172,6 +172,92 @@ test("Recomeçar apaga a sessão e o trabalho guardado; os projetos salvos ficam
   await page.getByTestId("recomecar").click();
   await expect(page.getByTestId("recomecar-projetos")).toHaveCount(0); // nenhum projeto salvo
 });
+test("legendas (INC-21): narração em vídeo, texto colado, trechos de fala, prévia, MP4 e trabalho guardado", async ({ page }) => {
+  const erros: string[] = [];
+  page.on("pageerror", (e) => erros.push(String(e)));
+  await page.goto("/#/imagens");
+  const fotos = ["coral_stone_wall", "concrete_wall_008", "clay_roof_tiles_02"].map((n) => ({ name: `${n}.jpg`, mimeType: "image/jpeg", buffer: readFileSync(`public/texturas/${n}_cor.jpg`) }));
+  await page.getByTestId("entrada-imagens").setInputFiles(fotos);
+  await expect(page.getByTestId("estado-imagens")).toHaveText(/^3 imagens/, { timeout: 60_000 });
+  // narração num vídeo (o do celular ou do WhatsApp): entra o som dele
+  await page.getByTestId("entrada-narracao").setInputFiles("e2e/fixtures/apresentadora-verde.mp4");
+  await expect(page.getByTestId("estado-narracao")).toContainText("apresentadora-verde.mp4", { timeout: 30_000 });
+  await page.getByTestId("img-avancar").click();
+  await expect(page.getByTestId("duracao-narracao")).toHaveAttribute("aria-selected", "true");
+  await expect(page.getByTestId("bloco-legendas")).toBeVisible();
+  await page.getByTestId("legendas-texto").fill("Hoje eu vou conversar sobre essa *obra* que nós entregamos. Ficou *linda*!");
+  await expect(page.getByTestId("bloco-legendas")).toContainText(/\d+ grupos · 12 palavras/);
+  // o som contínuo do vídeo de teste não tem pausas: as palavras se dividem por igual
+  await expect(page.getByTestId("legendas-nota")).toContainText("não tem pausas claras");
+
+  // uma voz com pausas: três falas separadas por silêncio
+  await page.getByTestId("img-passo-1").click();
+  await page.getByTestId("entrada-narracao").setInputFiles({ name: "voz.wav", mimeType: "audio/wav", buffer: wavDeFala(7, [[0.3, 2.2], [2.9, 4.6], [5.4, 6.8]]) });
+  await expect(page.getByTestId("estado-narracao")).toContainText("voz.wav", { timeout: 30_000 });
+  await page.getByTestId("img-avancar").click();
+  await expect(page.getByTestId("legendas-nota")).toContainText("3 trechos de fala encontrados");
+  await page.getByTestId("legendas-atraso").fill("0.3");
+  await expect(page.getByTestId("bloco-legendas")).toContainText("+0,3 s");
+  // prévia parada no meio da primeira fala: a legenda branca aparece no terço de baixo do quadro vertical
+  const claros = async () =>
+    page.getByTestId("previa-imagens").evaluate((c: HTMLCanvasElement) => {
+      const d = c.getContext("2d")!.getImageData(0, Math.round(c.height * 0.55), c.width, Math.round(c.height * 0.14)).data;
+      let n = 0;
+      for (let i = 0; i < d.length; i += 4) if (d[i] > 245 && d[i + 1] > 245 && d[i + 2] > 245) n++;
+      return n;
+    });
+  await page.getByLabel("Instante da prévia").fill("3");
+  await page.waitForTimeout(400);
+  const comLegenda = await claros();
+  await page.getByTestId("legendas-ativas").uncheck();
+  await page.waitForTimeout(400);
+  const semLegenda = await claros();
+  expect(comLegenda).toBeGreaterThan(semLegenda + 200);
+  await page.getByTestId("legendas-ativas").check();
+
+  await page.getByTestId("img-avancar").click();
+  await page.getByTestId("img-saida").selectOption("mp4-whatsapp");
+  const baixa = page.waitForEvent("download", { timeout: 240_000 });
+  await page.getByTestId("img-gerar-video").click();
+  const video = await baixa;
+  const input = new Input({ formats: [MP4], source: new BufferSource(readFileSync(await video.path())) });
+  expect(await input.computeDuration()).toBeCloseTo(7 + 1.2 + 1 + 2, 0);
+  expect(await input.getPrimaryAudioTrack()).not.toBeNull();
+
+  // recarregar: o texto, o atraso e os trechos de fala voltam do navegador
+  await page.waitForTimeout(800);
+  await page.reload();
+  await expect(page.getByTestId("estado-imagens")).toHaveText(/^3 imagens/, { timeout: 30_000 });
+  await page.getByTestId("img-avancar").click();
+  await expect(page.getByTestId("legendas-texto")).toHaveValue(/essa \*obra\* que/);
+  await expect(page.getByTestId("legendas-nota")).toContainText("3 trechos de fala encontrados");
+  await expect(page.getByTestId("bloco-legendas")).toContainText("+0,3 s");
+  expect(erros).toEqual([]);
+});
+
+/** WAV mono 48 kHz com "falas" (tom de 220 Hz) nos trechos dados e silêncio entre eles. */
+function wavDeFala(segundos: number, trechos: [number, number][]): Buffer {
+  const taxa = 48000, n = taxa * segundos, b = Buffer.alloc(44 + n * 2);
+  b.write("RIFF", 0);
+  b.writeUInt32LE(36 + n * 2, 4);
+  b.write("WAVEfmt ", 8);
+  b.writeUInt32LE(16, 16);
+  b.writeUInt16LE(1, 20);
+  b.writeUInt16LE(1, 22);
+  b.writeUInt32LE(taxa, 24);
+  b.writeUInt32LE(taxa * 2, 28);
+  b.writeUInt16LE(2, 32);
+  b.writeUInt16LE(16, 34);
+  b.write("data", 36);
+  b.writeUInt32LE(n * 2, 40);
+  for (let i = 0; i < n; i++) {
+    const t = i / taxa;
+    const fala = trechos.some(([a, z]) => t >= a && t < z);
+    b.writeInt16LE(fala ? Math.round(Math.sin(2 * Math.PI * 220 * t) * 9000) : 0, 44 + i * 2);
+  }
+  return b;
+}
+
 
 /** WAV mono 48 kHz com um tom de 330 Hz (trilha de teste). */
 function wavDeTom(segundos: number): Buffer {

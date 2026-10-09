@@ -120,9 +120,9 @@ function CarregarImagens() {
         titulo="Narração"
         situacao={e.narracao ? "ok" : "opcional"}
         estado={e.narracao ? `${e.narracao.nome} · ${seg(e.narracao.duracaoS)}` : "opcional: pode vir depois"}
-        aceitar="audio/*,.mp3,.m4a,.aac,.wav,.ogg,.opus"
+        aceitar="audio/*,.mp3,.m4a,.aac,.wav,.ogg,.opus,video/mp4,video/quicktime,video/webm,.mp4,.mov,.m4v,.webm"
         rotulo={e.narracao ? "Trocar narração" : "Enviar narração"}
-        dica="A voz da engenheira (MP3, M4A, WAV ou OGG). Com ela, o vídeo dura a narração e as imagens se dividem pela fala. Sem ela, gere o vídeo e o roteiro de tempos primeiro, grave a narração seguindo o roteiro e envie depois."
+        dica="A voz da engenheira (MP3, M4A, WAV ou OGG) ou um vídeo dela falando (MP4 ou MOV, como o do celular ou do WhatsApp): do vídeo, só o som entra. Com ela, o vídeo dura a narração e as imagens se dividem pela fala. Sem ela, gere o vídeo e o roteiro de tempos primeiro, grave a narração seguindo o roteiro e envie depois."
         aoEscolher={async ([f]) => setAvisos("narracao", await adicionarNarracao(f))}
         avisos={avisos.narracao}
       >

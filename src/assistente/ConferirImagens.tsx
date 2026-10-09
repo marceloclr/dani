@@ -11,6 +11,7 @@ import {
   definirTitulo,
   dimensoesDoFormato,
   duracaoEfetiva,
+  legendasDoEstado,
   marcarTodas,
   moverImagem,
   opcoesDoVoo,
@@ -21,6 +22,7 @@ import {
 } from "../app/imagensDoVideo";
 import { DURACOES_IMAGENS, VOO_MAX_S, VOO_MIN_S, ambientesDe, duracaoPelaNarracao, planoDoVideo, recomendacaoDeImagens, roteiroDeTempos, textoDaRecomendacao } from "../rendering/imagensNoVideo";
 import { DicaQuantidade } from "../components/DicaQuantidade";
+import { ATRASO_MAX_S, type GrupoDaLegenda } from "../rendering/legendas";
 import { useProjeto } from "../state/projectStore";
 import { nomeSeguro } from "../app/projetos";
 import { baixar, carimboArquivo } from "../utils/baixar";
@@ -32,7 +34,7 @@ const seg = (s: number) => `${s.toLocaleString("pt-BR", { maximumFractionDigits:
 const ROTULO_FORMATO: Record<FormatoImagens, string> = { vertical: "9:16", horizontal: "16:9", quadrado: "1:1", retrato: "4:5", personalizado: "Outro" };
 
 /** Prévia: o vídeo desenhado em tempo real num canvas pequeno, sem som. */
-function Previa({ imagens, segundos, largura, altura, titulo, voo, transicoes }: { imagens: ImagemRecebida[]; segundos: number; largura: number; altura: number; titulo: string; voo: { aberturaS?: number; encerramentoS?: number }; transicoes: "variadas" | "dissolver" }) {
+function Previa({ imagens, segundos, largura, altura, titulo, voo, transicoes, legendas }: { imagens: ImagemRecebida[]; segundos: number; largura: number; altura: number; titulo: string; voo: { aberturaS?: number; encerramentoS?: number }; transicoes: "variadas" | "dissolver"; legendas: GrupoDaLegenda[] }) {
   const ref = useRef<HTMLCanvasElement>(null);
   const [tocando, setTocando] = useState(false);
   const [t, setT] = useState(0);
@@ -40,7 +42,7 @@ function Previa({ imagens, segundos, largura, altura, titulo, voo, transicoes }:
   const esc = Math.min(1, 540 / Math.max(largura, altura));
   const W = Math.round(largura * esc), H = Math.round(altura * esc);
   const plano = useMemo(() => planoDoVideo(imagens, segundos, W, H, voo, transicoes), [imagens, segundos, W, H, voo, transicoes]);
-  const extras = useMemo(() => ({ voo: plano.voos.length ? VOO_NA_PREVIA : null, capa: titulo, assinatura: desenharAssinatura(W, H, { nome: CLIENTE.nome, slogan: CLIENTE.slogan }), vinheta: segundos >= 6 ? desenharVinheta(W, H, { nome: CLIENTE.nome, slogan: CLIENTE.slogan, secundario: CLIENTE.instagram }) : null }), [W, H, titulo, segundos, plano]);
+  const extras = useMemo(() => ({ voo: plano.voos.length ? VOO_NA_PREVIA : null, capa: titulo, legendas, assinatura: desenharAssinatura(W, H, { nome: CLIENTE.nome, slogan: CLIENTE.slogan }), vinheta: segundos >= 6 ? desenharVinheta(W, H, { nome: CLIENTE.nome, slogan: CLIENTE.slogan, secundario: CLIENTE.instagram }) : null }), [W, H, titulo, segundos, plano, legendas]);
   const cache = useRef(new Map<string, Promise<ImageBitmap>>());
   useEffect(
     () => () => {
@@ -121,6 +123,7 @@ export function ConferirImagens() {
   const voo = useMemo(() => opcoesDoVoo(e.voo, temModelo), [e.voo, temModelo]);
   const plano = useMemo(() => planoDoVideo(e.imagens, segundos, largura, altura, voo, e.transicoes), [e.imagens, segundos, largura, altura, voo, e.transicoes]);
   const recomendacao = recomendacaoDeImagens(segundos, voo);
+  const legendas = useMemo(() => legendasDoEstado(e), [e.duracao, e.narracao, e.legendas]);
   const marcadas = e.imagens.filter((i) => i.marcada).length;
   const ambientes = ambientesDe(e.imagens);
   // título que vale para cada imagem (o digitado ou o do ambiente anterior), para a dica do campo
@@ -220,6 +223,46 @@ export function ConferirImagens() {
             </p>
           )}
         </section>
+        {e.narracao && (
+          <section className="bloco" data-testid="bloco-legendas">
+            <header>
+              <h3>Legendas</h3>
+              <span className="legenda">{legendas.length ? `${legendas.length} grupos · ${legendas.reduce((s, g) => s + g.palavras.length, 0)} palavras` : "palavra por palavra"}</span>
+            </header>
+            <label className="marcar-legendas">
+              <input type="checkbox" checked={e.legendas.ativas} data-testid="legendas-ativas" onChange={(ev) => definirConfig({ legendas: { ...e.legendas, ativas: ev.target.checked } })} />
+              <span>Legendas no vídeo</span>
+            </label>
+            {e.legendas.ativas && (
+              <>
+                <label className="campo">
+                  <span>Texto da narração</span>
+                  <textarea
+                    value={e.legendas.texto}
+                    rows={5}
+                    placeholder="Cole aqui o que foi falado, na ordem. Ex.: Hoje eu vou conversar um pouco sobre essa *obra* que nós entregamos."
+                    data-testid="legendas-texto"
+                    data-tip={"As palavras aparecem no tempo da voz, em grupos curtos.\nA palavra mais forte de cada grupo fica maior e em negrito.\nPara escolher você mesma, escreva-a entre asteriscos: *obra*. Com algum asterisco no texto, só as marcadas se destacam."}
+                    onChange={(ev) => definirConfig({ legendas: { ...e.legendas, texto: ev.target.value } })}
+                  />
+                </label>
+                <label className="campo">
+                  <span>
+                    Atraso das legendas: <span className="num">{e.legendas.atrasoS > 0 ? "+" : ""}{seg(e.legendas.atrasoS)}</span>
+                  </span>
+                  <input type="range" min={-ATRASO_MAX_S} max={ATRASO_MAX_S} step={0.1} value={e.legendas.atrasoS} data-testid="legendas-atraso" aria-label="Atraso das legendas" onChange={(ev) => definirConfig({ legendas: { ...e.legendas, atrasoS: Number(ev.target.value) } })} />
+                </label>
+                <p className="nota-cartao" data-testid="legendas-nota">
+                  {e.duracao !== "narracao"
+                    ? 'As legendas seguem a voz: escolha a duração "Narração" para elas entrarem no vídeo.'
+                    : e.narracao.falaS.length > 1
+                      ? `${e.narracao.falaS.length} trechos de fala encontrados na voz: as frases se ajustam às pausas. Se adiantar ou atrasar, corrija no atraso e confira na prévia.`
+                      : "A voz não tem pausas claras (música por baixo?): as palavras se dividem por igual ao longo da fala. Confira na prévia e corrija no atraso."}
+                </p>
+              </>
+            )}
+          </section>
+        )}
         {temModelo && (
           <section className="bloco" data-testid="bloco-voo">
             <header>
@@ -301,7 +344,7 @@ export function ConferirImagens() {
         </section>
       </div>
       <div className="conferir-previa">
-        {plano.itens.length > 0 && <Previa imagens={e.imagens} segundos={segundos} largura={largura} altura={altura} titulo={e.tituloDoVideo} voo={voo} transicoes={e.transicoes} />}
+        {plano.itens.length > 0 && <Previa imagens={e.imagens} segundos={segundos} largura={largura} altura={altura} titulo={e.tituloDoVideo} voo={voo} transicoes={e.transicoes} legendas={legendas} />}
       </div>
     </div>
   );

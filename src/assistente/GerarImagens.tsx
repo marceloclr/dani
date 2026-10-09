@@ -1,7 +1,7 @@
 // Vídeo de imagens (INC-19), passo Gerar: o MP4 na resolução escolhida, com a narração e as trilhas.
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { aoMudarTrilhas, arquivosDeTrilha } from "../app/anexos";
-import { dimensoesDoFormato, duracaoEfetiva, opcoesDoVoo } from "../app/imagensDoVideo";
+import { dimensoesDoFormato, duracaoEfetiva, legendasDoEstado, opcoesDoVoo } from "../app/imagensDoVideo";
 import { obterCena } from "../app/estadoCena";
 import { criarTrecho3D } from "../app/vooNasImagens";
 import { Viewport } from "../components/Viewport";
@@ -87,6 +87,7 @@ export function GerarImagens() {
         imagens: e.imagens,
         tituloDoVideo: e.tituloDoVideo,
         transicoes: e.transicoes,
+        legendas: legendasDoEstado(e),
         narracao: e.duracao === "narracao" && e.narracao ? { blob: e.narracao.blob, duracaoS: e.narracao.duracaoS } : null,
         trilhas: lista.flatMap((t, k) => (inicios[k] === null ? [] : [{ blob: t.blob, iniS: inicios[k]!, volume: 1 }])),
         assinatura: { nome: CLIENTE.nome, slogan: CLIENTE.slogan },
