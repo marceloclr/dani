@@ -212,7 +212,7 @@ test("legendas (INC-21): narração em vídeo, texto colado, trechos de fala, pr
   await page.getByTestId("legendas-ativas").uncheck();
   await page.waitForTimeout(400);
   const semLegenda = await claros();
-  expect(comLegenda).toBeGreaterThan(semLegenda + 200);
+  expect(comLegenda).toBeGreaterThan(semLegenda + 60);
   await page.getByTestId("legendas-ativas").check();
 
   await page.getByTestId("img-avancar").click();

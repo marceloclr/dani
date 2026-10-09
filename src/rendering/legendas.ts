@@ -31,6 +31,8 @@ export interface GrupoDaLegenda {
 export const JANELA_S = 0.02, PAUSA_MIN_S = 0.25, TRECHO_MIN_S = 0.2;
 /** Pop da palavra que entra (s), sobra do grupo depois da última palavra (s) e palavras por grupo. */
 export const POP_S = 0.12, SOBRA_S = 0.4, GRUPO_MIN = 2, GRUPO_MAX = 4, GRUPO_CARACTERES = 22;
+/** Silêncio entre duas palavras (s) a partir do qual o grupo fecha, mesmo sem pontuação. */
+export const SILENCIO_GRUPO_S = 0.6;
 /** Atraso manual (s): de −1 a +1. */
 export const ATRASO_MAX_S = 1;
 /** Peso de uma pausa do texto, em sílabas: vírgula e fim de frase. */
@@ -242,7 +244,7 @@ const round = (x: number) => Math.round(x * 1000) / 1000;
 const semPontuacao = (t: string) => t.replace(/[^\p{L}\p{N}-]/gu, "").toLocaleLowerCase("pt-BR");
 
 /**
- * Grupos de 2 a 4 palavras (até 22 letras), quebrando depois da pontuação. Em cada grupo, destaca a palavra
+ * Grupos de 2 a 4 palavras (até 22 letras), quebrando depois da pontuação e nos silêncios da voz. Em cada grupo, destaca a palavra
  * mais longa que não seja fraca (artigos, preposições, "né"...), com 4 letras ou mais; com `marcacao`, só as
  * palavras marcadas. O grupo fica até o seguinte começar ou 0,4 s depois da última palavra.
  */
@@ -253,8 +255,10 @@ export function gruposDaLegenda(palavras: PalavraDoTexto[], tempos: { ini: numbe
   palavras.forEach((p, k) => {
     if (atual.length >= GRUPO_MIN && letras([...atual, k]) > GRUPO_CARACTERES) (grupos.push({ k: atual }), (atual = []));
     atual.push(k);
-    // fecha no limite de palavras e depois da pontuação (fim de frase fecha até um grupo de uma palavra)
-    if (atual.length >= GRUPO_MAX || (p.pausa && (atual.length >= GRUPO_MIN || p.pausa === 2))) {
+    // fecha no limite de palavras, depois da pontuação (fim de frase fecha até um grupo de uma palavra) e num
+    // silêncio da voz: a palavra seguinte só viria segundos depois
+    const silencio = k + 1 < palavras.length && tempos[k + 1].ini - tempos[k].fim >= SILENCIO_GRUPO_S;
+    if (atual.length >= GRUPO_MAX || silencio || (p.pausa && (atual.length >= GRUPO_MIN || p.pausa === 2))) {
       grupos.push({ k: atual });
       atual = [];
     }

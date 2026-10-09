@@ -114,6 +114,11 @@ describe("gruposDaLegenda", () => {
     for (const f of ["eu", "um", "que", "nós", "É", "uma"]) expect(d).not.toContain(f);
     for (const g of grupos) expect(g.palavras.filter((x) => x.destaque).length).toBeLessThanOrEqual(1);
   });
+  it("um silêncio da voz fecha o grupo, mesmo sem pontuação", () => {
+    const p2 = palavrasDoTexto("uma área de serviço que atende a casa");
+    const g2 = gruposDaLegenda(p2, sincronizar(p2, [[0, 2], [4, 5.5]], 5.5), false);
+    expect(g2.some((g) => g.palavras.some((x) => x.texto === "serviço") && g.palavras.some((x) => x.texto === "que"))).toBe(false);
+  });
   it("com asteriscos, só as marcadas se destacam", () => {
     const t2 = "Essa *obra* que nós entregamos. É *linda*.";
     const g2 = legendasDoVideo(t2, [], 6, 0);
