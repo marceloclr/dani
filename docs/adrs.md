@@ -960,3 +960,56 @@ O sobrado de exemplo passou a ter Fortaleza e a frente para 70° (lés-nordeste)
 **Resultado.** A diferença com e sem sombra subiu para 1,7 nas vistas de frente e 4,1 na vista alta.
 
 **Próximo passo possível.** Nas vistas de frente, a sombra continua suave, porque o preenchimento do céu e do ambiente é forte. Reduzir esse preenchimento de dia daria sombras mais escuras, mas também muda o aspecto geral.
+
+## ADR-37 — Vídeo de imagens: apresentação de projeto a partir de um PDF ou de imagens
+
+**Status:** aceito em 2026-10-09 (INC-19, plano em `docs/planos/inc-19-video-de-imagens.md`).
+
+**Pedido.** "Como aproveitar as imagens e gerar um vídeo de apresentação para colocar a narração depois no sistema?" O sistema precisa servir para vários vídeos: o ideal é a Daniella subir o PDF com muitas páginas e o sistema extrair as imagens com os títulos. Se os títulos não puderem ser extraídos, cada imagem ganha um campo de texto. A duração (15 a 60 s) e o formato são escolhidos pelo usuário.
+
+**Contexto.**
+- O PDF de referência ("Apresentação de projeto — Ambientação residencial - JP&M") tem 89 páginas e 91 renders.
+- As páginas trazem só o render e a logo do estúdio, como figura; o único texto está na capa.
+- Os títulos dos ambientes não podem ser extraídos de PDFs assim. Reconhecer o ambiente por IA exigiria um modelo de cerca de 90 MB embutido, sem CDN (§43), e ficou de fora.
+
+**Decisão.**
+1. **Modo próprio** no assistente (`#/imagens`), sem IFC nem planilha: Carregar, Conferir e Gerar.
+2. **Extração no navegador** (`app/pdfImagens.ts`):
+   - o pdf.js entrega as imagens que cada página desenha, já decodificadas, e a matriz corrente dá o tamanho delas na página;
+   - ficam de fora as menores que 4 % da página ou com menos de 300 px no lado menor (logos e ícones) e as repetidas;
+   - repetida é a imagem a até 16 de 256 bits de outra pela impressão visual (dHash de 17 × 16, `rendering/impressao.ts`);
+   - as imagens são guardadas em JPEG com qualidade 0,92 e no máximo 2560 px.
+3. **Títulos:**
+   - o maior texto de cada página vira o título sugerido; o texto da capa, o título do vídeo;
+   - na falta deles, há um campo por imagem. Imagem sem título continua o ambiente anterior, então basta digitar uma vez por ambiente;
+   - a imagem da capa entra desmarcada e fica fora da seleção automática.
+4. **Tempo** (`rendering/imagensNoVideo.ts`, puro):
+   - as imagens marcadas dividem a duração em partes iguais, sobrepostas por 0,6 s de dissolução;
+   - entre 2 e 6 s por imagem, com aviso fora disso;
+   - a seleção pela duração marca 3 s por imagem, ao menos uma por ambiente e o resto proporcional ao tamanho de cada um;
+   - com narração, a duração é vinheta (1,2 s) + voz + respiro (1 s) + encerramento (2 s).
+5. **Imagem** (`rendering/videoDeImagens.ts`, canvas 2D):
+   - cada imagem cobre o quadro e se move devagar: aproxima ou afasta 8 %, alternando o ponto;
+   - quando é bem mais larga (ou alta) que o quadro, é percorrida de lado a lado;
+   - capa com o título do vídeo, títulos de ambiente (faixa grafite com filete dourado, 2,4 s), assinatura e vinheta da marca;
+   - o título do primeiro ambiente que acaba antes da capa sair é pulado, para não rotular outro ambiente.
+6. **Áudio e saída:**
+   - os mesmos codificadores e a mesma mixagem do vídeo da obra (`codificar` e `mixagemDoVideo`, separados do `VideoRenderer`), com as dimensões da saída (o MP4 para WhatsApp sai em 720p);
+   - 1ª trilha no início e a 2ª 8 s antes do fim.
+7. **Narração depois:** o **roteiro de tempos** (TXT) dá a janela da voz, o tempo de cada ambiente e de cada imagem. Com a narração enviada, o vídeo é refeito pela fala.
+8. **Guarda:** imagens, títulos, seleção, ordem, narração e formato ficam no IndexedDB (grupo `__imagens__`). As trilhas são as do assistente.
+9. **pdf.js:** os decodificadores (JPEG 2000, JBIG2, cor ICC) passam a ser servidos pelo app (`public/pdfjs/wasm` e `iccs`), também para a planta em PDF.
+
+**Consequências.**
+- Fica mais fácil: um reel de apresentação a partir do PDF que o estúdio já entrega, em segundos (41 s em 9:16 com narração: 10 a 12 s para gerar).
+- Fica mais difícil: o título do ambiente ainda é digitado quando o PDF não o traz em texto.
+- Os decodificadores do pdf.js somam 440 KB, baixados só quando o PDF precisa deles.
+
+**Verificação.**
+- **Vitest:** ambientes, seleção, plano, movimento, títulos no tempo, roteiro, impressão visual, textos da página e título da capa.
+- **Playwright** (`e2e/imagens.spec.ts`, com PDF gerado pelo jsPDF):
+  - capa, renders, logo e página repetida;
+  - títulos sugeridos e a capa fora da seleção;
+  - roteiro, e o MP4 para WhatsApp com 15 s, 1280 × 720 e áudio;
+  - o trabalho volta depois de recarregar a página.
+- **Edge com o PDF de referência** (fora do git): 91 renders em 5 a 8 s, 89 logos descartadas; vídeo vertical de 41,4 s com narração e duas trilhas, conferido quadro a quadro e pelo nível do áudio.

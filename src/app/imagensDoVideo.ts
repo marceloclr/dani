@@ -33,6 +33,8 @@ export interface ImagemRecebida extends ImagemDoVideo {
   url: string;
   /** Página do PDF de onde veio (null = imagem solta). */
   pagina: number | null;
+  /** Imagem da capa de um PDF (costuma ser fundo): fica fora da seleção automática. */
+  capa?: boolean;
 }
 
 export interface NarracaoRecebida {
@@ -85,8 +87,8 @@ const ehPdf = (f: File) => f.type === "application/pdf" || /\.pdf$/i.test(f.name
 const ehImagem = (f: File) => TIPOS_IMAGEM.includes(f.type) || /\.(jpe?g|png|webp)$/i.test(f.name);
 const ehAudio = (f: File) => /^audio\//.test(f.type) || /\.(mp3|m4a|aac|wav|ogg|oga|opus|flac)$/i.test(f.name);
 
-function nova(blob: Blob, nome: string, largura: number, altura: number, pagina: number | null, titulo: string, marcada: boolean): ImagemRecebida {
-  return { id: novoId(), nome, blob, url: URL.createObjectURL(blob), largura, altura, pagina, titulo, marcada };
+function nova(blob: Blob, nome: string, largura: number, altura: number, pagina: number | null, titulo: string, capa = false): ImagemRecebida {
+  return { id: novoId(), nome, blob, url: URL.createObjectURL(blob), largura, altura, pagina, titulo, marcada: !capa, ...(capa ? { capa } : {}) };
 }
 
 /** Restaura imagens guardadas (sem gravar de novo). */
@@ -115,7 +117,7 @@ export async function adicionarArquivos(arquivos: File[], aoProgredir?: (texto: 
         if (!titulo && r.tituloDoDocumento) titulo = r.tituloDoDocumento;
         const capaComTexto = !!r.tituloDoDocumento;
         r.imagens.forEach((im, k) =>
-          novas.push(nova(im.blob, `${f.name} · p. ${im.pagina}${r.imagens.filter((x) => x.pagina === im.pagina).length > 1 ? ` (${k + 1})` : ""}`, im.largura, im.altura, im.pagina, im.tituloSugerido, !(capaComTexto && im.pagina === 1))),
+          novas.push(nova(im.blob, `${f.name} · p. ${im.pagina}${r.imagens.filter((x) => x.pagina === im.pagina).length > 1 ? ` (${k + 1})` : ""}`, im.largura, im.altura, im.pagina, im.tituloSugerido, capaComTexto && im.pagina === 1)),
         );
         pdfs.push(f.name);
       } catch (e) {
@@ -124,7 +126,7 @@ export async function adicionarArquivos(arquivos: File[], aoProgredir?: (texto: 
     } else if (ehImagem(f)) {
       try {
         const b = await createImageBitmap(f);
-        novas.push(nova(f, f.name, b.width, b.height, null, "", true));
+        novas.push(nova(f, f.name, b.width, b.height, null, ""));
         b.close();
       } catch {
         avisos.push(`"${f.name}" não abriu como imagem.`);
@@ -175,10 +177,12 @@ export function duracaoEfetiva(e: Pick<EstadoImagens, "duracao" | "narracao"> = 
   return e.duracao;
 }
 
-/** Marca as imagens que cabem na duração, espalhadas entre os ambientes. */
+/** Marca as imagens que cabem na duração, espalhadas entre os ambientes (a capa do PDF fica de fora). */
 export function selecionarAutomaticamente(): void {
-  const marcadas = selecionarPelaDuracao(estado.imagens, duracaoEfetiva());
-  mudar({ imagens: estado.imagens.map((i, k) => ({ ...i, marcada: marcadas[k] })) });
+  const candidatas = estado.imagens.filter((i) => !i.capa);
+  const marcadas = selecionarPelaDuracao(candidatas, duracaoEfetiva());
+  const porId = new Map(candidatas.map((i, k) => [i.id, marcadas[k]]));
+  mudar({ imagens: estado.imagens.map((i) => ({ ...i, marcada: porId.get(i.id) ?? false })) });
 }
 
 export function definirConfig(p: Partial<Pick<EstadoImagens, "tituloDoVideo" | "formato" | "personalizado" | "duracao">>): void {

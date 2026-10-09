@@ -69,6 +69,23 @@ e publique a pasta `dist/` (GitHub Pages, Cloudflare Pages, Netlify ou Vercel).
 2. **Conferir.** Ficha da obra, avisos com aba e linha e prévia grande de cada cena no formato do vídeo, com a engenheira recortada sobre a obra. Em **Sequência do vídeo**, ordene vídeos, narrações e fotos (↑ ↓ ou arrastando), escolha quanto tempo cada foto fica e onde cada trilha entra (início, antes de um item ou final) e o volume. O vídeo dura o tempo da voz mais as fotos, com 1 s de respiro e a marca no fim; sem voz, a obra se monta pelo tempo da aba Vídeo (ADR-34). Em **Passeio**, escolha o fim do vídeo: **Externo** (padrão, uma volta baixa por fora), **Interno** (entra pela porta a passo de quem caminha) ou **Ambos** (a volta e, depois de um corte, por dentro). Interno e Ambos pedem a porta de entrada encontrada no modelo; a escolha também vai na aba Vídeo da planilha (ADR-32).
 3. **Gerar.** MP4 com a voz das falas em sequência: abertura no terreno, revelação, a obra se formando, o passeio pela obra pronta e a marca.
 
+**Vídeo de imagens** (`#/imagens`, seletor no alto do assistente; INC-19, ADR-37). Apresentação de projeto feita só de imagens, sem IFC nem planilha:
+
+1. **Carregar.** O **PDF** da apresentação (o app extrai os renders de cada página, na ordem, sem logos nem repetidas; o texto da capa vira o título do vídeo) ou **imagens** soltas (JPEG, PNG ou WebP), a **narração** (opcional, pode vir depois) e a **trilha sonora** (a 1ª no início, a 2ª no final).
+2. **Conferir.**
+   - Título do vídeo e **formato**: 9:16, 16:9, 1:1, 4:5 ou personalizado.
+   - **Duração**: 15, 20, 30, 40, 50 ou 60 s, ou a da narração.
+   - Na lista, digite o **título do ambiente** só na primeira imagem de cada ambiente: as seguintes continuam nele. Quando a página do PDF tem texto, o maior vira o título sugerido.
+   - Marque e desmarque as imagens e mude a ordem. **Escolher pela duração** marca as que cabem (cerca de 3 s cada), espalhadas entre os ambientes; a capa fica de fora.
+   - **Baixar roteiro** entrega os tempos de cada ambiente e de cada imagem, para gravar a narração.
+   - A prévia toca o vídeo sem som.
+3. **Gerar.** MP4 na resolução escolhida:
+   - vinheta, capa com o título e cada imagem com movimento lento (no 9:16, o render 16:9 é percorrido de lado a lado);
+   - dissolução entre as imagens, títulos dos ambientes, assinatura e encerramento;
+   - com narração, as imagens dividem o tempo da fala e a trilha baixa sob a voz.
+
+O trabalho (imagens, títulos, seleção, ordem, narração e formato) fica guardado neste navegador.
+
 Os arquivos exportados (vídeo, planilha, `.4dstudio`, cronograma, mapeamento e relatório) levam a data e a hora no nome: `<nome>-AAAAMMDD-HHMM`. Os modelos para download têm nome fixo.
 
 **Gestão e ajustes** (`#/gestao`, botão no topo) guarda o estúdio completo, descrito abaixo. **Exportar planilha** leva de volta para o .xlsx o que foi ajustado ali.
@@ -88,7 +105,7 @@ Os arquivos exportados (vídeo, planilha, `.4dstudio`, cronograma, mapeamento e 
 10. **Projetos**, no alto: o projeto é salvo sozinho neste navegador (a demonstração só com "Salvar cópia"). Dali se abre, duplica, exporta e importa `.4dstudio`, e se exportam o cronograma (JSON ou CSV para o Excel) e o mapeamento (JSON).
 11. Aba **Obra**: avanço planejado e real com fórmula, fotos da obra (com data do EXIF ou de um `fotos.csv`), planta sobreposta em PNG, JPG ou PDF, e o **relatório PDF** da data da simulação. Na viewport, alterne entre **Planejado**, **Real** e **Comparar**: no modo Comparar, o carmim marca o que está atrasado e a ardósia, o que está adiantado.
 
-A viewport tem duas aparências: **Realista** (padrão) e **Técnica**. Na Realista, a casa fica num lote urbano, com rua, calçada, vizinhos e árvores; na frente, mureta com gradil e portão aberto até a fachada, e muro alto dali ao fundo (ADR-33). A luz **Dia** põe o sol a 35° de frente para a fachada, de manhã ou à tarde, com sombras longas (ADR-31). Na Realista, os materiais são fotografias PBR em escala real (tijolo, reboco, concreto, telhas, madeira, porcelanato e pedra), e a cena tem sol, sombras, céu e acabamento de câmera. A luz é a do **sol real**: local da obra (IFC ou município), data da simulação e norte da casa (IFC ou bússola na aba Vídeo). Escolha **Nascer**, **Dia**, **Entardecer**, **Noite** ou **Ciclo**; no Ciclo, o voo automático e a câmera Drone vão do amanhecer à noite, com a hora dourada diante da fachada que recebe o sol da tarde. No entardecer e à noite, as luminárias da obra pronta acendem no meio de cada cômodo. O botão **Insolação** mostra, sobre a imagem, o sol na hora escolhida, as sombras, o arco do sol no dia, as fachadas ao sol e o sol direto de cada fachada no dia (ADR-26). Na Técnica, os elementos em execução aparecem em latão; os concluídos, com a cor do material; os que nenhuma tarefa faz surgir ficam translúcidos ("fantasma"). Paredes mudam de cor quando o reboco e a pintura terminam.
+A viewport tem duas aparências: **Realista** (padrão) e **Técnica**. Na Realista, a casa fica num lote urbano, com rua, calçada, vizinhos e árvores; na frente, mureta com gradil e portão aberto até a fachada, e muro alto dali ao fundo (ADR-33). No vídeo, a luz **Dia** põe o sol de lado, a 65° da frente da casa e a no máximo 28° de altura, do lado em que o sol real está: a fachada fica ao sol e as sombras atravessam o gramado e a lateral (ADR-36). Na Realista, os materiais são fotografias PBR em escala real (tijolo, reboco, concreto, telhas, madeira, porcelanato e pedra), e a cena tem sol, sombras, céu e acabamento de câmera. A luz é a do **sol real**: local da obra (IFC ou município), data da simulação e norte da casa (IFC ou bússola na aba Vídeo). Escolha **Nascer**, **Dia**, **Entardecer**, **Noite** ou **Ciclo**; no Ciclo, o voo automático e a câmera Drone vão do amanhecer à noite, com a hora dourada diante da fachada que recebe o sol da tarde. No entardecer e à noite, as luminárias da obra pronta acendem no meio de cada cômodo. O botão **Insolação** mostra, sobre a imagem, o sol na hora escolhida, as sombras, o arco do sol no dia, as fachadas ao sol e o sol direto de cada fachada no dia (ADR-26). Na Técnica, os elementos em execução aparecem em latão; os concluídos, com a cor do material; os que nenhuma tarefa faz surgir ficam translúcidos ("fantasma"). Paredes mudam de cor quando o reboco e a pintura terminam.
 
 ## Modelos de arquivo
 

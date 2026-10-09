@@ -1,6 +1,6 @@
 # INC-19 — Vídeo de imagens: apresentação de projeto a partir de um PDF ou de imagens soltas
 
-**Status:** aprovado em 2026-10-09.
+**Status:** aprovado e implementado em 2026-10-09 (ADR-37).
 
 ## Pedido
 

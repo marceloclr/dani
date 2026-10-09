@@ -5,7 +5,7 @@ import { COR_DOURADO, COR_DOURADO_CLARO } from "../app/marca";
 import { totalDeQuadros } from "./cameras";
 import { CAPA, VOZ_INICIO_S, camadasNoTempo, planoDoVideo, recorteNoTempo, recorteQueCobre, tituloNoTempo, ZOOM_MOVIMENTO, type ImagemDoVideo, type PlanoDoVideo } from "./imagensNoVideo";
 import { TOPO_RESERVADO_REELS, desenharAssinatura, desenharVinheta, opacidadeVinheta, type TextoMarca } from "./marcaVideo";
-import { Cancelado, codificar, mixagemDoVideo, type ArquivoGerado, type Saida } from "./VideoRenderer";
+import { Cancelado, codificar, dimensoesDaSaida, mixagemDoVideo, type ArquivoGerado, type Saida } from "./VideoRenderer";
 import type { TrechoDeFala } from "./apresentadora";
 
 export interface PedidoImagens {
@@ -170,7 +170,10 @@ export async function desenharQuadroDeImagens(
 
 const ceder = () => new Promise<void>((r) => setTimeout(r, 0));
 
-export async function gerarVideoDeImagens(p: PedidoImagens): Promise<ArquivoGerado> {
+export async function gerarVideoDeImagens(pedido: PedidoImagens): Promise<ArquivoGerado> {
+  // a saída pode pedir outro tamanho e fps (MP4 para WhatsApp: até 720p)
+  const d = dimensoesDaSaida(pedido.saida, pedido.largura, pedido.altura, pedido.fps);
+  const p = { ...pedido, largura: d.largura, altura: d.altura, fps: d.fps };
   const W = p.largura, H = p.altura;
   const plano = planoDoVideo(p.imagens, p.segundos, W, H);
   if (!plano.itens.length) throw new Error(plano.aviso ?? "Nenhuma imagem marcada.");
