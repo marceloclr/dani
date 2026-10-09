@@ -1,7 +1,8 @@
 // Vídeo de imagens (INC-19): o assistente para uma apresentação feita só de imagens — carregar o PDF (ou as
 // imagens), a narração e as trilhas; conferir títulos, seleção, formato e duração; gerar o MP4.
-import { useState, useSyncExternalStore } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import { adicionarTrilhas, aoMudarTrilhas, arquivosDeTrilha, removerTrilha } from "../app/anexos";
+import { iniciarGuardaDeImagens } from "../app/guardaImagens";
 import { adicionarArquivos, adicionarNarracao, aoMudarImagens, estadoImagens, removerNarracao, removerTodas } from "../app/imagensDoVideo";
 import { useProjeto } from "../state/projectStore";
 import { CartaoArquivo, Remover } from "./PassoCarregar";
@@ -124,6 +125,11 @@ function CarregarImagens() {
 
 export function AssistenteImagens() {
   const [passo, setPasso] = useState(0);
+  // o trabalho guardado no navegador volta ao abrir o modo (títulos, seleção, ordem, narração e formato)
+  const [restaurando, setRestaurando] = useState(true);
+  useEffect(() => {
+    void iniciarGuardaDeImagens().finally(() => setRestaurando(false));
+  }, []);
   const e = usarImagens();
   const gerando = useProjeto((s) => s.gerandoVideo);
   const pronto = e.imagens.some((i) => i.marcada);
@@ -140,7 +146,7 @@ export function AssistenteImagens() {
         <ModoDoAssistente />
       </nav>
       <div className="assistente-corpo">
-        {passo === 0 && <CarregarImagens />}
+        {passo === 0 && (restaurando ? <p className="tenue" data-testid="img-restaurando">Abrindo o trabalho guardado…</p> : <CarregarImagens />)}
         {passo === 1 && pronto && <ConferirImagens />}
         {passo === 2 && pronto && <GerarImagens />}
       </div>

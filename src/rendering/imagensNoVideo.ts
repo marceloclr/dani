@@ -221,3 +221,40 @@ export function tituloNoTempo(p: PlanoDoVideo, t: number, inicioPrimeiroS = VOZ_
   }
   return null;
 }
+
+/** Tempo no formato do roteiro: 0:07,2. */
+export function tempoDoRoteiro(s: number): string {
+  const d = Math.round(Math.max(0, s) * 10) / 10;
+  const min = Math.floor(d / 60), resto = d - min * 60;
+  return `${min}:${resto.toFixed(1).padStart(4, "0").replace(".", ",")}`;
+}
+
+/**
+ * Roteiro de tempos para gravar a narração (INC-19): a janela da voz, cada ambiente com o seu tempo e cada
+ * imagem. Texto simples, para abrir no celular ou imprimir.
+ */
+export function roteiroDeTempos(p: PlanoDoVideo, nomes: string[], titulo: string, dimensoes: { largura: number; altura: number }): string {
+  const vozAte = Math.max(VOZ_INICIO_S, p.duracaoS - RESPIRO_S - ENCERRAMENTO_S);
+  const linhas = [
+    `ROTEIRO DE NARRAÇÃO${titulo.trim() ? ` — ${titulo.trim()}` : ""}`,
+    "",
+    `Vídeo: ${tempoDoRoteiro(p.duracaoS)} · ${p.itens.length} imagens · ${dimensoes.largura} × ${dimensoes.altura}`,
+    `Fale entre ${tempoDoRoteiro(VOZ_INICIO_S)} e ${tempoDoRoteiro(vozAte)} (${(vozAte - VOZ_INICIO_S).toFixed(1).replace(".", ",")} s de voz).`,
+    "Antes: a vinheta da marca. Depois: um respiro e o encerramento com a marca.",
+    "Com a narração enviada, o vídeo passa a durar a fala e as imagens se ajustam a ela.",
+    "",
+    "AMBIENTES",
+  ];
+  // ambientes: grupos de imagens seguidas, abertos por um título (a primeira imagem abre o primeiro grupo)
+  const grupos: { titulo: string; ini: number; fim: number; n: number }[] = [];
+  for (const it of p.itens) {
+    if (it.titulo || !grupos.length) grupos.push({ titulo: it.titulo ?? "Abertura", ini: it.ini, fim: it.fim, n: 0 });
+    const g = grupos[grupos.length - 1];
+    g.fim = it.fim;
+    g.n++;
+  }
+  for (const g of grupos) linhas.push(`${tempoDoRoteiro(g.ini)} – ${tempoDoRoteiro(g.fim)}  ${g.titulo} (${g.n} ${g.n > 1 ? "imagens" : "imagem"})`);
+  linhas.push("", "IMAGENS");
+  p.itens.forEach((it, k) => linhas.push(`${String(k + 1).padStart(2, " ")}. ${tempoDoRoteiro(it.ini)} – ${tempoDoRoteiro(it.fim)}  ${nomes[it.indice] ?? ""}`));
+  return linhas.join("\n") + "\n";
+}

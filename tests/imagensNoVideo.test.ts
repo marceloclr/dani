@@ -14,6 +14,8 @@ import {
   planoDoVideo,
   recorteNoTempo,
   recorteQueCobre,
+  roteiroDeTempos,
+  tempoDoRoteiro,
   selecionarPelaDuracao,
   tituloNoTempo,
   type ImagemDoVideo,
@@ -137,5 +139,23 @@ describe("movimento", () => {
       expect(x).toBeGreaterThan(ant);
       ant = x;
     }
+  });
+});
+
+describe("roteiro de tempos", () => {
+  it("tempo no formato m:ss,d", () => {
+    expect(tempoDoRoteiro(7.24)).toBe("0:07,2");
+    expect(tempoDoRoteiro(65)).toBe("1:05,0");
+  });
+  it("janela da voz, ambientes com tempo e quantidade, e cada imagem", () => {
+    const imgs = [img("Sala"), img(), img("Cozinha"), img("Suíte"), img()];
+    const p = planoDoVideo(imgs, 15, 1080, 1920);
+    const r = roteiroDeTempos(p, ["p. 2", "p. 3", "p. 21", "p. 43", "p. 44"], "Casa JP&M", { largura: 1080, altura: 1920 });
+    expect(r).toContain("ROTEIRO DE NARRAÇÃO — Casa JP&M");
+    expect(r).toContain("Vídeo: 0:15,0 · 5 imagens · 1080 × 1920");
+    expect(r).toContain("Fale entre 0:01,2 e 0:12,0 (10,8 s de voz).");
+    expect(r).toMatch(/0:00,0 – 0:0\d,\d {2}Sala \(2 imagens\)/);
+    expect(r).toMatch(/Cozinha \(1 imagem\)/);
+    expect(r).toMatch(/ 5\. 0:1\d,\d – 0:15,0 {2}p\. 44/);
   });
 });

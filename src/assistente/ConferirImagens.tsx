@@ -17,7 +17,9 @@ import {
   type FormatoImagens,
   type ImagemRecebida,
 } from "../app/imagensDoVideo";
-import { DURACOES_IMAGENS, ambientesDe, planoDoVideo } from "../rendering/imagensNoVideo";
+import { DURACOES_IMAGENS, ambientesDe, planoDoVideo, roteiroDeTempos } from "../rendering/imagensNoVideo";
+import { nomeSeguro } from "../app/projetos";
+import { baixar, carimboArquivo } from "../utils/baixar";
 import { desenharAssinatura, desenharVinheta } from "../rendering/marcaVideo";
 import { desenharQuadroDeImagens } from "../rendering/videoDeImagens";
 import { usarImagens } from "./AssistenteImagens";
@@ -170,6 +172,19 @@ export function ConferirImagens() {
           <div className="botoes">
             <button type="button" className="btn" data-testid="selecionar-auto" data-tip="Marca as imagens que cabem na duração (cerca de 3 s cada), espalhadas entre os ambientes." onClick={selecionarAutomaticamente}>
               Escolher pela duração
+            </button>
+            <button
+              type="button"
+              className="btn"
+              data-testid="baixar-roteiro"
+              disabled={!plano.itens.length}
+              data-tip="Roteiro de tempos (TXT) para gravar a narração: quando falar, quanto tempo cada ambiente fica na tela e a ordem das imagens."
+              onClick={() => {
+                const txt = roteiroDeTempos(plano, e.imagens.map((i) => i.titulo || (i.pagina !== null ? `p. ${i.pagina}` : i.nome)), e.tituloDoVideo, { largura, altura });
+                baixar(new Blob(["﻿" + txt.replace(/\n/g, "\r\n")], { type: "text/plain;charset=utf-8" }), `${nomeSeguro(e.tituloDoVideo || "apresentacao")}-roteiro-${carimboArquivo()}.txt`);
+              }}
+            >
+              Baixar roteiro
             </button>
           </div>
           <p className="resumo-cartao" data-testid="resumo-plano">

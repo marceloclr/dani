@@ -46,6 +46,17 @@ export const chaveFala = (projetoId: string, nome: string) => `${projetoId}/fala
 /** Trilha sonora do vídeo (ADR-34), pelo nome do arquivo. */
 export const chaveTrilha = (projetoId: string, nome: string) => `${projetoId}/trilha/${nome.toLowerCase()}`;
 
+/** Vídeo de imagens (INC-19): fica num grupo próprio de anexos, fora dos projetos de obra. */
+export const GRUPO_IMAGENS = "__imagens__";
+export const chaveEstadoImagens = () => `${GRUPO_IMAGENS}/estado`;
+export const chaveImagem = (id: string) => `${GRUPO_IMAGENS}/img/${id}`;
+export const chaveNarracaoImagens = () => `${GRUPO_IMAGENS}/narracao`;
+
+/** Todos os anexos de um grupo (projeto ou o vídeo de imagens), pela chave. */
+export async function lerAnexosDe(projetoId: string): Promise<Map<string, Blob>> {
+  return new Map((await (await abrir()).getAllFromIndex("anexos", "projetoId", projetoId)).map((a) => [a.chave, a.blob]));
+}
+
 export async function listarProjetos(): Promise<RegistroProjeto[]> {
   const todos = await (await abrir()).getAll("projetos");
   return todos.sort((a, b) => b.atualizadoEm.localeCompare(a.atualizadoEm));
