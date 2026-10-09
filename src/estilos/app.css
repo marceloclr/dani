@@ -457,4 +457,4 @@ a.btn[aria-disabled="true"] { opacity: .5; cursor: not-allowed; }
 @media (max-width: 900px) {
   .conferir-imagens { grid-template-columns: minmax(0, 1fr); }
   .lista-imagens { max-height: none; }
-}
+}.lista-imagens .remover-imagem:hover:not(:disabled) { border-color: var(--risco); color: var(--risco); }

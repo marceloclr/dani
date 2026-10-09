@@ -13,6 +13,7 @@ import {
   duracaoEfetiva,
   marcarTodas,
   moverImagem,
+  removerImagem,
   selecionarAutomaticamente,
   type FormatoImagens,
   type ImagemRecebida,
@@ -226,6 +227,9 @@ export function ConferirImagens() {
                   </button>
                   <button type="button" className="btn-icone" aria-label="Descer" disabled={k === e.imagens.length - 1} onClick={() => moverImagem(im.id, 1)}>
                     ↓
+                  </button>
+                  <button type="button" className="btn-icone remover-imagem" aria-label={`Excluir a imagem ${k + 1}`} data-tip="Excluir esta imagem (enviada por engano). Para só tirá-la do vídeo, desmarque." data-testid={`excluir-img-${k}`} onClick={() => removerImagem(im.id)}>
+                    ×
                   </button>
                 </div>
               </li>

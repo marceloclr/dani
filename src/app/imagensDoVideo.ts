@@ -35,6 +35,8 @@ export interface ImagemRecebida extends ImagemDoVideo {
   pagina: number | null;
   /** Imagem da capa de um PDF (costuma ser fundo): fica fora da seleção automática. */
   capa?: boolean;
+  /** PDF de onde veio (para remover o PDF inteiro); ausente = imagem solta. */
+  origem?: string;
 }
 
 export interface NarracaoRecebida {
@@ -87,9 +89,12 @@ const ehPdf = (f: File) => f.type === "application/pdf" || /\.pdf$/i.test(f.name
 const ehImagem = (f: File) => TIPOS_IMAGEM.includes(f.type) || /\.(jpe?g|png|webp)$/i.test(f.name);
 const ehAudio = (f: File) => /^audio\//.test(f.type) || /\.(mp3|m4a|aac|wav|ogg|oga|opus|flac)$/i.test(f.name);
 
-function nova(blob: Blob, nome: string, largura: number, altura: number, pagina: number | null, titulo: string, capa = false): ImagemRecebida {
-  return { id: novoId(), nome, blob, url: URL.createObjectURL(blob), largura, altura, pagina, titulo, marcada: !capa, ...(capa ? { capa } : {}) };
+function nova(blob: Blob, nome: string, largura: number, altura: number, pagina: number | null, titulo: string, capa = false, origem?: string): ImagemRecebida {
+  return { id: novoId(), nome, blob, url: URL.createObjectURL(blob), largura, altura, pagina, titulo, marcada: !capa, ...(capa ? { capa } : {}), ...(origem ? { origem } : {}) };
 }
+
+/** PDF de onde veio a imagem (as guardadas antes do campo `origem` vêm pelo nome "<pdf> · p. N"). */
+export const origemDa = (i: Pick<ImagemRecebida, "origem" | "nome" | "pagina">): string | null => i.origem ?? (i.pagina !== null ? i.nome.split(" · p. ")[0] : null);
 
 /** Restaura imagens guardadas (sem gravar de novo). */
 export function restaurarImagens(e: Omit<EstadoImagens, "imagens"> & { imagens: Omit<ImagemRecebida, "url">[] }): void {
@@ -117,9 +122,9 @@ export async function adicionarArquivos(arquivos: File[], aoProgredir?: (texto: 
         if (!titulo && r.tituloDoDocumento) titulo = r.tituloDoDocumento;
         const capaComTexto = !!r.tituloDoDocumento;
         r.imagens.forEach((im, k) =>
-          novas.push(nova(im.blob, `${f.name} · p. ${im.pagina}${r.imagens.filter((x) => x.pagina === im.pagina).length > 1 ? ` (${k + 1})` : ""}`, im.largura, im.altura, im.pagina, im.tituloSugerido, capaComTexto && im.pagina === 1)),
+          novas.push(nova(im.blob, `${f.name} · p. ${im.pagina}${r.imagens.filter((x) => x.pagina === im.pagina).length > 1 ? ` (${k + 1})` : ""}`, im.largura, im.altura, im.pagina, im.tituloSugerido, capaComTexto && im.pagina === 1, f.name)),
         );
-        pdfs.push(f.name);
+        if (!pdfs.includes(f.name)) pdfs.push(f.name);
       } catch (e) {
         avisos.push(`"${f.name}" não abriu (${(e as Error)?.message ?? e}).`);
       }
@@ -143,6 +148,20 @@ export function removerImagem(id: string): void {
   const im = estado.imagens.find((i) => i.id === id);
   if (im) URL.revokeObjectURL(im.url);
   mudar({ imagens: estado.imagens.filter((i) => i.id !== id) });
+}
+
+/** Remove o PDF enviado por engano: as imagens que vieram dele saem do vídeo. */
+export function removerPdf(nome: string): void {
+  const fora = estado.imagens.filter((i) => origemDa(i) === nome);
+  fora.forEach((i) => URL.revokeObjectURL(i.url));
+  const pdfs = estado.pdfs.filter((p) => p !== nome);
+  mudar({ imagens: estado.imagens.filter((i) => origemDa(i) !== nome), pdfs, tituloDoVideo: pdfs.length || estado.imagens.some((i) => !origemDa(i)) ? estado.tituloDoVideo : "" });
+}
+
+/** Remove as imagens enviadas soltas (fora de um PDF). */
+export function removerSoltas(): void {
+  estado.imagens.filter((i) => !origemDa(i)).forEach((i) => URL.revokeObjectURL(i.url));
+  mudar({ imagens: estado.imagens.filter((i) => origemDa(i)) });
 }
 
 export function removerTodas(): void {

@@ -88,6 +88,15 @@ test("PDF → imagens com títulos → MP4 com trilha, roteiro e trabalho guarda
   await page.getByTestId("img-avancar").click();
   await expect(page.getByTestId("titulo-img-2")).toHaveValue("Cozinha");
   await expect(page.getByTestId("formato-img-horizontal")).toHaveAttribute("aria-selected", "true");
+
+  // enviado por engano: o × tira uma imagem; no Carregar, o × do PDF tira todas as que vieram dele
+  await page.getByTestId("excluir-img-0").click(); // a capa
+  await expect(page.getByTestId("resumo-plano")).toContainText("2 de 2 imagens no vídeo");
+  await expect(page.getByTestId("titulo-img-1")).toHaveValue("Cozinha");
+  await page.getByTestId("img-passo-1").click();
+  await page.getByTestId("remover-apresentacao.pdf").click();
+  await expect(page.getByTestId("estado-imagens")).toHaveText("obrigatório");
+  await expect(page.getByTestId("img-pendencia")).toHaveText("Falta o PDF ou as imagens.");
   expect(erros).toEqual([]);
 });
 

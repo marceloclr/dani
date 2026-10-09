@@ -3,7 +3,7 @@
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { adicionarTrilhas, aoMudarTrilhas, arquivosDeTrilha, removerTrilha } from "../app/anexos";
 import { iniciarGuardaDeImagens } from "../app/guardaImagens";
-import { adicionarArquivos, adicionarNarracao, aoMudarImagens, estadoImagens, removerNarracao, removerTodas } from "../app/imagensDoVideo";
+import { adicionarArquivos, adicionarNarracao, aoMudarImagens, estadoImagens, origemDa, removerNarracao, removerPdf, removerSoltas, removerTodas } from "../app/imagensDoVideo";
 import { useProjeto } from "../state/projectStore";
 import { CartaoArquivo, Remover } from "./PassoCarregar";
 import { ConferirImagens } from "./ConferirImagens";
@@ -21,7 +21,7 @@ function CarregarImagens() {
   const setAvisos = (id: string, a: string[]) => setAvisosDe((x) => ({ ...x, [id]: a }));
   const [lendo, setLendo] = useState<string | null>(null);
   const marcadas = e.imagens.filter((i) => i.marcada).length;
-  const soltas = e.imagens.filter((i) => i.pagina === null).length;
+  const soltas = e.imagens.filter((i) => !origemDa(i)).length;
 
   return (
     <div className="passo-carregar" data-testid="img-carregar">
@@ -49,13 +49,15 @@ function CarregarImagens() {
               {e.pdfs.map((p) => (
                 <li key={p} data-ok>
                   <span className="mono">{p}</span>
-                  <span className="tenue">{e.imagens.filter((i) => i.nome.startsWith(`${p} ·`)).length} imagens</span>
+                  <span className="tenue">{e.imagens.filter((i) => origemDa(i) === p).length} imagens</span>
+                  <Remover nome={p} aoRemover={() => removerPdf(p)} />
                 </li>
               ))}
               {soltas > 0 && (
                 <li data-ok>
                   <span className="mono">imagens soltas</span>
                   <span className="tenue">{soltas}</span>
+                  <Remover nome="imagens soltas" aoRemover={removerSoltas} />
                 </li>
               )}
             </ol>
