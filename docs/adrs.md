@@ -942,3 +942,21 @@ O sobrado de exemplo passou a ter Fortaleza e a frente para 70° (lés-nordeste)
 - Vitest com os bytes do arquivo real do Firefox: registro válido × estragado, leitura e montagem, conserto pelo quadro-chave e pelo byte repetido.
 - O arquivo do Firefox de 09/10 (30 s, 900 quadros) saiu consertado, com o mesmo número de quadros.
 - MP4 gerado no Edge depois da mudança: registro igual ao de antes.
+
+## ADR-36 — Sol do vídeo de lado: fachada ao sol com sombras visíveis
+
+**Status:** aceito em 2026-10-09. Revê a regra do sol do vídeo do ADR-33.
+
+**Problema.** Os vídeos de 08/10 saíam sem sombra aparente. A sombra era desenhada, mas o sol do vídeo ficava a até 40° da frente da casa, e as câmeras também olham a casa de frente. Assim, a sombra de cada objeto caía atrás dele, fora do quadro.
+
+**Como foi medido.** No Edge com GPU (o SwiftShader dos testes não desenha sombra), foram comparados quadros do mesmo vídeo com e sem sombra. A diferença média por pixel era de 0,9 a 1,5 nas vistas de frente e de 3,1 na vista alta.
+
+**Decisão** (`solNaFachada`, em `src/rendering/sol.ts`).
+- O sol do vídeo na luz Dia fica **sempre a 65° da frente**, do lado em que o sol real está (manhã ou tarde). A fachada continua ao sol, a lateral fica na sombra e a sombra da casa atravessa o gramado.
+- A altura do sol fica limitada a **28°**. A partir de 25°, a luz é a de dia cheio (`iluminacao.ts`), então a sombra fica mais longa sem mudar o tom da luz.
+- A viewport e a Insolação continuam com o sol real.
+- Foram comparados 40°, 55° e 65°, com 35° e 28° de altura, na vista frontal e na diagonal. 65° e 28° deram a casa com volume sem escurecer a fachada.
+
+**Resultado.** A diferença com e sem sombra subiu para 1,7 nas vistas de frente e 4,1 na vista alta.
+
+**Próximo passo possível.** Nas vistas de frente, a sombra continua suave, porque o preenchimento do céu e do ambiente é forte. Reduzir esse preenchimento de dia daria sombras mais escuras, mas também muda o aspecto geral.

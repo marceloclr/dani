@@ -132,19 +132,22 @@ export function rumoDaFachada(f: Fachada, norte: number): number {
   return mod(norte + soma[f], 360);
 }
 
-/** Desvio máximo (graus) do sol real em relação à frente para ser mantido no vídeo, e o desvio usado quando não é (ADR-33). */
-export const DESVIO_MANTIDO = 60, DESVIO_NA_FACHADA = 40;
+/**
+ * Sol do vídeo na luz Dia (ADR-36): desvio em relação à frente (graus) e altura máxima. De lado, a fachada fica
+ * ao sol e as sombras atravessam o gramado e a lateral; mais de frente, elas caíam atrás dos objetos e sumiam.
+ * A partir de 25° de altura, a luz é a de dia cheio (iluminacao.ts), então 28° alonga a sombra sem mudar o tom.
+ */
+export const DESVIO_NA_FACHADA = 65, ALTURA_MAXIMA_NO_VIDEO = 28;
 
 /**
- * Sol do vídeo na luz Dia (ADR-33, escolha do usuário): a fachada frontal sempre ao sol. Se o sol real já está
- * a até `DESVIO_MANTIDO`° da frente, fica como está; senão, gira para `DESVIO_NA_FACHADA`° da frente, do lado em
- * que o sol real está (manhã ou tarde), com a mesma elevação. A Insolação e a viewport continuam com o sol real.
+ * Sol do vídeo na luz Dia (ADR-33 e ADR-36, escolha do usuário): a fachada frontal sempre ao sol, de lado, a
+ * `DESVIO_NA_FACHADA`° da frente, do lado em que o sol real está (manhã ou tarde), e no máximo a
+ * `ALTURA_MAXIMA_NO_VIDEO`° de altura. A Insolação e a viewport continuam com o sol real.
  */
 export function solNaFachada(p: PosicaoSol, norte: number): PosicaoSol {
   const frente = rumoDaFachada("frontal", norte);
   const d = mod(p.azimute - frente + 180, 360) - 180; // −180 a 180
-  if (Math.abs(d) <= DESVIO_MANTIDO) return p;
-  return { ...p, azimute: mod(frente + (d < 0 ? -1 : 1) * DESVIO_NA_FACHADA, 360) };
+  return { ...p, azimute: mod(frente + (d < 0 ? -1 : 1) * DESVIO_NA_FACHADA, 360), elevacao: Math.min(p.elevacao, ALTURA_MAXIMA_NO_VIDEO) };
 }
 
 export const FACHADAS: Fachada[] = ["frontal", "lateral direita", "fundos", "lateral esquerda"];

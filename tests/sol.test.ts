@@ -124,15 +124,16 @@ describe("luz Dia de fachada (ADR-31)", async () => {
   });
 });
 
-describe("sol do vídeo na luz Dia: fachada frontal ao sol (ADR-33)", () => {
-  it("mantém o sol real quando ele já ilumina a frente", () => {
-    const p = { azimute: 30, elevacao: 35 };
-    expect(solNaFachada(p, 0)).toEqual(p);
+describe("sol do vídeo na luz Dia: fachada frontal ao sol, de lado (ADR-33 e ADR-36)", () => {
+  it("põe o sol a 65° da frente, do lado em que ele está, mesmo quando já ilumina a frente", () => {
+    expect(solNaFachada({ azimute: 30, elevacao: 20 }, 0)).toEqual({ azimute: 65, elevacao: 20 });
+    expect(solNaFachada({ azimute: 150, elevacao: 20 }, 0)).toEqual({ azimute: 65, elevacao: 20 });
+    expect(solNaFachada({ azimute: 220, elevacao: 20 }, 0)).toEqual({ azimute: 295, elevacao: 20 });
+    // casa com a frente para o leste (norte = 90): sol a oeste-sudoeste vai para 65° da frente, pelo sul
+    expect(solNaFachada({ azimute: 260, elevacao: 20 }, 90).azimute).toBe(155);
   });
-  it("gira o sol de trás da casa para 40° da frente, do lado em que ele está, com a mesma elevação", () => {
-    expect(solNaFachada({ azimute: 150, elevacao: 35 }, 0)).toEqual({ azimute: 40, elevacao: 35 });
-    expect(solNaFachada({ azimute: 220, elevacao: 35 }, 0)).toEqual({ azimute: 320, elevacao: 35 });
-    // casa com a frente para o leste (norte = 90): sol a oeste-sudoeste vai para 40° da frente, pelo sul
-    expect(solNaFachada({ azimute: 260, elevacao: 35 }, 90).azimute).toBe(130);
+  it("baixa o sol alto para 28° (sombras mais longas) e mantém o que já está mais baixo", () => {
+    expect(solNaFachada({ azimute: 10, elevacao: 70 }, 0).elevacao).toBe(28);
+    expect(solNaFachada({ azimute: 10, elevacao: 12 }, 0).elevacao).toBe(12);
   });
 });
