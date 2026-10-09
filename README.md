@@ -67,7 +67,7 @@ e publique a pasta `dist/` (GitHub Pages, Cloudflare Pages, Netlify ou Vercel).
    - **Trilha sonora**: músicas de fundo; o volume abaixa sozinho sob a voz e some no fim (ADR-34).
    A ordem não importa.
 2. **Conferir.** Ficha da obra, avisos com aba e linha e prévia grande de cada cena no formato do vídeo, com a engenheira recortada sobre a obra. Em **Sequência do vídeo**, ordene vídeos, narrações e fotos (↑ ↓ ou arrastando), escolha quanto tempo cada foto fica e onde cada trilha entra (início, antes de um item ou final) e o volume. O vídeo dura o tempo da voz mais as fotos, com 1 s de respiro e a marca no fim; sem voz, a obra se monta pelo tempo da aba Vídeo (ADR-34). Em **Passeio**, escolha o fim do vídeo: **Externo** (padrão, uma volta baixa por fora), **Interno** (entra pela porta a passo de quem caminha) ou **Ambos** (a volta e, depois de um corte, por dentro). Interno e Ambos pedem a porta de entrada encontrada no modelo; a escolha também vai na aba Vídeo da planilha (ADR-32).
-3. **Gerar.** MP4 com a voz das falas em sequência: abertura no terreno, revelação, a obra se formando, o passeio pela obra pronta e a marca.
+3. **Gerar.** MP4 com a voz das falas em sequência: abertura no terreno, revelação, a obra se formando, o passeio pela obra pronta e a marca. Enquanto a obra sobe, a câmera faz uma única tomada lenta, girando 60° sempre no mesmo sentido e se aproximando, sem cortes entre as falas; a volta por fora continua de onde ela parou (INC-22, ADR-41).
 
 **Vídeo de imagens** (`#/imagens`, seletor no alto do assistente; INC-19, ADR-37). Apresentação de projeto feita só de imagens, sem IFC nem planilha:
 
@@ -176,7 +176,7 @@ Depois de gerar, o painel mostra a pré-visualização, o botão Baixar e:
 - Fotos e plantas ocupam o armazenamento do navegador; em obras com muitas fotos, exporte o `.4dstudio` periodicamente.
 - Os projetos ficam no navegador em que foram criados; para levar a outro computador, exporte o `.4dstudio`.
 - O vídeo só tem áudio com a apresentadora (a voz dela) e ainda não tem legendas; vídeos longos em 1080p ficam na memória até o download (≈ 10 MB por 15 s em VP9).
-- O recorte por IA pode falhar em cabelos soltos contra fundos parecidos; o fundo verde é a opção limpa. Vídeos HEVC (H.265) do iPhone podem não abrir em todos os navegadores: exporte em H.264 ("Mais compatível"). O monograma da marca é provisório até chegar o logo oficial (ADR-24).
+- O recorte por IA pode falhar em cabelos soltos contra fundos parecidos; o fundo verde é a opção limpa. A borda é refinada pela cor da imagem (ADR-42), mas objetos colados ao corpo (uma cadeira ao lado) e legendas já gravadas no vídeo entram no recorte: use o vídeo original, sem legenda. Vídeos HEVC (H.265) do iPhone podem não abrir em todos os navegadores: exporte em H.264 ("Mais compatível"). O monograma da marca é provisório até chegar o logo oficial (ADR-24).
 - O projeto não é salvo: ao recarregar a página, o modelo, o cronograma e as exceções se perdem (IndexedDB no incremento 3).
 - XLSX e edição de tarefas na tela ainda não existem; edite o CSV e carregue de novo.
 - As datas das tarefas são em dias corridos; os dias úteis aparecem na estimativa (segunda a sexta, fora feriados do Ceará e do município, de 2026 a 2030), mas não reprogramam as tarefas. Sem predecessoras.
