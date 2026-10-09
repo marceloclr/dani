@@ -24,8 +24,11 @@ pages:
       echo "VERSAO_PUBLICADA=$VERSAO_PUBLICADA"
       npm run build
       # só a atual é index.html; as duas anteriores continuam no ar como index-DDMMAAAA-HHMM.html.
-      # Enquanto o site do GitLab não tiver versoes.json (primeira publicação), o histórico vem do GitHub Pages.
-      if curl -fsS -o /dev/null "${SITE_GITLAB}versoes.json"; then ORIGEM="$SITE_GITLAB"; else ORIGEM="$SITE_GITHUB"; fi
+      # Enquanto o site do GitLab não tiver um versoes.json válido (primeira publicação), o histórico vem do
+      # GitHub Pages. VERSOES_ORIGEM, definida ao disparar o pipeline, força a origem.
+      if [ -n "${VERSOES_ORIGEM:-}" ]; then ORIGEM="$VERSOES_ORIGEM"
+      elif curl -fsSL "${SITE_GITLAB}versoes.json" | node -e 'if (!JSON.parse(require("fs").readFileSync(0, "utf8")).atual?.versao) process.exit(1)'; then ORIGEM="$SITE_GITLAB"
+      else ORIGEM="$SITE_GITHUB"; fi
       echo "histórico de versões lido de $ORIGEM"
       node tools/versoes-anteriores.mjs "$ORIGEM"
     - rm -rf public && mv dist public
