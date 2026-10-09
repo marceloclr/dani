@@ -1,6 +1,6 @@
 # INC-21 — Legendas animadas e antes e depois no vídeo de imagens
 
-**Status:** aprovado em 2026-10-09.
+**Status:** aprovado e implementado em 2026-10-09 (ADR-39 e ADR-40).
 
 ## Pedido
 

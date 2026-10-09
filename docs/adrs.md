@@ -1065,3 +1065,65 @@ O sobrado de exemplo passou a ter Fortaleza e a frente para 70° (lés-nordeste)
 - **Vitest:** janelas, limites, camadas, opacidades, título depois do voo e roteiro.
 - **Playwright:** o IFC preserva a trilha, o bloco do voo aparece só com o modelo, o roteiro lista os voos e o × tira o IFC.
 - **Edge com GPU:** vídeo vertical de 30 s com 6 renders do JP&M e o sobrado de exemplo, conferido quadro a quadro: vinheta, voo com a capa, dissolução, títulos, voo final e vinheta.
+
+## ADR-39 — Legendas animadas no vídeo de imagens, sincronizadas pela voz sem IA
+
+**Status:** aceito em 2026-10-09 (INC-21, plano em `docs/planos/inc-21-legendas-e-antes-depois.md`).
+
+**Pedido.** A Daniella mandou um Reels (vertical, 54 s) com legendas palavra por palavra e as palavras-chave maiores e em negrito. O usuário quis o mesmo no vídeo de imagens, com o texto colado e sincronizado pelas pausas da voz, sem IA (§43), e o destaque automático, com `*asterisco*` para escolher à mão.
+
+**Decisão.** (`rendering/legendas.ts`, puro.)
+1. **Texto:** a Daniella cola o que falou no bloco **Legendas** do Conferir (só com narração). Cada palavra pesa as sílabas (grupos de vogais; números pelo tamanho); vírgula e ponto pesam um pouco mais. `*palavra*` marca o destaque e some no vídeo.
+2. **Trechos de fala:** energia RMS em janelas de 20 ms. O limiar fica entre o fundo (percentil 10) e a voz (percentil 90). Pausas a partir de 0,25 s separam trechos, e menos de 0,2 s de som é estalo. Sem contraste (música alta), um trecho só. Os trechos são calculados ao receber a narração e guardados com ela; narrações guardadas antes ganham os trechos ao abrir.
+3. **Sincronização:** as pausas da voz são casadas com intervalos entre palavras por programação dinâmica, em ordem:
+   - casar depois de ponto não custa nada; de vírgula, 0,15; antes de conjunção ("que", "e", "então"...), 0,4; no meio da frase, 0,8;
+   - uma pausa da voz sem par (respiração) custa 1;
+   - entre duas âncoras, o ritmo (sílabas por segundo de fala) é puxado para o médio (peso 0,4 · ln² · √sílabas).
+
+   Entre as âncoras, as palavras dividem o tempo de fala pelas sílabas, pulando as pausas. A voz começa em `VOZ_INICIO_S`, e o **atraso** (−1 a +1 s) corrige à mão.
+4. **Grupos:** 2 a 4 palavras, até 22 letras, quebrando na pontuação e em silêncios de 0,6 s ou mais. A destacada é a palavra mais longa que não seja fraca (artigos, preposições, "né"...); com algum `*` no texto, só as marcadas.
+5. **Desenho:**
+   - branco, IBM Plex Sans, com sombra e contorno leve, centralizado a 62 % da altura no vertical (80 % no horizontal);
+   - palavra normal 500, destacada 700 e 1,5 vez maior;
+   - cada palavra entra no seu tempo com um pop (escala de 0,85 a 1, em 0,12 s), num lugar fixo do grupo;
+   - com legendas, o título do ambiente sobe para o alto.
+6. **Narração em vídeo:** o cartão aceita MP4 e MOV e usa o som do arquivo (`decodeAudioData`, o mesmo da apresentadora). O próprio Reels serve de narração.
+
+**Alternativas recusadas.**
+- Transcrição por IA no navegador (Whisper): modelo de 40 a 75 MB, contra §43.
+- "Grudar" cada fim de frase na pausa mais próxima (até 0,6 s): foi a primeira versão. No Reels, errava em média 0,82 s (pior 3 s), porque a fala acelera no começo e no fim.
+
+**Consequências.**
+- Fica mais fácil: vídeos no formato dos Reels de obra entregue, com a voz da própria engenheira.
+- Fica mais difícil: a sincronização é uma estimativa. Medida contra as legendas originais do Reels (23 palavras de referência, lidas em quadros a cada 0,5 s), deu erro médio de 0,45 s e pior de 1,3 s. Música alta sob a voz esconde as pausas, e então as palavras se dividem por igual. Uma correção por frase ficou fora.
+
+**Verificação.**
+- **Vitest:** palavras e asteriscos, trechos com e sem ruído, sincronização com pausas, conjunção e frase longe da pausa, grupos, silêncio, destaque e atraso.
+- **Playwright:** narração em MP4, texto, nota dos trechos, atraso, legenda na prévia (pixels brancos no terço de baixo), MP4 gerado e trabalho guardado.
+- **Ensaio com o Reels da Daniella** (fora do git, em `~/Downloads/dani-teste/inc21`): 9 quadros, o MP4 como narração e o texto lido das legendas originais. Os quadros do vídeo gerado foram conferidos nos instantes de referência.
+
+## ADR-40 — Antes e depois no vídeo de imagens
+
+**Status:** aceito em 2026-10-09 (INC-21).
+
+**Pedido.** O Reels da Daniella compara a cozinha antiga com a nova. O usuário quis a comparação no vídeo de imagens.
+
+**Decisão.**
+1. **Par:** na lista do Conferir, o botão **Antes e depois** faz da imagem o antes e da imagem de baixo o depois (`antes` na imagem). O depois perde o campo de título (vale o do antes). O par é marcado e desmarcado junto, inclusive por "Escolher pela duração". Um par com só uma das duas marcadas não vira par, e o plano avisa.
+2. **Tempo** (`planoDoVideo`): o par é um item de duas vagas, com duração 2d − dissolução. A conta das imagens fica `(U − P)·d + P·(2d − D) − (U − 1)·D = tempo`. Com imagens demais, o par conta duas vagas no corte. O roteiro mostra "Antes e depois: A → B".
+3. **Fases** (`antesDepoisNoTempo`):
+   - até 35 % do item, o antes parado com o rótulo ANTES (à direita);
+   - de 35 % a 65 %, uma cortina vertical com filete dourado revela o depois da esquerda para a direita;
+   - depois, o rótulo DEPOIS (à esquerda).
+
+   As duas imagens têm o mesmo zoom lento rumo ao centro, cada uma com o seu recorte. O item entra pela transição normal do rodízio.
+4. **Rótulos:** pílulas grafite com filete dourado, em caixa-alta, a 30 % da altura no vertical: abaixo do título no alto e longe da legenda.
+
+**Consequências.**
+- Fica mais fácil: mostrar o resultado da obra, que é o que mais chama atenção nos Reels.
+- Fica mais difícil: as duas fotos precisam ter enquadramento parecido para a cortina fazer sentido. O sistema não alinha as imagens.
+
+**Verificação.**
+- **Vitest:** item duplo, tempos fechando, par incompleto, antes na última posição, corte com o par, fases da cortina e roteiro.
+- **Playwright:** botão, marcação junta, resumo, roteiro, MP4 e o par guardado.
+- **Ensaio:** cortina, filete e rótulos conferidos nos quadros do vídeo gerado.

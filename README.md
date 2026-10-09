@@ -71,12 +71,14 @@ e publique a pasta `dist/` (GitHub Pages, Cloudflare Pages, Netlify ou Vercel).
 
 **Vídeo de imagens** (`#/imagens`, seletor no alto do assistente; INC-19, ADR-37). Apresentação de projeto feita só de imagens, sem IFC nem planilha:
 
-1. **Carregar.** O **PDF** da apresentação (o app extrai os renders de cada página, na ordem, sem logos nem repetidas; o texto da capa vira o título do vídeo) ou **imagens** soltas (JPEG, PNG ou WebP), a **narração** (opcional, pode vir depois) e a **trilha sonora** (a 1ª no início, a 2ª no final).
+1. **Carregar.** O **PDF** da apresentação (o app extrai os renders de cada página, na ordem, sem logos nem repetidas; o texto da capa vira o título do vídeo) ou **imagens** soltas (JPEG, PNG ou WebP), a **narração** (opcional, pode vir depois; áudio ou um vídeo da engenheira falando, como o Reels do celular, do qual só o som entra) e a **trilha sonora** (a 1ª no início, a 2ª no final).
 2. **Conferir.**
    - Título do vídeo e **formato**: 9:16, 16:9, 1:1, 4:5 ou personalizado.
    - **Duração**: 15, 20, 30, 40, 50 ou 60 s, ou a da narração.
    - Na lista, digite o **título do ambiente** só na primeira imagem de cada ambiente: as seguintes continuam nele. Quando a página do PDF tem texto, o maior vira o título sugerido.
    - Marque e desmarque as imagens e mude a ordem. **Escolher pela duração** marca as que cabem (cerca de 3 s cada), espalhadas entre os ambientes; a capa fica de fora.
+   - **Antes e depois** (INC-21, ADR-40): ponha a foto de antes logo acima da de depois e toque no botão. No vídeo, o depois entra por uma cortina com filete dourado, com os rótulos ANTES e DEPOIS. O par vale por duas imagens.
+   - **Legendas** (INC-21, ADR-39; com narração): cole o texto falado. As palavras aparecem no tempo da voz, em grupos curtos, com a mais forte maior e em negrito (ou as marcadas com `*asterisco*`). As pausas da voz acertam as frases, e o **atraso** corrige à mão.
    - **Baixar roteiro** entrega os tempos de cada ambiente e de cada imagem, para gravar a narração.
    - A prévia toca o vídeo sem som.
 3. **Gerar.** MP4 na resolução escolhida:
