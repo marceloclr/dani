@@ -45,7 +45,7 @@ a câmera (`poseNoTempo`/`poseDaCena`/`voo.quadro`), o sol (`aplicarSol`), as lu
    - importa o GLB e aplica keyframes de câmera (lente e FOV), sol, céu Nishita e luminárias;
    - visibilidade por `hide_render`, crescimento por escala no pivô da base e opacidade por alpha do Principled;
    - materiais refinados por tipo: vidro com transmissão e porcelanato com verniz;
-   - Rascunho: 50 % da resolução e 16 amostras. Final: 100 % da resolução, 64 amostras e raytracing do EEVEE;
+   - Rascunho: 50 % da resolução e 16 amostras. Final: 100 % da resolução, 16 amostras e raytracing do EEVEE (escolha do usuário em 16/10, ~12 s por quadro no teste);
    - montagem do MP4 pelo sequenciador (VSE), H.264 de alta taxa.
 4. **Uso do render no app**:
    - leitor de quadros reusando `abrirQuadrosDoArquivo` (`src/rendering/apresentadora.ts:~121`, mediabunny com fallback
