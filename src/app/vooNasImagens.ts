@@ -11,6 +11,7 @@ import { duracaoObra } from "../fourd/simulacao";
 import { lerData } from "../fourd/tempo";
 import { cenasDoPasseio, poseDaVolta, quadroDoVooNaCena, type Cena as CenaMontagem } from "../rendering/montagem";
 import type { Cena } from "../rendering/Cena";
+import type { GravadorBlender } from "../rendering/gravadorBlender";
 import type { ParteDoVoo } from "../rendering/imagensNoVideo";
 import { useProjeto } from "../state/projectStore";
 
@@ -49,25 +50,26 @@ export async function tirarIfcDasImagens(): Promise<void> {
 /** Trecho 3D pronto para desenhar quadros (INC-20). */
 export interface Trecho3D {
   /** Desenha no `ctx` o quadro do voo `parte` no instante `u` (0 a 1), com a opacidade dada. */
-  desenhar(ctx: CanvasRenderingContext2D, parte: ParteDoVoo, u: number, duracaoS: number, quadro: number, opacidade: number): void;
+  desenhar(ctx: CanvasRenderingContext2D, parte: ParteDoVoo, u: number, duracaoS: number, quadro: number, opacidade: number): void | Promise<void>;
   dispose(): void;
 }
 
 /**
  * Prepara o trecho 3D num renderizador dedicado do tamanho do vídeo: a obra pronta, o sol do vídeo (fachada ao
  * sol, de lado, ADR-36) e o percurso: a volta por fora ou a volta e a entrada pela porta. No encerramento, a
- * volta anda no sentido contrário, para não repetir a abertura.
+ * volta anda no sentido contrário, para não repetir a abertura. Com o `gravador` (pacote do Blender, INC-23),
+ * cada quadro é gravado em vez de desenhado.
  */
-export async function criarTrecho3D(cena: Cena, largura: number, altura: number, percurso: "volta" | "porta"): Promise<Trecho3D> {
+export async function criarTrecho3D(cena: Cena, largura: number, altura: number, percurso: "volta" | "porta", gravador?: GravadorBlender): Promise<Trecho3D> {
   await cena.preparar();
   const st = useProjeto.getState;
   const canvas = document.createElement("canvas");
   canvas.width = largura;
   canvas.height = altura;
-  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, preserveDrawingBuffer: true });
-  renderer.setPixelRatio(1);
-  renderer.setSize(largura, altura, false);
-  const desenhista = cena.criarDesenhista(renderer, largura, altura);
+  const renderer = gravador ? null : new THREE.WebGLRenderer({ canvas, antialias: true, preserveDrawingBuffer: true });
+  renderer?.setPixelRatio(1);
+  renderer?.setSize(largura, altura, false);
+  const desenhista = renderer ? cena.criarDesenhista(renderer, largura, altura) : null;
   const camera = new THREE.PerspectiveCamera(45, largura / altura, 0.05, 4000);
   const dia = diaDaObraPronta();
   cena.silencioso = true;
@@ -89,7 +91,11 @@ export async function criarTrecho3D(cena: Cena, largura: number, altura: number,
         cena.atualizarPortas(null);
         cena.posicionar(camera, poseDaVolta(e, parte === "encerramento" ? 1 - uu : uu));
       }
-      desenhista.desenhar(camera, quadro);
+      if (gravador) {
+        gravador.quadro(quadro, camera);
+        return;
+      }
+      desenhista!.desenhar(camera, quadro);
       ctx.globalAlpha = opacidade;
       ctx.drawImage(canvas, 0, 0, ctx.canvas.width, ctx.canvas.height);
       ctx.globalAlpha = 1;
@@ -97,9 +103,9 @@ export async function criarTrecho3D(cena: Cena, largura: number, altura: number,
     dispose() {
       cena.silencioso = false;
       cena.atualizarPortas(null);
-      desenhista.dispose();
-      renderer.dispose();
-      renderer.forceContextLoss();
+      desenhista?.dispose();
+      renderer?.dispose();
+      renderer?.forceContextLoss();
       aplicarSol(cena);
     },
   };

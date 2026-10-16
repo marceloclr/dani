@@ -40,7 +40,8 @@ const caixaAlta = (s: string) => s.toLocaleUpperCase("pt-BR");
 
 /** Quem desenha o voo 3D (INC-20); na prévia, um quadro que o representa. */
 export interface DesenhoDoVoo {
-  desenhar(ctx: CanvasRenderingContext2D, parte: ParteDoVoo, u: number, duracaoS: number, quadro: number, opacidade: number): void;
+  /** `quadro` é o do vídeo; o render do Blender (INC-23) lê o quadro dele pelo tempo, por isso pode esperar. */
+  desenhar(ctx: CanvasRenderingContext2D, parte: ParteDoVoo, u: number, duracaoS: number, quadro: number, opacidade: number): void | Promise<void>;
 }
 
 /** Prévia do voo: a cena 3D pesaria demais na prévia; um quadro grafite diz o que entra ali no vídeo. */
@@ -343,7 +344,7 @@ export async function desenharQuadroDeImagens(
   // voo de abertura por baixo das imagens (a primeira dissolve sobre ele)
   const voo = extras.voo ? vooNoTempo(plano, t) : null;
   const durVoo = (parte: ParteDoVoo) => plano.voos.find((v) => v.parte === parte)!;
-  if (voo && !voo.porCima) extras.voo!.desenhar(ctx, voo.parte, voo.u, durVoo(voo.parte).fim - durVoo(voo.parte).ini, extras.quadro ?? 0, 1);
+  if (voo && !voo.porCima) await extras.voo!.desenhar(ctx, voo.parte, voo.u, durVoo(voo.parte).fim - durVoo(voo.parte).ini, extras.quadro ?? 0, 1);
   const camadas = camadasNoTempo(plano, t);
   // o par de antes e depois precisa das duas imagens
   const bmps = new Map((await imagens(camadas.flatMap((c) => (c.item.depois !== undefined ? [c.item.indice, c.item.depois] : [c.item.indice])))).map((x) => [x.i, x]));
@@ -396,7 +397,7 @@ export async function desenharQuadroDeImagens(
   }
   ctx.globalAlpha = 1;
   // voo de encerramento por cima da última imagem
-  if (voo && voo.porCima) extras.voo!.desenhar(ctx, voo.parte, voo.u, durVoo(voo.parte).fim - durVoo(voo.parte).ini, extras.quadro ?? 0, voo.opacidade);
+  if (voo && voo.porCima) await extras.voo!.desenhar(ctx, voo.parte, voo.u, durVoo(voo.parte).fim - durVoo(voo.parte).ini, extras.quadro ?? 0, voo.opacidade);
   const capa = extras.capa?.trim();
   if (capa) {
     const o = opacidadeCapa(t);
@@ -425,6 +426,30 @@ export async function desenharQuadroDeImagens(
 }
 
 const ceder = () => new Promise<void>((r) => setTimeout(r, 0));
+
+/**
+ * Percorre só os quadros do voo 3D (pacote do Blender, INC-23): o mesmo plano do vídeo, sem abrir as imagens.
+ * O desenho recebe cada quadro do voo, com o índice do quadro do vídeo.
+ */
+export async function percorrerVooDeImagens(
+  p: Pick<PedidoImagens, "imagens" | "segundos" | "largura" | "altura" | "fps" | "transicoes"> & { voo: { aberturaS?: number; encerramentoS?: number } },
+  desenho: DesenhoDoVoo,
+  sinal: AbortSignal,
+  aoProgredir: (q: { quadro: number; total: number; restanteS: number | null }) => void,
+): Promise<number> {
+  const plano = planoDoVideo(p.imagens, p.segundos, p.largura, p.altura, p.voo, p.transicoes ?? "variadas");
+  const total = totalDeQuadros(p.segundos, p.fps);
+  const ctx = document.createElement("canvas").getContext("2d")!;
+  const durVoo = (parte: ParteDoVoo) => plano.voos.find((v) => v.parte === parte)!;
+  for (let i = 0; i < total; i++) {
+    if (sinal.aborted) throw new Cancelado();
+    const voo = vooNoTempo(plano, i / p.fps);
+    if (voo) await desenho.desenhar(ctx, voo.parte, voo.u, durVoo(voo.parte).fim - durVoo(voo.parte).ini, i, 1);
+    aoProgredir({ quadro: i + 1, total, restanteS: null });
+    if (i % 8 === 0) await ceder();
+  }
+  return total;
+}
 
 export async function gerarVideoDeImagens(pedido: PedidoImagens): Promise<ArquivoGerado> {
   // a saída pode pedir outro tamanho e fps (MP4 para WhatsApp: até 720p)

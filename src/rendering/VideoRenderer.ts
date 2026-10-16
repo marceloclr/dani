@@ -136,7 +136,20 @@ export interface PedidoVideo {
   aoProgredir(p: { quadro: number; total: number; restanteS: number | null }): void;
   /** Recebe o canvas do vídeo, para pré-visualização durante a geração. */
   aoCriarCanvas?(c: HTMLCanvasElement): void;
+  /** Quem desenha a obra em 3D (INC-23): o render do Blender ou o gravador do pacote; ausente = o WebGL. */
+  desenho3D?: FabricaDesenho3D;
 }
+
+/** Desenho da obra em 3D no quadro `i` (INC-23), no lugar do desenhista WebGL. */
+export interface Desenho3D {
+  desenhar(camera: THREE.PerspectiveCamera, i: number): Promise<void> | void;
+  /** Quadro sem obra (cenas de fala e de marca): a tela fica preta. */
+  vazio?(i: number): void;
+  dispose(): void;
+}
+
+/** Cria o desenho 3D para o renderizador do vídeo (largura e altura da tela de desenho). */
+export type FabricaDesenho3D = (renderer: THREE.WebGLRenderer, largura: number, altura: number, fps: number) => Promise<Desenho3D>;
 
 export interface ArquivoGerado {
   blob: Blob;
@@ -156,7 +169,28 @@ export class Cancelado extends Error {
 const ceder = () => new Promise<void>((r) => setTimeout(r, 0));
 const pad = (n: number, w: number) => String(n).padStart(w, "0");
 
-export async function gerarVideo(cena: Cena, pedido: PedidoVideo): Promise<ArquivoGerado> {
+export function gerarVideo(cena: Cena, pedido: PedidoVideo): Promise<ArquivoGerado> {
+  return executarVideo(cena, pedido, (p, canvas, total, desenhar, progredir, conferir, audio) => codificar(p, canvas, total, desenhar, progredir, conferir, audio));
+}
+
+/**
+ * Percorre os quadros do vídeo sem codificar nada (INC-23): o pacote do Blender usa o mesmo laço, com o
+ * gravador no lugar do desenho 3D, para a câmera, a luz e a obra saírem iguais às do vídeo.
+ */
+export async function percorrerVideo(cena: Cena, pedido: PedidoVideo): Promise<void> {
+  await executarVideo(cena, pedido, async (_p, _c, total, desenhar, progredir, conferir) => {
+    for (let i = 0; i < total; i++) {
+      conferir();
+      await desenhar(i);
+      progredir(i);
+      if (i % 8 === 0) await ceder();
+    }
+  });
+}
+
+type Finalizar<T> = (p: PedidoVideo, canvas: HTMLCanvasElement, total: number, desenhar: Desenhar, progredir: Progredir, conferir: () => void, audio: AudioBuffer | null) => Promise<T>;
+
+async function executarVideo<T>(cena: Cena, pedido: PedidoVideo, finalizar: Finalizar<T>): Promise<T> {
   await cena.preparar(); // texturas fotográficas prontas antes do primeiro quadro
   const d = dimensoesDaSaida(pedido.saida, pedido.largura, pedido.altura, pedido.fps);
   const p = { ...pedido, largura: d.largura, altura: d.altura, fps: d.fps };
@@ -175,7 +209,13 @@ export async function gerarVideo(cena: Cena, pedido: PedidoVideo): Promise<Arqui
   renderer.setPixelRatio(1);
   renderer.setSize(lr, ar, false);
   cena.sombraMaxima(!!p.maxima);
-  const desenhista = cena.criarDesenhista(renderer, lr, ar, { maxima: p.maxima }); // mesma aparência da viewport (ADR-21)
+  // o desenho 3D do Blender (ou o gravador do pacote) substitui o desenhista WebGL (INC-23)
+  const d3 = p.desenho3D ? await p.desenho3D(renderer, lr, ar, p.fps) : null;
+  const desenhista = d3 ? null : cena.criarDesenhista(renderer, lr, ar, { maxima: p.maxima }); // mesma aparência da viewport (ADR-21)
+  const pintar = async (cam: THREE.PerspectiveCamera, i: number) => {
+    if (d3) await d3.desenhar(cam, i);
+    else desenhista!.desenhar(cam, i);
+  };
   const camera = new THREE.PerspectiveCamera(45, p.largura / p.altura, 0.05, 4000);
   const total = totalDeQuadros(p.segundos, p.fps);
   // apresentadora: quadros da fala na ordem do vídeo, recorte e áudio
@@ -220,13 +260,13 @@ export async function gerarVideo(cena: Cena, pedido: PedidoVideo): Promise<Arqui
     if (c.tipo !== "fala" && c.tipo !== "marca") p.aplicarDia(obraNaCena(c, u) * p.diasDeObra);
     p.aoQuadro?.(i, total);
     const img = fala ? await fala.proximo(i / p.fps) : null; // a leitura da fala é sequencial: avança sempre
-    const obra = (cc: typeof c, uu: number, duracaoS: number) => {
+    const obra = async (cc: typeof c, uu: number, duracaoS: number) => {
       if (cc.camera === "drone" && m.voo) cena.posicionarLivre(camera, quadroDoVooNaCena(cc, uu, m.voo, duracaoS));
       else {
         cena.atualizarPortas(null);
         cena.posicionar(camera, poseDaCena(cc.camera === "drone" ? "orbita" : cc.camera, m.enquadramento, uu, cc.percurso, cc.obra));
       }
-      desenhista.desenhar(camera, i);
+      await pintar(camera, i);
     };
     // a marca entra esmaecendo sobre o último quadro da cena de obra (ou de foto) anterior (ADR-33)
     const naMarca = i / p.fps - ponto.inicio;
@@ -234,12 +274,13 @@ export async function gerarVideo(cena: Cena, pedido: PedidoVideo): Promise<Arqui
     const esmaece = !!anterior && (anterior.cena.tipo === "obra" || anterior.cena.tipo === "foto");
     if (anterior && esmaece) {
       p.aplicarDia(obraNaCena(anterior.cena, 1) * p.diasDeObra);
-      obra(anterior.cena, 1, anterior.fim - anterior.inicio);
+      await obra(anterior.cena, 1, anterior.fim - anterior.inicio);
     } else if (c.tipo === "fala" || c.tipo === "marca") {
       renderer.setRenderTarget(null);
       renderer.setClearColor(0x000000, 1);
       renderer.clear();
-    } else obra(c, u, ponto.fim - ponto.inicio);
+      d3?.vazio?.(i);
+    } else await obra(c, u, ponto.fim - ponto.inicio);
     if (c.tipo === "marca") {
       if (cartela) {
         cartela.definirOpacidade(esmaece ? suaveMarca(naMarca / ESMAECER_MARCA_S) : 1);
@@ -276,7 +317,7 @@ export async function gerarVideo(cena: Cena, pedido: PedidoVideo): Promise<Arqui
     if (p.quadroLivre) {
       cena.posicionarLivre(camera, p.quadroLivre(i / p.fps));
     } else cena.posicionar(camera, p.poseNoTempo(i / p.fps));
-    desenhista.desenhar(camera, i);
+    await pintar(camera, i);
     if (fala && camada) {
       await camada.atualizar(await fala.proximo(i / p.fps));
       sobre(camada);
@@ -300,12 +341,13 @@ export async function gerarVideo(cena: Cena, pedido: PedidoVideo): Promise<Arqui
 
   cena.silencioso = true;
   try {
-    return await codificar(p, canvas, total, desenhar, progredir, conferir, audio);
+    return await finalizar(p, canvas, total, desenhar, progredir, conferir, audio);
   } finally {
     cena.silencioso = false;
     cena.sombraMaxima(false);
     if (p.quadroLivre || p.montagem) cena.atualizarPortas(null);
-    desenhista.dispose();
+    desenhista?.dispose();
+    d3?.dispose();
     marca?.dispose();
     vinheta?.dispose();
     cartela?.dispose();

@@ -533,8 +533,25 @@ export class Cena {
     return this.vooCache;
   }
 
+  /**
+   * O que vai para o Blender (INC-23): as malhas do IFC (pelo guid), o entorno, as pessoas e as luminárias
+   * (cada luz pontual com a força plena). Ficam de fora as luzes da cena, a insolação e a planta sobreposta.
+   */
+  paraOBlender(): { raizes: { prefixo: string; raiz: THREE.Object3D }[]; malhas: Map<string, THREE.Mesh>; lampadas: THREE.PointLight[]; grupoLampadas: THREE.Object3D } {
+    return {
+      raizes: [
+        { prefixo: "amb", raiz: this.ambiente },
+        { prefixo: "pes", raiz: this.pessoas },
+        { prefixo: "lum", raiz: this.lampadas },
+      ],
+      malhas: this.malhas,
+      lampadas: this.lampadas.children.filter((o): o is THREE.PointLight => o instanceof THREE.PointLight),
+      grupoLampadas: this.lampadas,
+    };
+  }
+
   /** Esconde, neste quadro, as casas vizinhas e árvores do entorno que tampam a obra (ADR-31). */
-  private liberarVista(cam: THREE.Camera): void {
+  liberarVista(cam: THREE.Camera): void {
     const grupos: THREE.Object3D[] = [];
     this.ambiente.traverse((o) => {
       if (o.userData.ocultavel) grupos.push(o);

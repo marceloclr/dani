@@ -9,7 +9,7 @@ import { horarioDoVoo } from "../rendering/cicloDia";
 import { poseNoTempo, type PontoRoteiro } from "../rendering/cameras";
 import { diaDoVoo } from "../rendering/drone";
 import { cenaNoTempo, obraNaCena, poseDaCena, quadroDoVooNaCena, trechoDoVoo, trechoInterno, type Cena as CenaMontagem } from "../rendering/montagem";
-import { gerarVideo, type ArquivoGerado, type Saida } from "../rendering/VideoRenderer";
+import { gerarVideo, percorrerVideo, type ArquivoGerado, type FabricaDesenho3D, type PedidoVideo, type Saida } from "../rendering/VideoRenderer";
 import type { Cena } from "../rendering/Cena";
 import type { ConfigApresentadora } from "../rendering/composicao";
 import type { FonteFala, TrechoDeFala } from "../rendering/apresentadora";
@@ -33,9 +33,33 @@ export interface PedidoDaObra {
   sinal: AbortSignal;
   aoProgredir(p: { quadro: number; total: number; restanteS: number | null }): void;
   aoCriarCanvas?(c: HTMLCanvasElement): void;
+  /** Render do Blender no lugar do WebGL (INC-23). */
+  desenho3D?: FabricaDesenho3D;
 }
 
-export async function gerarVideoDaObra(cena: Cena, p: PedidoDaObra): Promise<ArquivoGerado> {
+export function gerarVideoDaObra(cena: Cena, p: PedidoDaObra): Promise<ArquivoGerado> {
+  return comPedidoDaObra(cena, p, (pedido) => gerarVideo(cena, pedido));
+}
+
+/**
+ * Percorre os quadros do vídeo da obra sem codificar (pacote do Blender, INC-23): a mesma câmera, o mesmo sol
+ * e a mesma obra; sem apresentadora, voz, fotos nem marca, que o app põe por cima do render depois.
+ */
+export function percorrerVideoDaObra(cena: Cena, p: PedidoDaObra): Promise<void> {
+  const so3D: PedidoDaObra = { ...p, fala: null, voz: [], trilhas: [], fotos: [] };
+  return comPedidoDaObra(cena, so3D, (pedido) => {
+    const { assinatura: _a, vinheta: _v, ...resto } = pedido;
+    return percorrerVideo(cena, { ...resto, maxima: false });
+  });
+}
+
+/** Resolução e fps do vídeo da obra (os do pacote do Blender). */
+export function formatoDoVideo(): { largura: number; altura: number; fps: number } {
+  const video = useProjeto.getState().video;
+  return { ...RESOLUCOES[video.formato], fps: video.fps };
+}
+
+async function comPedidoDaObra<T>(cena: Cena, p: PedidoDaObra, executar: (pedido: PedidoVideo) => Promise<T>): Promise<T> {
   const st = useProjeto.getState;
   const video = st().video;
   const { largura, altura } = RESOLUCOES[video.formato];
@@ -65,7 +89,7 @@ export async function gerarVideoDaObra(cena: Cena, p: PedidoDaObra): Promise<Arq
   definirInsolacaoAtiva(!!video.insolacaoNoVideo && st().aparencia3d === "realista");
   const montagem = comMontagem ? { cenas: p.cenas, enquadramento: e, voo: cena.voo(), cartela: { nome: CLIENTE.nome, slogan: CLIENTE.slogan, secundario: CLIENTE.instagram } } : undefined;
   try {
-    return await gerarVideo(cena, {
+    return await executar({
       saida: p.saida,
       largura,
       altura,
@@ -99,6 +123,7 @@ export async function gerarVideoDaObra(cena: Cena, p: PedidoDaObra): Promise<Arq
       sinal: p.sinal,
       aoProgredir: p.aoProgredir,
       ...(p.aoCriarCanvas ? { aoCriarCanvas: p.aoCriarCanvas } : {}),
+      ...(p.desenho3D ? { desenho3D: p.desenho3D } : {}),
     });
   } finally {
     // volta o sol e a insolação da viewport
