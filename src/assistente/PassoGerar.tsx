@@ -1,8 +1,10 @@
 // Passo 3 do assistente (ADR-30): gera o MP4 (montagem pelas falas, com a voz) e oferece o download.
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { obterCena } from "../app/estadoCena";
 import { nomeSeguro } from "../app/projetos";
-import { gerarVideoDaObra } from "../app/videoDaObra";
+import { gerarVideoDaObra, type PedidoDaObra } from "../app/videoDaObra";
+import { aoMudarBlender, desenhoDoBlender, pacoteDaObra, renderDoBlender } from "../app/pacoteBlender";
+import { SecaoBlender } from "../components/SecaoBlender";
 import { Cancelado, NOME_SAIDA, capacidades, dimensoesDaSaida, type ArquivoGerado, type Saida } from "../rendering/VideoRenderer";
 import { totalDeQuadros } from "../rendering/cameras";
 import { RESOLUCOES, useProjeto } from "../state/projectStore";
@@ -41,6 +43,22 @@ export function PassoGerar({ falas, cenas, segundos }: { falas: FalasDoVideo; ce
   const [aviso, setAviso] = useState<string | null>(null);
   const controle = useRef<AbortController | null>(null);
   const quadro = useRef<HTMLDivElement>(null);
+  const renderBlender = useSyncExternalStore(aoMudarBlender, () => renderDoBlender("obra"));
+
+  /** O pedido do vídeo (e do pacote do Blender): a montagem pelas falas, com a voz, as trilhas e as fotos. */
+  const pedido = (sinal: AbortSignal): Omit<PedidoDaObra, "saida" | "aoProgredir"> => ({
+    segundos,
+    camera: "montagem",
+    cenas,
+    roteiro: [],
+    // a apresentadora segue a linha do tempo inteira (narrações e fotos sem ela); a voz e as trilhas vão para a mixagem (ADR-34)
+    fala: falas.cfg ? { fonte: falas.linhaDoTempo, cfg: falas.cfg } : null,
+    voz: falas.linhaDoTempo.some((t) => t.arquivo) ? falas.linhaDoTempo : undefined,
+    trilhas: falas.trilhas.map((t) => ({ blob: t.blob, iniS: t.iniS, volume: t.volume / 100 })),
+    fotos: falas.fotos.map((f) => ({ blob: f.blob, legenda: { data: f.data, etapa: f.etapa, descricao: f.descricao } })),
+    nomeBase: nomeDaEntrega(obra),
+    sinal,
+  });
 
   // só as saídas MP4: as que este navegador consegue gerar neste formato
   useEffect(() => {
@@ -69,18 +87,9 @@ export function PassoGerar({ falas, cenas, segundos }: { falas: FalasDoVideo; ce
     setProgresso({ quadro: 0, total: totalDeQuadros(segundos, video.fps), restanteS: null });
     try {
       const arq = await gerarVideoDaObra(cena, {
+        ...pedido(ac.signal),
         saida,
-        segundos,
-        camera: "montagem",
-        cenas,
-        roteiro: [],
-        // a apresentadora segue a linha do tempo inteira (narrações e fotos sem ela); a voz e as trilhas vão para a mixagem (ADR-34)
-        fala: falas.cfg ? { fonte: falas.linhaDoTempo, cfg: falas.cfg } : null,
-        voz: falas.linhaDoTempo.some((t) => t.arquivo) ? falas.linhaDoTempo : undefined,
-        trilhas: falas.trilhas.map((t) => ({ blob: t.blob, iniS: t.iniS, volume: t.volume / 100 })),
-        fotos: falas.fotos.map((f) => ({ blob: f.blob, legenda: { data: f.data, etapa: f.etapa, descricao: f.descricao } })),
-        nomeBase: nomeDaEntrega(obra),
-        sinal: ac.signal,
+        ...(renderBlender ? { desenho3D: desenhoDoBlender(renderBlender, segundos) } : {}),
         aoProgredir: setProgresso,
         aoCriarCanvas: (c) => {
           c.className = "previa-canvas";
@@ -144,6 +153,15 @@ export function PassoGerar({ falas, cenas, segundos }: { falas: FalasDoVideo; ce
             </button>
           )}
         </div>
+        <SecaoBlender
+          origem="obra"
+          desabilitado={gerando || aparencia !== "realista"}
+          gerarPacote={(sinal, aoProgredir) => {
+            const cena = obterCena();
+            if (!cena) throw new Error("A cena 3D não abriu.");
+            return pacoteDaObra(cena, { ...pedido(sinal), aoProgredir });
+          }}
+        />
         {progresso && (
           <div className="progresso-gerar" role="status" aria-live="polite">
             <div className="barra-progresso">

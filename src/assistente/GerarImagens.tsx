@@ -4,6 +4,8 @@ import { aoMudarTrilhas, arquivosDeTrilha } from "../app/anexos";
 import { dimensoesDoFormato, duracaoEfetiva, legendasDoEstado, opcoesDoVoo } from "../app/imagensDoVideo";
 import { obterCena } from "../app/estadoCena";
 import { criarTrecho3D } from "../app/vooNasImagens";
+import { aoMudarBlender, pacoteDoVoo, renderDoBlender, vooDoBlender } from "../app/pacoteBlender";
+import { SecaoBlender } from "../components/SecaoBlender";
 import { Viewport } from "../components/Viewport";
 import { CLIENTE } from "../app/marca";
 import { nomeSeguro } from "../app/projetos";
@@ -50,6 +52,8 @@ export function GerarImagens() {
   const [aviso, setAviso] = useState<string | null>(null);
   const controle = useRef<AbortController | null>(null);
   const quadro = useRef<HTMLDivElement>(null);
+  const renderBlender = useSyncExternalStore(aoMudarBlender, () => renderDoBlender("imagens"));
+  const nomeBase = () => `${nomeSeguro(e.tituloDoVideo || "apresentacao")}-${carimboArquivo()}`;
 
   useEffect(() => {
     let vivo = true;
@@ -83,7 +87,7 @@ export function GerarImagens() {
         altura,
         fps: FPS,
         segundos,
-        nomeBase: `${nomeSeguro(e.tituloDoVideo || "apresentacao")}-${carimboArquivo()}`,
+        nomeBase: nomeBase(),
         imagens: e.imagens,
         tituloDoVideo: e.tituloDoVideo,
         transicoes: e.transicoes,
@@ -97,6 +101,8 @@ export function GerarImagens() {
               voo: {
                 ...voo,
                 criar: async (w: number, h: number) => {
+                  // o render do Blender (INC-23) no lugar da cena 3D, pelo tempo do quadro do vídeo
+                  if (renderBlender) return vooDoBlender(renderBlender, dimensoesDaSaida(saida, largura, altura, FPS).fps, segundos);
                   const cena = obterCena();
                   if (!cena) throw new Error("A cena 3D do voo não abriu.");
                   return criarTrecho3D(cena, w, h, e.voo.percurso);
@@ -170,6 +176,17 @@ export function GerarImagens() {
             </button>
           )}
         </div>
+        {comVoo && (
+          <SecaoBlender
+            origem="imagens"
+            desabilitado={gerando}
+            gerarPacote={(sinal, aoProgredir) => {
+              const cena = obterCena();
+              if (!cena) throw new Error("A cena 3D do voo não abriu.");
+              return pacoteDoVoo(cena, { imagens: e.imagens, segundos, largura, altura, fps: FPS, transicoes: e.transicoes, voo, percurso: e.voo.percurso, nomeBase: nomeBase() }, sinal, aoProgredir);
+            }}
+          />
+        )}
         {progresso && (
           <div className="progresso-gerar" role="status" aria-live="polite">
             <div className="barra-progresso">

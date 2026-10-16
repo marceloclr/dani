@@ -4,6 +4,8 @@ import { duracaoDoVideo } from "../rendering/composicao";
 import { SecaoApresentadora } from "./SecaoApresentadora";
 import { SolOrientacao } from "./SolOrientacao";
 import { EditorMontagem } from "./EditorMontagem";
+import { SecaoBlender } from "./SecaoBlender";
+import { aoMudarBlender, desenhoDoBlender, pacoteDaObra, renderDoBlender } from "../app/pacoteBlender";
 import { gerarVideoDaObra } from "../app/videoDaObra";
 import { NOME_CENA, cenaNoTempo, normalizar, obraNaCena, poseDaCena, quadroDoVooNaCena, roteiroReels } from "../rendering/montagem";
 import { obterCena } from "../app/estadoCena";
@@ -40,6 +42,7 @@ export function PainelVideo() {
   const { largura, altura } = RESOLUCOES[video.formato];
   // com a apresentadora, a duração pode acompanhar a fala (ADR-24)
   const blobFala = useSyncExternalStore(aoMudarApresentadora, blobDaApresentadora);
+  const renderBlender = useSyncExternalStore(aoMudarBlender, () => renderDoBlender("obra"));
   const fala = blobFala ? video.apresentadora ?? null : null;
   const segundos = duracaoDoVideo(video.segundos, fala);
   const acompanha = !!fala?.acompanharFala;
@@ -118,6 +121,23 @@ export function PainelVideo() {
     definirRoteiro([...roteiro.filter((p) => Math.abs(p.segundo - previa) > 0.01), novo].sort((a, b) => a.segundo - b.segundo));
   };
 
+  /** Câmera, cenas e roteiro do vídeo como estão escolhidos (o vídeo e o pacote do Blender usam os mesmos). */
+  const pedidoBase = (sinal: AbortSignal) => ({
+    segundos,
+    camera: (comMontagem ? "montagem" : comDrone ? "drone" : "roteiro") as "montagem" | "drone" | "roteiro",
+    cenas,
+    roteiro,
+    fala: fala && blobFala ? { fonte: blobFala, cfg: fala } : null,
+    nomeBase: `${nomeSeguro(st().planilha?.obra.nome || st().nomeProjeto || "obra")}-${video.formato}-${carimboArquivo()}`,
+    sinal,
+  });
+
+  const pacoteBlender = async (sinal: AbortSignal, aoProgredir: (p: { quadro: number; total: number }) => void) => {
+    const cena = obterCena();
+    if (!cena) throw new Error("A cena 3D não abriu.");
+    return pacoteDaObra(cena, { ...pedidoBase(sinal), aoProgredir });
+  };
+
   const gerar = async () => {
     const cena = obterCena();
     if (!cena || !saida) return;
@@ -131,14 +151,9 @@ export function PainelVideo() {
     setProgresso({ quadro: 0, total: quadros, restanteS: null });
     try {
       const arq = await gerarVideoDaObra(cena, {
+        ...pedidoBase(ac.signal),
         saida,
-        segundos,
-        camera: comMontagem ? "montagem" : comDrone ? "drone" : "roteiro",
-        cenas,
-        roteiro,
-        fala: fala && blobFala ? { fonte: blobFala, cfg: fala } : null,
-        nomeBase: `${nomeSeguro(st().planilha?.obra.nome || st().nomeProjeto || "obra")}-${video.formato}-${carimboArquivo()}`,
-        sinal: ac.signal,
+        ...(renderBlender ? { desenho3D: desenhoDoBlender(renderBlender, segundos) } : {}),
         aoProgredir: setProgresso,
         aoCriarCanvas: (c) => {
           c.className = "previa-canvas";
@@ -351,6 +366,10 @@ export function PainelVideo() {
           <input type="checkbox" checked={video.vinheta !== false} onChange={(e) => st().definirVideo({ vinheta: e.target.checked })} data-testid="video-vinheta" />
           Vinheta de abertura e encerramento
         </label>
+
+        <h4>Render no Blender</h4>
+        <SecaoBlender origem="obra" gerarPacote={pacoteBlender} desabilitado={gerando || !realista} />
+        {!realista && <p className="tenue pequeno">O pacote do Blender usa a aparência Realista.</p>}
 
         <h4>Saída</h4>
         {semMp4 && (
