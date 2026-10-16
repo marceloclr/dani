@@ -1,0 +1,18 @@
+Render no Blender (Construction 4D Studio)
+==========================================
+
+Este pacote refaz no Blender a parte 3D do vídeo: a mesma câmera, a mesma obra e o mesmo sol do app,
+com luz e materiais de render. A apresentadora, a marca, as legendas e o áudio entram depois, no app.
+
+1. Extraia o ZIP numa pasta (por exemplo, na Área de Trabalho).
+2. Dê dois cliques em renderizar.bat e escolha:
+   R = Rascunho: metade da resolução, minutos (para conferir o enquadramento e a luz);
+   F = Final: resolução cheia, com reflexos; pode levar horas (deixe rodando à noite).
+   Os quadros prontos ficam em quadros-rascunho/ ou quadros-final/. Se a janela fechar, rode de novo:
+   o render continua de onde parou.
+3. No fim aparece o vídeo <nome>-<código>-<qualidade>.mp4 nesta pasta.
+4. No app, em "Usar o render do Blender", escolha esse MP4 e gere o vídeo como sempre.
+
+Precisa do Blender 4.2 ou mais novo (testado no 5.2 LTS). Não precisa de internet.
+Linha de comando (Windows, Linux ou macOS):
+  blender -b --factory-startup -P dani_blender.py -- <pasta> rascunho

@@ -80,3 +80,24 @@ describe("gravador do pacote (INC-23)", () => {
     expect(f.lampadas).toEqual([{ pos: [0, 0, 0], forca: 10, alcance: 8 }]);
   });
 });
+
+describe("volta do render do Blender (INC-23)", () => {
+  it("lê a assinatura e a qualidade do nome do MP4", async () => {
+    const { dadosDoNome, conferirRender } = await import("../src/app/pacoteBlender");
+    expect(dadosDoNome("sobrado-vertical-20261016-0927-987ef27a-final.mp4")).toEqual({ assinatura: "987ef27a", qualidade: "final" });
+    expect(dadosDoNome("sobrado-987EF27A-Rascunho.mp4")).toEqual({ assinatura: "987ef27a", qualidade: "rascunho" });
+    expect(dadosDoNome("meu-video.mp4")).toBeNull();
+    expect(conferirRender(15.0, 15)).toBeNull();
+    expect(conferirRender(14.2, 15)).toMatch(/14,2|14\.2/);
+  });
+
+  it("o pacote leva o script, o .bat e o LEIA-ME", async () => {
+    const script = (await import("../tools/blender/dani_blender.py?raw")).default;
+    const bat = (await import("../tools/blender/renderizar.bat?raw")).default;
+    // o script lê as colunas da luz na mesma ordem que o gravador escreve
+    const m = /COLUNAS_LUZ = \[([\s\S]*?)\]/.exec(script)!;
+    expect(m[1].match(/"(\w+)"/g)!.map((s) => s.slice(1, -1))).toEqual([...COLUNAS_LUZ]);
+    expect(script).toContain('faixas.get("versao") != 1');
+    expect(bat).toContain("dani_blender.py");
+  });
+});

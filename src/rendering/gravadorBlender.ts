@@ -25,6 +25,8 @@ export interface FaixasBlender {
   objetos: string[];
   /** Nome de cada material no GLB (o índice usado em `estados`). */
   materiais: string[];
+  /** O que o script do Blender ajusta em cada material: opacidade, vidro e o disco aceso das luminárias. */
+  tiposMaterial: Record<string, { opacidade: number; vidro?: boolean; emissivo?: boolean }>;
   /** Luminárias: posição na cena (Y para cima), força plena e alcance (m). */
   lampadas: { pos: number[]; forca: number; alcance: number }[];
   /** Por quadro: [fov vertical (graus), perto, longe, matriz do mundo 4×4 por colunas] ou null (sem 3D). */
@@ -73,6 +75,14 @@ export class FaixaDoObjeto {
     this.mat = material;
     if (mudouM) this.matriz = chave;
   }
+}
+
+/** Vidro: material físico translúcido e liso (`criarMaterialReal`); emissivo: o disco aceso das luminárias. */
+export function tipoDoMaterial(m: THREE.Material): FaixasBlender["tiposMaterial"][string] {
+  const t: FaixasBlender["tiposMaterial"][string] = { opacidade: r5(m.opacity) };
+  if (m instanceof THREE.MeshPhysicalMaterial && m.opacity < 0.99 && m.roughness < 0.1) t.vidro = true;
+  if (m instanceof THREE.MeshBasicMaterial) t.emissivo = true;
+  return t;
 }
 
 const visivelDeFato = (o: THREE.Object3D): boolean => {
@@ -162,6 +172,7 @@ export class GravadorBlender {
       quadros: this.total,
       objetos: this.objetos.map((_, k) => `o${k}`),
       materiais: this.lista.map((_, k) => `m${k}`),
+      tiposMaterial: Object.fromEntries(this.lista.map((m, k) => [`m${k}`, tipoDoMaterial(m)])),
       lampadas: luzes,
       camera: this.camera,
       luz: this.luz,
